@@ -33,7 +33,7 @@ export class SkyWindowView {
     if (outlook === 'none') return;
     const incident = this.incident?.event;
     const episode = incident && incident.roomId === this.roomId && now + this.offset < incident.endsAt ? episodeById(incident.episodeId) : undefined;
-    const outside = episode?.theme === 'kaiju' ? episode : undefined;
+    const outside = episode?.direction.beat === 'outside' ? episode : undefined;
     const elevated = outlook === 'open';
     const tick = Math.floor(now / 120);
     if (this.tick === tick && this.reduced === reducedMotion && !previewWeather) return;

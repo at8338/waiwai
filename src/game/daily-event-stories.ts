@@ -1,370 +1,370 @@
-// title | discovery | staging | named props. Each row is one different situation.
-// Old episode IDs remain in the catalogue so saved discoveries and the draw order
-// survive this rewrite. Category keys are historical, not repeating protagonists.
+// Room | real furniture anchor | visual beat | visitors | title | discovery | props.
+// These are individual scene scripts, not permutations of a theme template.
+// Historical IDs/order stay stable; each room is part of its incident's premise.
 export const EVENT_STORIES = {
-meteor: `隕石、着席しました|天井を抜けて部屋半分にクレーター。「配属先はこちら」と書いた付箋だけ無傷。|!meteor|planet
-土星の輪がハンガーになった|回る輪に上着がずらり。持ち主の惑星が取りに来るまで洗濯物は禁止。|ring|planet shirt ring
-天井にもう一つの月|室内だけ満月。望遠鏡の予約表は、お月見休憩で埋まっている。|night|moon telescope cup
-星座が出勤簿を描いている|星を結ぶと昨日の退勤時間。点が一つ足りず、誰かがまだ残業扱い。|constellation|star clock paper
-火星行きの社内便ロケット|発射台は給湯室前。宛名の番地より軌道計算が長い。|launch|rocket envelope cone
-太陽の充電ステーション|小さな太陽を延長コードにつないだ。電池残量だけはずっと昼。|pair|sun battery cable
-宇宙飛行士の洗濯干し|無重力の物干しに靴下が浮遊。左右をそろえる難易度が地上の百倍。|floating|helmet sock shirt
-床に天の川が流れる|光の粒だけの川。渡し賃は、まだ誰にも話していない願い事。|river|star boat bridge
-机の周囲だけ小惑星帯|消しゴムが衛星を従えている。持ち上げると軌道が乱れるので要注意。|orbit|eraser planet ruler
-宇宙望遠鏡がこちらを観測|レンズが社員を追っている。観測結果は「コーヒーで動く生命体」。|focus|telescope cup paper
-オーロラが蛍光灯に絡まった|緑と紫の光が天井をゆらゆら。消灯当番がスイッチの前で悩んでいる。|aurora|bulb rainbow ladder
-宇宙の郵便切手展|地球サイズの消印が壁に並ぶ。返信用封筒だけ光年単位。|museum|planet stamp envelope
-流星のボウリング場|星がレーンを転がっていく。ストライクを取ると願いが一つ減る仕様。|track|comet bowling star
-銀河鉄道の切符売り場|改札だけが先に到着。終電の時刻は「宇宙が寝る少し前」。|queue|ticket train clock`,
-thief: `泥棒が入ったらしい|開いた金庫と足跡。でも盗まれたのは月曜のカレンダーだけ。|!thief|safe
-コピー機から紙の大行進|印刷された紙が列を作って散歩中。最後尾に「続きは裏面」とある。|conveyor|paper printer footprint
-付箋が渡り鳥になった|黄色いメモが編隊飛行。大事な締切ほど遠くへ渡っていく。|flock|paper clock flag
-椅子がストライキ中|椅子だけが円陣を組んだ。要求は「一日一回のねぎらい」。|ring|chair sign cup
-デスクが整列して朝礼|机が前を向いて並んでいる。挨拶係の引き出しが開け閉め中。|assembly|desk mic bell
-マグカップの家系図|壁いっぱいにカップの系譜。どの枝をたどっても最後は販促品。|tree|cup paper pin
-ケーブルが編み物を始めた|床に立派なセーター。ほどこうとすると差込口が一つ増える。|weave|cable shirt scissors
-ホチキスの結婚式|クリップたちが参列。誓いの言葉は「離れるときはリムーバーで」。|aisle|stapler heart clip
-消しゴムが文字を養殖|削りかすの畑から小さな文字が発芽。誤字だけよく育つ。|garden|seedling eraser pencil
-壁時計が全員別の時差|時計が壁を埋め尽くす。どこを見ても昼休みだけは同じ。|wall|clock cup sun
-引き出しの中に商店街|小さな店がずらり。店長は使い切れなかった輪ゴム。|market|desk sign basket
-観葉植物の人事面談|鉢が椅子に座り、葉を広げて自己評価。成長率は申し分ない。|interview|tree chair paper
-名刺がトランプになった|部長二枚と新人三枚でフルハウス。肩書きが強さとは限らない。|board|card paper crown
-退勤チャイムの巣|ベルのまわりに小さな音符の卵。鳴らすと雛が定時に飛び立つ。|nest|bell egg note`,
-flood: `配管破裂で室内が海|部屋いっぱいの水に机の天板が浮く。給湯室の蛇口は「弱」のまま。|!flood|boat
-水族館の水が出張中|魚たちが机の間を泳ぎ、水槽の外を見学している。戻る時間はまだ決めていない。|!aquarium|fish
-室内で雪合戦が始まった|椅子の陰に雪玉の備蓄。雪だるま審判だけは絶対に逃げない。|snowfield|snowman snow flag
-一角だけ砂漠化|床を砂丘が覆い、給水所にサボテンが並ぶ。自販機の氷が人気商品。|desert|cactus bottle sun
-雨雲が自分の傘を探す|小さな雲が傘立てで困っている。濡れているのは雲本人だけ。|pair|cloud umbrella sign
-虹の端に忘れ物窓口|七色の橋の先に受付。預かり品は片方だけの長靴。|rainbow|rainbow shoe suitcase
-雷が瓶詰めで届いた|光る瓶が棚にずらり。「よく振らずにお使いください」。|shelf|bottle lightning paper
-巨大な風見鶏の転職|室内風向き案内係に就任。エアコンの設定にだけ詳しい。|compass|windmill fan sign
-つららのシャンデリア|天井に氷の結晶が連なった。照明係のペンギンが磨き上げている。|ice|crystal penguin bulb
-春一番が落とした帽子展|風が運んだ帽子を壁に展示。キャプションはすべて「持ち主不明」。|wall|hat leaf fan
-机の下に小さな台風|机の脚を中心に風が回る。目の中に入るとコーヒーが冷めない。|spiral|desk cloud cup
-雲の上の足湯ならぬ足雲|白い雲に足だけ埋まる休憩所。ふわふわだが靴下は減る。|clouds|cloud chair sock
-気象衛星の室内実況|予報は「午後から付箋、ときどき上司」。画面には確かに黄色い集団。|studio|satellite tv paper
-太陽と月のシフト交代|入口で引き継ぎ中。朝焼けの鍵をどちらが持つかで止まっている。|handover|sun moon key`,
-santa: `季節外れのサンタ出勤|ソリとプレゼントが到着。袋の中に全員分の贈り物はあるが、自分の入館証だけ見つからない。|!santa|gift
-こいのぼりが会議室を泳ぐ|空気の中を鯉が一列。長男だけ空調の向きに逆らっている。|hanging|fish flag fan
-巨大な恵方巻コンパス|巻きずしが方角を指す。方位磁針より、お腹の音が正確。|compass|sushi magnet fork
-ひな人形の席替え|段飾りが机を占領。五人囃子が音声ミュートを解除できない。|steps|crown drum fan
-お月見団子のピラミッド|うさぎたちが積んだ団子。最上段は月に返却する予定。|tower|dumpling rabbit moon
-節分の豆が発芽した|鬼を追うはずの豆から小さな森。鬼がじょうろ係に採用された。|garden|seed tree mask
-七夕の短冊が自動承認|笹の前に判子の行列。願いは叶うが、経費申請は差し戻される。|queue|bamboo paper stamp
-ハロウィンのかぼちゃ裁判|怖がらせ方をめぐって審議中。判決は全員お菓子一個。|court|pumpkin cake gavel
-鏡餅が二段ベッドを注文|上下関係を解消したいそうだ。みかんは独立して個室を希望。|pair|pudding ladder apple
-年越しそばの長すぎる一口|一本の麺が部屋を横断。すすり終える頃には来年になりそう。|trail|noodle fork clock
-花見の場所取りは根っこから|桜の木が敷物を持参。自分の花を見るために鏡も用意した。|picnic|tree carpet mirror
-バレンタイン工場の検品日|ハートのチョコがベルトを流れる。不良品も丁寧に食べている。|conveyor|heart fork sign
-七五三の千歳飴測量|巻尺を持つ測量隊。名前どおりの長さにはまだ九百年分足りない。|diagonal|ruler candy flag
-福袋から福袋が出た|開けるたびに新しい袋。最後の一枚に「また来年」とある。|nested|gift suitcase ticket`,
-ghost: `ゴーストバスターズ到着|部屋のあちこちにお化け。隊員が捕獲に走り回る横で、一体だけ受付の順番を守っている。|!ghost|ghost
-影だけ先に帰宅した|机の下から黒い影が行列。本人たちはまだ会議中。|shadow|chair footprint clock
-鏡の向こうが別会社|鏡に受付と別の社名。こちらを見た社員も同じ顔で驚いている。|mirrorwall|mirror sign desk
-透明人間の健康診断|空っぽの椅子に聴診器。レントゲン写真は最初から真っ白。|interview|chair skull paper
-吸血鬼の遮光カーテン相談|朝日で出社できない。見積もり用の布見本は全部黒。|curtain|theatre umbrella sun
-人魂の消防訓練|青い火が整列して消火器の説明を聞く。消えないことが合格条件。|assembly|fire bottle bell
-壁の肖像画が休憩中|額だけ残して、肖像がカフェの列へ。戻る時間は絵の具が乾くまで。|queue|painting cup clock
-使っていない電話の同窓会|古い電話機が円卓に集合。着信音だけで近況報告している。|ring|phone radio cable
-深夜だけ開く小さな劇場|カーテンの奥で影絵。主演は昼間なくしたボールペン。|stage|theatre pencil hand
-ドアノブが増殖した|壁いっぱいの取っ手。開くのは真ん中の心の扉だけらしい。|wall|door key heart
-足音だけのタップダンス|誰もいない床に靴跡が踊る。拍手すると一回だけお辞儀の跡。|track|shoe footprint note
-本の登場人物が休暇届|ページから小さなスーツケース。続きは作者に任せたそうだ。|pair|book suitcase paper
-幽霊列車の終点案内|線路のない案内板。行き先が毎回、自分の忘れた駅になる。|platform|train sign clock
-ぬいぐるみの秘密会議|空席に小さなぬいぐるみ。議題は洗濯機に入る勇気。|ring|rabbit panda cup`,
-waldo: `ウォーリーが紛れ込んだ|人混みに紛れた赤白の姿。本人も空いている席を探しているので、お互いに見つけたい。|!waldo|glasses
-床が将棋盤になった|駒が会議中。歩が昇進の相談をして、王は面談待ち。|shogiboard|shogi crown chair
-等身大チェスの休憩時間|白黒の駒がそれぞれお茶。ナイトだけ斜めに座れず困っている。|chessboard|chess cup horse
-サイコロが採用面接|六面すべて自己PR。どの面を上にしても「明るい性格」。|interview|dice chair paper
-オセロが白黒を決めない|盤面の真ん中でコインが直立。議事録には「持ち帰って検討」。|board|ring coin paper
-ピンポン球の脱走経路|卓球台から小さな足跡。ラケットが捜索願を出した。|trail|ball footprint magnifier
-床一面のドミノ出勤簿|倒すと全員が出勤扱い。最後の一枚だけ有休なので止まっている。|domino|domino flag clock
-ジグソーの最後の一片|部屋サイズのパズルに一か所の空白。ピースは「休憩」の字の形。|patchwork|puzzle cup sign
-けん玉の剣先に月|玉の代わりに小さな月。成功すると潮の満ち引きが気まずくなる。|focus|moon ball ring
-巨大すごろくのふりだし出社|マス目に「会議で一回休み」。ゴールに退勤カードが待っている。|sugoroku|dice flag clock
-トランプの王様が席を譲る|キングが新人に椅子を渡した。ハートの強さは数字で測れない。|pair|card crown chair
-輪投げの輪が惑星軌道に|狙った棒の周りを永遠に公転。入った判定が誰にもできない。|orbit|ring ruler star
-ビリヤードの九番球休職|黄色い球だけ休憩札。ほかの球が丸くなって相談している。|board|ball sign cup
-クレーンゲームに社長の判子|景品の横に稟議書。つかめても承認が下りるとは限らない。|claw|stamp paper trophy`,
-delorean: `デロリアンが横壁に刺さった|壁から銀の車体が半分。炎のタイヤ跡の先に「駐車はご遠慮ください」。|!delorean|car
-路線バスが室内で停車|不思議な停留所にバスが到着。次は「二つ先の締切前」、終点は「無事に退勤」。|platform|bus sign ticket
-飛行機の機内食だけ着陸|配膳カートと座席が出現。客席の窓に流れるのはコピー用紙。|aisle|plane fork cup
-ミニ電車がデスクを周回|コーヒーを積んだ列車。駅長は角砂糖の補充で忙しい。|track|train cup sign
-熱気球の係留ロープ|カラフルな気球が天井すれすれ。おもりは未読の社内報。|floating|balloon rope book
-室内ヨットの無風レース|帆は立派だが全員スタート地点。うちわ係を急募している。|race|boat fan flag
-ロケット椅子の試乗会|椅子の背に噴射口。安全ベルトより先に有休届を渡される。|launch|chair rocket helmet
-宅配ドローンの置き配審査|箱が空中で待っている。置き場所指定が「いい感じのところ」だった。|floating|helicopter gift phone
-人力車の社内ツアー|名所は給湯室と非常口。ガイドはどちらも初めて見る顔。|trail|wheel chair sign
-ベルトコンベヤーの徒歩通勤|進んでいるのは床のほう。歩数計だけが完全に納得していない。|conveyor|shoe clock ticket
-自転車の輪だけ旅に出た|フレームを残して車輪が整列。パンクしない場所を探す旅らしい。|parade|wheel bike suitcase
-一輪車のサーカス面接|一本のタイヤで入室。安定性について聞かれると小さく揺れた。|stage|wheel ball mic
-ヘリポートになった会議机|卓上に着陸マーク。乗客は消しゴム三名、全員窓側希望。|helipad|helicopter desk eraser
-エスカレーターが平行移動|階がないので横に進む階段。乗り場と降り場が同じ机の前。|steps|ladder footprint sign`,
-terminator: `ターミネーターが掃射した|壁と机は弾痕だらけ、床には薬きょうの山。本人は「プリンター保守の訪問先を間違えた」と言っている。|!terminator|robot
-掃除ロボットの王国独立|掃除機が玉座を囲んだ。国境は充電ケーブルまで。|court|robot crown battery
-自販機が商品を面接中|缶が一列に並ぶ。自己PRは全員「のどごしが良いです」。|queue|bottle mic sign
-プリンターが版画家に転身|墨一色の作品が壁いっぱい。紙詰まりまで題名になっている。|monochrome|printer painting paper
-歯車だけで社交ダンス|歯車がペアになって回転。一組だけ歯が合わず見学中。|ballroom|gear note heart
-磁石の王様と鉄くずの臣下|金属小物が一斉にお辞儀。クリップは帰りたくても離れられない。|magnetic|magnet clip crown
-電池のマラソン大会|電池たちがコースに整列。ゴールは充電器なので全員本気。|track|battery flag cable
-巨大マウスポインター迷子|床を矢印がうろうろ。ダブルクリックで家に帰れると信じている。|trail|cursor phone door
-フロッピーディスク発掘展|土の代わりに書類の山から出土。読める機械が展示物より貴重。|museum|floppy fossil paper
-サーバーラックの温泉休暇|冷却ファンに浴衣代わりの布。湯ではなく涼しい風に浸かっている。|curtain|tv fan shirt
-ロボットの絵画コンクール|どの作品もコンセントの肖像。審査員は延長コード。|gallery|robot painting cable
-電球たちの点灯式|一つずつ順にお辞儀して光る。最後の電球だけリモコンを探している。|lights|bulb mic bell
-電話交換手のタコ|八本足で配線を整理。保留音は本人の鼻歌。|weave|octopus phone cable
-計算機が九九を卒業|卒業証書を前に整列。最後の答辞も合計金額だった。|assembly|calculator paper flower`,
-momotaro: `桃太郎の出張説明会|大きな桃と犬猿キジ。きびだんごは福利厚生の欄に書いてある。|!momotaro|peach
-金太郎の相撲研修|熊役のぬいぐるみと土俵。足柄山支店から交通費はどんぐり払い。|sumo|medal panda flag
-一寸法師のデスク航海|お椀の船が紙の川を進む。針の剣より長いボールペンに遭遇。|river|cup sword pencil
-鶴の機織りが繁忙期|ついたての向こうに布の山。見ないでくださいの札だけ量産される。|weave|theatre shirt feather
-花咲かじいさんの紙吹雪|灰の代わりに花びら。シュレッダーの横で大満開。|blossom|tree flower paper
-かさ地蔵の傘立て当番|小さな石像が入口に六体。借りた傘より立派なお礼が返ってくる。|queue|statue umbrella basket
-ぶんぶく茶釜の給湯営業|茶釜にしっぽが生えた。沸騰すると綱渡りを披露する。|tightrope|cup fox rope
-おむすびころりんの地下食堂|床は無傷で、箱の中にねずみ食堂。お会計は握り飯一個。|market|sushi basket coin
-ジャックの豆が階を間違えた|豆のつるが天井に沿って曲がる。雲の城までは右折二回。|vine|seed ladder castle
-赤ずきんの配達検品|かごの中はパンと体温計。おばあさん本人がチェック係。|interview|basket bread thermometer
-三匹の子豚の耐震比較|わら、木、レンガの模型が並ぶ。風を起こす扇風機は貸出中。|museum|tent tree castle
-ヘンゼルとグレーテルの社内地図|パンくずの道を清掃ロボが追う。帰り道だけ最新テクノロジーに弱い。|trail|bread robot sign
-シンデレラの靴サイズ相談|片方の靴を前に足形の列。合うのはまだ帰っていない本人だけ。|queue|shoe footprint clock
-裸の王様の衣装展示|空っぽのハンガーと立派な説明板。学芸員だけ厚着。|museum|crown shirt sign`,
-urashima: `玉手箱の開封禁止研修|浦島太郎と亀が箱を挟んで待機。開けない手順を説明するための説明書が、箱より分厚い。|pair|turtle chest scroll
-宝地図の道が立体になった|紙の線が床にせり上がる。宝の場所より帰り道が立派。|trail|scroll chest flag
-古代エジプトの勤怠ピラミッド|積み上げた石一つが一日分。休暇を取ると最上段が低くなる。|tower|pyramid clock paper
-モアイたちの無言面接|長い顔の石像が横一列。圧はあるが質問は一つもない。|interview|statue chair mic
-恐竜博物館の夜間引っ越し|骨格がスーツケースを引いている。行き先は日当たりのよい展示室。|parade|fossil suitcase sign
-海賊の宝箱がフリーマーケット|船も浸水もなく、金貨は一枚十円。値札のほうが新しい。|market|chest coin anchor
-忍者の分身が勤怠確認|影武者が互いの名札を見せ合う。本人は有休を取っているらしい。|assembly|mask paper scroll
-侍の刀が傘立てに|抜かずに帰るため、傘が鍔の相談に乗っている。天気は快晴。|queue|sword umbrella sun
-西部劇の回転草が入社|床をころころ進む新人。所属欄は「風の向くまま」。|desert|rope cactus star
-騎士の鎧の健康診断|中の人はいないのに肩こり判定。関節油の処方箋を持って帰った。|interview|helmet shield paper
-錬金術師の一円玉実験|銅貨を金色にする研究。実験費のほうがずっと高い。|laboratory|coin potion calculator
-古代図書館の貸出列|巻物がカウンターを占領。返却期限は王朝が変わるまで。|queue|scroll book column
-文明の利器を見学する原始人|石の工具とマウスを比較。「軽い石だな」と感心している。|museum|bone cursor fire
-タイムカプセルが今日を保管|古い箱に今朝のメモ。未来へ残すものが昼食の注文しかなかった。|focus|chest envelope sandwich`,
-kaguya: `かぐや姫の光る竹林|普通サイズの姫と光る竹。月への帰省申請が机に一枚。|!kaguya|bamboo
-盆栽が密林になった|鉢の中だけ大探検。定規を持った調査隊が葉の陰へ消えていく。|garden|tree ruler tent
-花壇の花が合唱団|一輪ずつ口を開けて発声。水やり係だけずっと伴奏。|choir|flower note bottle
-サボテンの握手会|厚手の手袋を配布中。列は短いが参加者の勇気は大きい。|queue|cactus hand heart
-きのこのWi-Fi基地局|傘の模様が電波マーク。近くでは資料より胞子が先に届く。|network|mushroom phone satellite
-落ち葉がモザイク画を描く|床に秋色の肖像画。踏むと画家の風がやり直しを始める。|mosaic|leaf painting fan
-ひまわりがモニターを追う|窓ではなく画面に向く花。明るさ設定を下げると一斉に寝る。|arc|flower tv sun
-種の発芽オーディション|小さな苗に番号札。土に埋まる自己紹介が得意種目。|stage|seed mic sign
-蔦が社内LANを引き継いだ|壁いっぱいに緑の配線。パケットの代わりに栄養を運ぶ。|network|leaf cable bulb
-桜の花びらでできた受付|花びらが机の形に集合。来客が通るたび桜吹雪でお辞儀する。|blossom|flower desk bell
-逆さまに育つひまわり畑|天井から花が下を向く。根っこが日当たりのよい席を確保した。|hanging|flower seed sun
-蔵書が紙の木に戻った|本棚から白い枝。実るのは、まだ誰も書いていない本。|tree|book paper pencil
-つくしの身長測定大会|背の順に並ぶつくし。いちばん小さい子が定規を担当している。|steps|seed ruler medal
-食虫植物のベジタリアン宣言|口の前に野菜がずらり。虫たちが祝福の花輪を持ってきた。|banquet|flower carrot bee`,
-alice: `アリスと巨大ティーカップ|大きくなるのはカップだけ。本人は普通の背丈で飲み方を考えている。|!alice|cup
-部屋の家具が逆さまに見える|天井に机、床に照明。落ちないコーヒーがいちばん不思議。|inverted|desk chair bulb
-遠近法が休みの日|奥の消しゴムが手前の机より大きい。定規が責任を取りたくなさそう。|perspective|eraser desk ruler
-巨大な鉛筆で小さな署名|床いっぱいの鉛筆に紙切れ一枚。書類の余白だけ先に足りなくなった。|diagonal|pencil paper stamp
-手のひらサイズの映画館|箱の中に赤い客席。ポップコーンは一粒で全席分。|nested|theatre chair corn
-机が一枚の折り紙になった|折り目だけのオフィス。会議室を開くと給湯室が閉じる。|origami|paper desk cup
-大きすぎる消しゴムの休憩|床を占める白い直方体。消したい過去は本人も分からない。|focus|eraser clock chair
-靴下の中に別のオフィス|入口に小さな受付。ドレスコードは「左右おそろい」。|nested|sock desk sign
-積み木にされた会議室|机と椅子がブロックの塔。議事録は「崩さないよう発言」。|tower|desk chair book
-壁がめくれる絵本の一頁|ページの端がくるり。次の部屋は次のページだがネタバレ禁止。|page|book paper door
-細長く伸びたマグカップ|天井まで届く取っ手。ストローの見積もりが一番高い。|stretch|cup ruler ladder
-小人の洗濯物干し場|ペンの間に小さな服。洗濯ばさみは本物のクリップを使っている。|hanging|shirt sock clip
-無限に続く合わせ鏡|小さな部屋が奥へ連なる。奥の自分ほど早く休憩を取っている。|nested|mirror chair cup
-折りたたまれた昼休み|弁当箱が蛇腹に増える。開いた分だけ休憩時間が延びるそうだ。|accordion|basket fork clock`,
-oz: `室内竜巻の忘れ物回収|風が紙と傘を巻き上げる。中心の箱には「落とし物」とだけ書いてある。|!oz|umbrella
-重力が横向きになった区画|机の上の小物が壁に整列。壁時計だけは元から壁なので平静。|sideways|cup book pencil
-風船が天井を持ち上げる|細いひもが照明につながった。風船係は体重計を隠している。|floating|balloon bulb rope
-小さな蜃気楼の売店|近づくと遠ざかるアイス。値段だけは最後までくっきり見える。|mirage|icecream sign sun
-音符が空中で信号待ち|赤い音符が止まり、青い音符が進む。交通整理はメトロノーム。|parade|note sign clock
-扇風機が雲を彫刻|白い雲が動物の形に。次の注文は「締切に追われない人」。|clouds|fan cloud rabbit
-凧が天井で会議する|ひも付きの議長が上座。発言すると微妙に揺れるので議事録が難しい。|hanging|kite mic paper
-羽毛だけのエレベーター|羽がゆっくり上がっていく。ボタンは「ふわり」と「すとん」。|steps|feather sign bell
-空飛ぶじゅうたんの車検|敷物が整備台に集合。ほつれ具合と旋回半径を検査している。|museum|carpet ruler gear
-見えない壁にペンキの跡|触れないはずの壁に手形。塗装屋は透明なはしごを探している。|wall|hand painting ladder
-紙飛行機の国際空港|机の間に滑走路。管制塔は積み上げた未処理書類。|runway|plane paper tv
-シャボン玉の中の図書館|透明な球に本棚。声を潜めるより、くしゃみを我慢するのが大切。|bubbles|book glasses cloud
-時計の針が風見鶏になった|風向きで時刻が変わる。定時になってほしくて皆がうちわを振る。|compass|clock fan leaf
-空気椅子が本当に見えない|座る人の靴だけ並んでいる。予約表にはちゃんと満席とある。|shadow|shoe cup paper`,
-pirate: `海賊船の陸上ピクニック|船は壁を壊さず床に停泊。船長は水よりお弁当を欲しがっている。|picnic|boat basket anchor
-灯台が机の海を案内|書類の山を照らす光。遭難したのは先月の領収書。|lighthouse|bulb paper envelope
-船員のロープ結び選手権|床いっぱいに結び目見本。優勝者も帰りの荷物をほどけない。|weave|rope medal suitcase
-貝殻のラジオ局|耳を近づけると社内放送。潮騒の間にランチメニューが混ざる。|studio|radio shell mic
-ボトルメールの仕分け所|水のない床に瓶が整列。差出人は全員、昨日の自分。|shelf|bottle envelope clock
-錨が文鎮に再就職|書類は飛ばないが机も動かない。持ち上げる稟議が先に必要。|focus|anchor paper stamp
-帆がプロジェクターになった|大きな白い帆にグラフ。追い風の日だけ売上が上向く。|presentation|boat tv paper
-浮き輪のドーナツ裁判|見た目が似ているだけで呼ばれたドーナツ。証拠品は全ておやつ。|court|ring donut magnifier
-救命ボートの非常食試食会|避難訓練がいつのまにか品評会。星の数より賞味期限を確認中。|banquet|boat bread star
-潜水ヘルメットの観葉植物|水のないヘルメットに小さな森。探検家が外側の空気を測っている。|nested|helmet tree thermometer
-舵輪がルーレットになった|回すと本日の当番が決まる。船長は毎回、給湯室係。|compass|wheel sign cup
-帆船模型がボトルを逆輸入|船の中に瓶がぎっしり。入り方より売り方を考えている。|nested|boat bottle coin
-海図がランチマップに|宝の印が全部飲食店。コンパスは空腹の方向を指している。|board|scroll fork compass
-漂着木の家具オークション|流木の椅子に値札。海の経験年数が品質保証らしい。|auction|chair leaf ticket`,
-ninja: `忍者の手裏剣修行|壁の的に小さな手裏剣。的の真ん中に刺さっているのは、なぜか先月の領収書。|targets|star mask scroll
-巻物の自動スクロール暴走|一巻のはずが床を何周も。末尾に「以上」と書く係を募集している。|spiral|scroll pencil flag
-からくり屋敷の回転本棚|本棚の裏も本棚だった。忍者が図書分類を真剣に相談中。|shelf|book door gear
-茶室の入口が入館ゲート|にじり口にカード読取機。お辞儀だけでは認証されない。|gate|door cup paper
-招き猫の腕だけ筋トレ|左右の腕に小さな重り。商売繁盛にも準備運動が必要らしい。|gym|cat hand medal
-だるまが両目の眼鏡を注文|願いはまだだが視力は大切。店員もどちらにレンズを入れるか迷う。|pair|mask glasses paper
-将軍のオンライン参勤交代|大名の行列は画面の中。実際に歩くのはWi-Fi係だけ。|presentation|tv flag footprint
-忍び足の靴の試験場|床に音量計と足跡。いちばん静かな靴は、まだ箱から出ていない。|track|shoe footprint radio
-おみくじが社内評価を書いた|大吉の下に「会議を一つ減らすべし」。凶にも同じ助言がある。|wall|paper sign stamp
-風鈴たちの音合わせ|壁いっぱいの鈴。全員が少しずつ違う涼しさを主張している。|hanging|bell fan note
-獅子舞の歯科検診|大きな口を開けて待機。噛まれると縁起がいいので受付が混雑。|interview|mask bone chair
-畳が巨大な織物に戻る|床の一角でござの織機。昼寝スペースの量産が始まっている。|weave|carpet rope chair
-盆踊りの輪が会議を囲む|櫓の周りを静かに一周。議題も踊りも次の人へ回っていく。|ring|lantern drum paper
-手ぬぐいの旗信号教室|柄ごとに意味が違う。豆絞りだけは「おやつあります」。|parade|flag shirt sign`,
-dragon: `ドラゴンのくしゃみ対策|火ではなく紙吹雪が出る体質。鼻の前のティッシュが山になった。|sneeze|dragon paper flower
-ユニコーンの角磨き|角の先で虹が反射。磨き終わると鉛筆削りの列ができた。|interview|unicorn rainbow pencil
-フェニックスの灰皿掃除|復活するたび灰が増える。本人が掃除当番なので何度でもやり直す。|spiral|fire broom feather
-グリフォンの宅配センター|翼と足の役割で配送相談。速達便は風向き次第。|platform|horse feather gift
-ケルベロスの三者面談|三つの顔が別々の志望動機。おやつだけは全員一致。|interview|dog dog dog bread
-ペガサスの上空駐輪相談|翼付きの馬が駐輪票をくわえる。ひづめの数は記入欄にない。|gate|horse feather bike
-スフィンクスのFAQ窓口|なぞなぞよりよくある質問が人気。「パスワード忘れました」が一位。|queue|cat pyramid paper
-人魚の乾いた出張席|水ではなく青いクッション。尾びれの置き場所だけ専用設計。|pair|fish chair umbrella
-ゴーレムの陶芸教室|自分と同じ土で湯のみを作る。完成品に親近感を隠せない。|workshop|statue vase cup
-雪女の冷蔵庫相談|ドアを開けると外より暖かい。省エネ担当と話がかみ合わない。|ice|snowman door thermometer
-トロールの橋下オフィス|小さな橋の下に机。通行料は挨拶一回に値下げされた。|bridge|bridge desk coin
-妖精のペン先管制塔|小さな羽が文具を誘導。インク漏れ注意の旗だけは大きい。|runway|feather pencil flag
-ミノタウロスの迷路監修|廊下の設計図を前に腕組み。非常口だけはまっすぐに直された。|maze|cow scroll door
-伝説の剣が抜けないコピー台|剣より先に紙が詰まる。勇者の条件は保守手順を読めること。|focus|sword printer book`,
-slime: `スライムの組体操|ぷるぷるした生き物がピラミッド。床は乾いたまま、最下段が少し不満。|tower|slime crown flag
-ゼリーが透明会議|色つきの四角が円卓を囲む。議論は透けて見えても結論は見えない。|ring|jelly chair paper
-石鹸の泡の建築現場|ふわふわの壁を積み上げ中。検査員のくしゃみだけは出入り禁止。|bubbles|cloud ladder helmet
-グミの救急隊|伸びた仲間を担架で運ぶ。急がなくても元に戻るまで待つらしい。|parade|heart rope flag
-粘土の社員証撮影会|顔を作り直してばかりで列が進まない。撮影係も粘土だった。|queue|statue camera paper
-プリンの地震訓練|揺れるお皿を前に真剣。避難経路よりカラメルの行方が心配。|race|pudding flag bell
-ふわふわクッションの相撲|当たっても跳ね返るだけ。勝敗は昼寝したほうの負け。|sumo|cloud chair moon
-透明な階段の点検|足跡だけが上へ続く。見えない段差には派手なテープを貼った。|steps|footprint ruler sign
-風船ガムの風力発電|ピンクの球がファンを回す。発電量はガムの味が残るまで。|power|balloon fan battery
-ゴムボールの円卓会議|全員が落ち着かず跳ねる。議長の発言は着地のたびに途切れる。|ring|ball mic chair
-マシュマロの雲づくり教室|白いお菓子を積んで空を作る。講師は食べないことだけ強調する。|clouds|cloud fork star
-スポンジが砂漠を清掃|水を出さない乾いた掃除。吸い込んだのは昨日の疲れらしい。|desert|eraser broom cactus
-バネのエレベーター試験|上がる勢いだけは立派。止まる階は乗ってみないと分からない。|accordion|gear chair sign
-こんにゃくの耐震展示|振動台の上でゆらゆら。設計図には「気合いで耐える」とある。|museum|pudding ruler paper`,
-robot: `ロボットの修理ピット|小さな作業機が部品を交換。余ったネジは全員が見ないふり。|workshop|robot gear cable
-卓上扇風機の競泳|泳ぐ代わりに風の距離を競う。ゴールテープだけ全員分揺れた。|race|fan flag ruler
-シュレッダーの製麺所|紙の細麺がずらり。注文票に「重要書類少なめ」とある。|conveyor|printer noodle paper
-トースターの焼き印個展|パンに精密な風景画。美術館より先にバターが到着した。|gallery|bread painting fork
-ルーターが灯台に転職|点滅で社内ネットを案内。遭難中のプリンタが応答を待っている。|lighthouse|radio printer satellite
-エレベーターボタンの人気投票|各階のボタンに花束。押された数では一階が圧倒的。|wall|bell flower medal
-ケトルの湯気占い|カップは乾いたまま、白い湯気が運勢を描く。今日は「だいたい吉」。|clouds|cup cloud scroll
-乾電池の卒業アルバム|残量の違う電池が写真に並ぶ。みんな最初は同じ明るさだった。|gallery|battery camera book
-掃除機が落ち葉をコレクション|ごみ箱でなく額に保存。タイトルは「吸いきれなかった秋」。|museum|robot leaf painting
-冷蔵庫のマグネット美術館|壁いっぱいの磁石絵。ドアを閉めるたび企画展が入れ替わる。|mosaic|magnet painting door
-コインランドリーの靴下捜査|片方だけの靴下が証言席。洗濯ネットが容疑を否定している。|court|sock magnifier basket
-電卓の数字が避難訓練|キーの上から小さな数字札。ゼロだけ輪になって待っている。|parade|calculator ring flag
-電子レンジのプラネタリウム|回転皿の上に星空。温めるのはロマンだけで食品は入っていない。|orbit|star plate moon
-自動ドアが拍手を練習|開閉のたびに小さな音符。通る人より演奏のタイミングを優先。|stage|door note mic`,
-space: `宇宙人のオフィス見学|円盤から来た見学客。ホチキスを未知の生命体として記録し、紙を餌だと思っている。|focus|ufo magnifier paper
-重力実験のりんご待ち|りんごが途中で止まった。研究者はニュートンの返事を待っている。|floating|apple book hourglass
-空間転送装置の忘れ物|入口の輪から出口の輪へ靴だけ。本人は靴ひもを結んでいるらしい。|portals|ring shoe lightning
-透明なロケット燃料展示|見えない瓶が並ぶ。空き瓶との違いを説明する冊子だけ分厚い。|shelf|bottle rocket book
-宇宙食の試食アンケート|チューブ料理を前に行列。味より「こぼれない」が最高評価。|banquet|helmet bread paper
-火星探査車が文具を採取|クリップを標本ケースへ。地球生命の代表として扱われている。|trail|robot clip chest
-アンテナの鳥の巣|宇宙電波を受けるつもりが卵を受信。返信はぴよぴよだった。|nest|satellite egg feather
-人工衛星の社員旅行|模型が地球儀を囲む。集合写真は全員後ろ姿。|orbit|satellite planet camera
-ワームホールの返品窓口|輪の向こうに昨日の店員。レシートだけ明日の日付になっている。|gate|ring paper gift
-宇宙語の翻訳黒板|文字の代わりに図形が並ぶ。最初に読めた単語は「おかわり」。|wall|sign fork star
-月面基地の盆栽部|ヘルメットの中に小さな松。低重力でも水やり当番は回ってくる。|garden|helmet tree moon
-光速の配達員の休憩|到着通知だけが先着。本人とコーヒーはまだ一秒後にいる。|diagonal|lightning envelope cup
-宇宙の信号機の点検|赤青黄の星が並ぶ。青でも進めないのは道がまだないから。|lights|star sign gear
-異星生物の名刺交換|互いに手の数が違う。名刺を渡すだけで、ちょっとした組体操。|interview|octopus paper hand`,
-dinosaur: `恐竜の散歩許可申請|小さな恐竜が足跡を残す。大型犬の欄には収まらなかった。|trail|dinosaur footprint paper
-始祖鳥の離陸研修|羽ばたきの見本を扇風機が担当。飛ぶ前に安全帯を確認中。|runway|feather fan helmet
-トリケラトプスの帽子選び|角を通す穴が三つ必要。店員の定規が忙しく動く。|market|dinosaur hat ruler
-マンモスの毛糸屋|ふわふわの糸が山積み。暑くなると全品セールを始める。|weave|elephant rope shirt
-アンモナイトの巻尺店|ぐるぐるの長さに自信あり。伸ばしきれないので実演は控えめ。|spiral|shell ruler sign
-三葉虫の点字図書館|背中の凹凸で本を読む。静かに歩くだけで物語が進む。|shelf|fossil book glasses
-恐竜の卵の保育園|番号札付きの卵が整列。保育士のヘルメットが先に届いた。|nest|dinosaurEgg helmet bottle
-首長竜のネクタイ売り場|見本の布が部屋を横断。結び目の位置はまだ検討中。|trail|dinosaur shirt ruler
-ステゴサウルスの太陽光点検|背板に小さな発電計。晴れていると少し誇らしげ。|power|dinosaur sun battery
-翼竜の航空郵便受付|軽い封筒だけが対象。速達の条件は向かい風でないこと。|platform|plane egg envelope
-化石が履歴書を書いた|職歴の単位が百万年。面接官はどこから聞くべきか考えている。|interview|fossil pencil paper
-氷河期の弁当保冷所|氷の棚にお弁当。預かり票の期限も氷河期単位だった。|ice|snow basket ticket
-石器時代のプレゼン大会|石板のスライドが重い。次のページを運ぶ係だけ筋肉痛。|presentation|statue paper mic
-地層がケーキの説明書|色の違う層を切り分ける。いちばん古い層ほど甘いらしい。|steps|cake fossil fork`,
-magic: `床いっぱいの魔法陣|光る線の上を本が浮く。術者は片付けの呪文を忘れ、検索結果の本まで浮かせてしまった。|!magic|book
-ほうきの自動運転教習|コーンの間をほうきが進む。免許の写真は毛先まで写す。|track|broom cone ticket
-呪文が吹き出しで残った|空中に色つきのふきだし。消し方の呪文だけ覚えていない。|bubbles|scroll wand paper
-ポーションのドリンクバー|瓶の列に効能表示。「少しだけやる気」は本日品切れ。|market|potion cup sign
-変身魔法の忘れ物|椅子に耳、マグにしっぽ。本人たちは困るほど気に入っている。|pair|chair cat cup
-魔法の鏡の天気予報|世界一ではなく傘の要否を答える。質問の多くは通勤前。|mirrorwall|mirror umbrella cloud
-召喚された大量のスプーン|勇者の予定がカトラリー。皿のない部屋で全員が待機している。|assembly|fork plate wand
-透明化した本の返却|しおりだけ本棚に並ぶ。司書の目録がいちばん頼りになる。|shelf|paper glasses sign
-魔法の帽子から領収書|鳩より先に経費が出る。奥に去年のタクシー代が詰まっていた。|focus|hat paper coin
-テレポートに失敗したお茶会|カップと椅子が別々の輪へ。砂糖だけ予定どおり到着した。|portals|ring cup chair
-杖が指揮棒に転職|振るたび小物が一音ずつ。静かな曲でも机が跳ねる。|choir|wand note desk
-呪いの判子が全部承認|大きな赤丸だらけの壁。解呪にも承認印が必要らしい。|wall|stamp paper skull
-空飛ぶ本の渡り廊下|本が羽を開いて一列に。難しい本ほど低空飛行。|flock|book feather flag
-魔法使いの洗濯ラベル相談|ローブのタグが古代文字。翻訳結果は「手洗い推奨」だけだった。|workshop|hat shirt scroll`,
-food: `巨大プリンが鎮座|部屋の中央にぷるぷるの山。上のカラメルから登山届が出てきた。|focus|pudding flag fork
-パンが通勤ラッシュ|食パンと丸パンが列を作る。満員なのはトースター行き。|queue|bread ticket clock
-回転ずしの議事録レーン|すしの間に資料が流れる。取らなかった議題は次の周回へ。|track|sushi paper plate
-ラーメンの麺が路線図|丼から線路のように伸びる。乗換駅はメンマ前。|network|noodle sign egg
-チーズの中の会議室|大きなチーズの中に机と椅子。議論が長引くほど、会議室の壁がおやつとして減っていく。|nested|cheese chair cup
-バナナのすべり止め講座|皮を前に安全研修。例示用のコーンだけが一度転んだ。|presentation|banana cone helmet
-ピザの八部署組織図|一切れずつ担当が違う。境界線は争わずチーズでつながっている。|ring|pizza sign paper
-ドーナツの輪の向こう|お菓子を額にした小さな景色。食べたら閉じるので見学はお早めに。|gate|donut painting cup
-野菜たちの健康相談|にんじんが視力、トウモロコシが歯並び。相談する側も全員野菜。|interview|carrot corn glasses
-おにぎりの海苔巻き工房|白いご飯が列を待つ。制服のサイズは三角形で測る。|conveyor|sushi shirt ruler
-アイスの時間との競争|溶ける前にゴールを目指す。審判の時計が一番焦っている。|race|icecream clock flag
-パンケーキの階数表示|バターが屋上で手を振る。上る方法はフォークのみ。|tower|bread fork sign
-コーヒー豆の焙煎サウナ|乾いた熱で豆が汗をかく。休憩室にはなぜか緑茶。|curtain|cup seed fan
-お弁当のおかず大移動|仕切りを越えて卵焼きが旅へ。ウインナーだけ実家の角に残る。|parade|basket egg meat`,
-festival: `突然のお祭り屋台|提灯と二つの屋台。営業許可より先に焼きそばの匂いが広がった。|!festival|lantern
-室内の小さな観覧車|一周する間に隣の席が見える。頂上限定の悩み相談つき。|focus|ferris ticket chair
-金魚すくいならぬ付箋すくい|乾いた青い敷物に紙の魚。ポイが破れても議題は逃げない。|board|fish paper ring
-射的の景品が社内表彰|的を倒すと賞状が出る。狙われているのは努力賞の箱。|targets|trophy medal paper
-綿あめ雲の製造実演|甘い雲が天井に並ぶ。雨にはならず、休憩が少し伸びるだけ。|clouds|cloud fork sun
-お面の顔合わせ会|ずらり並んだお面が名札を付けた。素顔の話だけは誰もしない。|wall|mask paper glasses
-大道芸人の会議球回し|議題の書かれた球をジャグリング。落とした案件は次回に回る。|arc|ball mic hat
-チンドン屋の静音行進|太鼓に消音パッド。にぎやかさは全員の表情で補っている。|parade|drum trumpet flower
-手品の箱が消える前に|消される予定の箱が逃走。中のうさぎはまだ出演料を相談中。|chase|chest rabbit coin
-パレードの先頭が迷子|旗の矢印が二方向。後ろの楽隊はどちらでも演奏できる。|forked|flag drum sign
-花火師の昼間の試し描き|壁に色とりどりの光の花。本番は黒板を暗くしてから。|fireworks|star flower pencil
-餅つきのタイミング研修|杵の代わりにメトロノーム。手拍子がそろうとお餅が一個増える。|rhythm|hammer note pudding
-福引きの玉が逆走|景品が機械の中へ戻る。スタッフは抽選の説明からやり直している。|spiral|ball gift bell
-祭りの後の紙吹雪清掃|掃くと紙がまた花になる。清掃係はきれいだが終わらないと悩む。|blossom|paper broom flower`,
-detective: `なくなったおやつの現場検証|小さな規制線と空の皿。名探偵は容疑者の口元を見ている。|evidence|plate magnifier footprint
-シャーロックの出張相談室|普通サイズの探偵が椅子に座る。最初の依頼は自分のパイプ探し。|interview|hat magnifier chair
-足跡が天井を歩いている|床でなく天井に靴跡。犯人より先に靴の広告代理店が来た。|hanging|footprint shoe camera
-虫眼鏡の持ち主捜索|大きなレンズの前に小さな依頼書。探偵自身の持ち物だった。|focus|magnifier paper hat
-密室の鍵が全員分ある|鍵が番号順に壁へ。密室の定義から確認する会議が始まった。|wall|key door paper
-指紋のアートオークション|鑑識の標本が額に入った。鑑定結果は全員、本人の指紋。|auction|fingerprint painting ticket
-暗号がランチ注文表だった|壁いっぱいの記号を解読。答えは大盛り、ねぎ抜き、別会計。|network|paper calculator noodle
-証拠写真の猫だけ動く|写真から猫の足がはみ出す。現場保存の担当がそっと見守る。|gallery|camera cat painting
-探偵の赤い糸が絡まった|相関図より毛糸玉が複雑。容疑者の猫は満足げ。|weave|rope paper cat
-犯行予告が添削中|赤字だらけの予告状。実行日が再提出後に延期された。|presentation|paper pencil stamp
-消えた金貨の収支報告|金貨がグラフに並ぶ。減った分はおやつ予算に正しく計上済み。|steps|coin paper calculator
-落とし物が持ち主を面接|鍵や傘が質問票を前に整列。本人確認が思ったより厳しい。|interview|key umbrella paper
-容疑者の似顔絵が自画像|画家が描くたび自分になる。捜査員も褒めるしかなくなった。|gallery|painting pencil mirror
-アリバイ時計の展示会|どの時計も別の時間。全員不在だったことだけ確定した。|museum|clock ticket magnifier`,
-comic: `ドラえもんのひみつ道具相談|引き出しの前で道具を整理。会議短縮機はまだ研究中らしい。|workshop|door bell pocket
-悟空の昼食は何人前|空のお皿が山積み。本人は食後の腹ごなしに積み直している。|tower|plate meat fork
-ルフィの伸びる名札ひも|入口からデスクまでひもが続く。本人は途中のお肉売り場。|trail|shirt rope meat
-ナルトの影分身でラーメン待ち|番号札の列が全員同じ顔。注文は一人前だと言い張っている。|queue|mask noodle ticket
-アラレちゃんの地球儀検査|地球儀を抱えて健康診断。北極にばんそうこう、南極に冷却シートを貼っている。|interview|planet glasses ruler
-アンパンマンのパン工房研修|丸いパンが次々焼ける。顔の予備よりおやつが先になくなった。|conveyor|bread helmet flower
-キキの宅配仕分け|ほうきの横に荷物が整列。黒猫が宛名の読み上げ係。|platform|broom cat gift
-トトロの葉っぱ傘売り場|雨のない部屋に葉の傘。値段はどんぐりの気分次第。|market|leaf umbrella seed
-コナンの蝶ネクタイ音声テスト|録音機の前に小さな蝶。声は立派だが音量設定はまだ子ども用。|studio|bowtie mic radio
-ピカチュウの静電気博物館|ほっぺの前で付箋が浮く。コンセントとの直結は丁寧に断っている。|magnetic|lightning paper battery
-カービィの吸い込み実演|お菓子が一列に移動。最後のフォークだけ踏ん張っている。|suction|donut cake fork
-マリオの配管模型教室|床を壊さず机の上で土管講座。出口の旗は小さくても立派。|workshop|pipe flag mushroom
-セーラームーンの月休憩|月形のクッションとお茶。今日は戦わず定時を守る当番。|picnic|moon heart cup
-スヌーピーのタイプライター|赤い屋根の横に原稿の山。物語の書き出しは今日の天気だった。|studio|dog pencil paper`,
-kaiju: `窓の外でゴジラが休憩|湾に大きな背びれ。よく見ると落ちている巨大な空き缶を拾い、分別の看板を読んでいる。|outside|dinosaur camera
-モスラの窓辺散歩|大きな羽が街を横切る。室内では蝶の図鑑が自動で開いた。|outside|butterfly book
-キングコングのビル点検|遠くの巨人が工事帽で一礼。こちらの室内には点検票だけ届く。|outside|helmet paper
-巨大飛行船の求人広告|街の上に長い広告船。募集職種は空の余白デザイナー。|outside|balloon sign
-UFOの橋見学ツアー|円盤が橋を見学。室内の地図にだけ宇宙語の観光スタンプ。|outside|ufo stamp
-巨大招き猫の湾岸散歩|大きな前足が船にご挨拶。室内の小銭も少しだけ整列した。|outside|cat coin
-天空の城の洗濯日|浮島の庭で布がはためく。こちらの壁に風向きのメモが届く。|outside|castle shirt
-空の龍の交通整理|東京タワーの横で首を曲げる龍。信号よりずっと長い行列。|outside|dragon sign
-巨大な凧の配達便|街の上を四角い凧が進む。ひもの先は遥か遠くの郵便局。|outside|kite envelope
-巨大ペンギンの避暑|湾に顔を出した巨大ペンギン。室内には冷たい色の絵はがき。|outside|penguin paper
-空に現れた二重の虹|橋の上で虹が交差。室内のプリズムにも同じ色が映っている。|outside|rainbow crystal
-宇宙クジラの遊泳|星模様のクジラが雲を泳ぐ。窓辺には小さな星のしぶき。|outside|whale star
-巨大ロボットの信号待ち|遠くで青信号を待つ巨体。室内の模型も律儀に停止している。|outside|robot sign
-雲の上の銀河鉄道|星の煙を引く列車が空を進む。乗車券だけ窓辺に一枚届いた。|outside|train ticket
-夜空に巨大な砂時計|街の上で星が落ちていく。落ちきる前に今日を楽しむための時計。|outside|hourglass star`,
+meteor: `KEEP
+sky|telescope|orbit|spock|スポック、望遠鏡の向きに異議|望遠鏡の横で耳の尖った来客が計測中。東京タワーは新惑星ではないと伝える必要がある。|planet paper
+ops|monitor|scan|r2d2|R2-D2、ログ検索に接続|管制室のログ画面に小さな青いロボット。探している設計図は、どうやら別の銀河のもの。|robot floppy
+cockpit|console|beam|vader|ダース・ベイダーのミュート解除|操縦パネルで黒い兜が点滅。呼吸音だけが全館放送に接続された。|mic helmet
+library|shelf|stars|littleprince|『星の王子さま』が本棚に帰らない|ナレッジ棚の前に小さな王子と一輪のバラ。本の背に、星へ帰る乗換案内を挟んでいる。|flower book planet
+canteen|table|steam|astronaut|宇宙食にも味噌汁は欲しい|食堂の食卓に宇宙飛行士。ストロー付きの味噌汁を前に、地球の重力に感謝している。|bottle plate
+wellness|bed|stars|et|E.T.、ベッド脇から電話|休憩室のベッド脇に長い指の来客。充電は十分なのに、地球の市外局番で悩んでいる。|phone flower
+cafe|counter|orbit|doc|ドク、コーヒーを未来に送る|カフェのカウンター上でカップが小さく周回。届いた未来の自分から「もう冷めた」と返信が来た。|cup clock cable
+workshop|workbench|sparks|astronaut|アポロ13号、文具で帰還|作業台のフィルター、テープ、段ボール。宇宙船の命がかかった工作に、工房の備品が総動員。|helmet glue cable
+sky|sofa|stars|maetel|メーテルが終電を待っている|星空ラウンジのソファ脇に黒い帽子。銀河鉄道の切符はあるが、交通費精算の欄が足りない。|ticket suitcase
+studio|easel|chalk|astronaut|月面着陸の背景美術|アトリエのイーゼルに月の絵。宇宙飛行士は撮影用ではなく、帰宅経路を描いているらしい。|moon flag painting
+project|board|scan|spock|アプリ区画で宇宙語レビュー|実際の区画白板に星の記号が並ぶ。翻訳結果は「このボタン、押しても反応しません」。|paper cursor
+arcade|arcade|pixels|vader|デス・スターの弱点、1クレジット|筐体の前に黒い兜。排気口を狙うゲームで、自分の設計ミスを復習している。|coin rocket
+sky|telescope|trail|maetel|銀河鉄道999、窓辺に到着|望遠鏡の前の床に細い星のレール。車掌が切符を切る音だけ、やけにはっきり聞こえる。|train ticket`,
+thief: `KEEP
+office|desk|paper|lupin|ルパン、盗む資料が多すぎる|ひだまりのデスクに赤い上着。機密資料を選別していたら、すべて議事録で朝になった。|paper magnifier
+library|shelf|footprints|zenigata|銭形、貸出履歴を捜査|資料棚の前に手錠と貸出カード。「返却期限を守れ、ルパン！」という声が館内に響く。|book key
+cafe|counter|cards|kaito|怪盗キッドの白い予告状|カフェのカウンターに白い帽子と一枚のカード。盗むのは最後のケーキ、犯行時刻は15時。|card cake
+ops|rack|scan|neo|ネオ、赤いケーブルを選ぶ|ラック前で赤と青の線を持つ黒いコート。どちらもLANケーブルだと説明する人を待っている。|cable bottle
+project|desk|shadow|ninja|分身だけがコードレビューに出席|バックエンドの机のそばに同じ忍者が二人。本体の所在だけがレビューで指摘された。|paper mask
+workshop|shelf|trace|indiana|聖なるホチキスのすり替え|工房の棚からホチキスを取る探検家。重さの同じ消しゴムを置く手つきが真剣すぎる。|stapler eraser
+meeting|board|chalk|holmes|議事録の空白を追う名探偵|作戦室の白板に赤い線。犯人は誰かではなく、誰も決定事項を書かなかったことだった。|magnifier paper
+wellness|sofa|shadow|phantom|怪人、仮眠予約を奪う|休憩室のソファ脇で半面の仮面が待機。オペラ座より、ここの静けさが気に入ったそうだ。|mask flower
+studio|easel|trace|lupin|盗まれた絵が一枚増えた|イーゼルの絵の横にそっくりな贋作。どちらも「とてもよい」と書いて置いていった。|painting pencil
+canteen|buffet|footprints|zenigata|消えたコロッケの足取り|配膳カウンターから続く小さな足跡。銭形の昼食も同時に行方不明になっている。|plate magnifier
+arcade|arcade|sparks|lupin|金庫破りより難しいクレーン|筐体の前で赤いジャケットが腕組み。狙う景品は100円玉より安いが、プライドが許さない。|safe coin
+focus|desk|paper|holmes|集中室の無音の盗難|一台の机だけ付箋がない。探偵が見つけたのは、全部モニターの裏に貼るという新手法。|paper magnifier
+cafe|table|cards|jigen|次元の帽子に会計伝票|カフェの小卓の脇に深い帽子。格好よく席を立とうとしたら、全員分の伝票が残っていた。|hat paper cup`,
+flood: `KEEP
+cafe|counter|bubbles|ponyo|ポニョ、グラスから顔を出す|カフェの水差しに赤い小さな魚。水浸しにする気はなく、ハムの追加だけを要求している。|fish cup meat
+KEEP
+KEEP
+meeting|board|rain|mary|メリー・ポピンズの傘立て講習|作戦室の白板前に黒い傘。室内では飛ばないと約束したのに、本人の足だけ少し浮いている。|umbrella basket
+library|shelf|frost|elsa|エルサ、返却本を冷やす|図書室の一段だけ霜の縁取り。「延滞料金を凍結」はそういう意味ではない。|book crystal
+sky|telescope|stars|wizard|ガンダルフ、天気アプリに敗れる|望遠鏡のそばに杖と雲の絵。魔法の予報より、窓の外を見た方が早い。|wand cloud
+wellness|bed|snow|olaf|オラフの冷房指定席|ベッド脇に人間サイズの雪だるま。仮眠予約には「設定温度は下げたまま」とだけある。|snowman thermometer
+canteen|buffet|steam|chef|雨の日のトトロ弁当|配膳台に葉で包んだ小さなお弁当。持参した葉の傘は、ちゃんと入口でたたんである。|leaf basket
+studio|easel|rainbow|alice|虹の絵の具が乾かない|アトリエの絵だけ七色のしずく。アリスは虹の端を筆洗いのカップに戻そうとしている。|painting cup rainbow
+workshop|workbench|sparks|doc|雷を充電器にする実験|作業台の瓶に小さな稲妻。ドクが必要な電力を書いた紙を見て、ブレーカー係が首を振った。|bottle lightning battery
+ops|monitor|snow|snowqueen|管制室に積雪注意報|モニターの枠だけ白くなった。アラートは気温ではなく、サーバー室でかき氷を作る人に向いている。|snow thermometer
+garden|plant|blossom|totoro|屋上の苗、雨を待ちきれない|屋上の既存の鉢にだけ葉っぱの雨宿り。トトロが傘を差して、先に芽が出るのを待っている。|umbrella seedling
+sky|sofa|feathers|mary|上昇気流で帰れません|ラウンジのソファ脇に旅行鞄と傘。今日は窓からではなく、ちゃんとフロア移動で帰るそうだ。|suitcase umbrella`,
+santa: `KEEP
+garden|plant|ribbon|samurai|こいのぼり、屋上で逆風勤務|屋上の鉢の間に小さな吹き流し。侍の風向き判定は、天気予報より頬の感覚を信じている。|fish flag
+canteen|buffet|steam|oni|節分の鬼、まかない当番|配膳台の横で鬼が豆を小皿に分けている。今日だけは「鬼は内、残業は外」。|seed plate mask
+studio|easel|ribbon|princess|ひな人形、肖像画を発注|イーゼル前におひな様の小さな冠。五人囃子の集合写真は、毎年誰かが目を閉じている。|crown fan painting
+sky|table|stars|rabbit|月のうさぎ、お月見団子を検品|ラウンジの小卓に一皿の団子。丸さは完璧、数だけ一つずつ減っていく。|dumpling moon
+workshop|workbench|paper|oni|鬼の金棒、持ち込み修理|作業台に短い金棒と修理票。「豆には強く、床には優しく」が今回の注文。|hammer seed
+library|shelf|ribbon|kaguya|かぐや姫の短冊は要件が多い|資料棚の横の小笹に、五枚の短冊。担当者はまず実現可能性から確認している。|bamboo paper
+arcade|arcade|shadow|jack|ジャックのハロウィン高得点|筐体の前にかぼちゃの王。怖い顔より、リズムゲームの判定が厳しい。|pumpkin coin
+canteen|table|steam|samurai|鏡開き、刀より先に木槌|食堂の食卓に小さな餅。侍が抜刀しかけたところで、木槌がそっと渡された。|hammer dumpling
+cafe|counter|steam|chef|年越しそばのフライング提供|カウンターのそばに一杯のそば。まだ年末ではないが、年を越す勢いの会議はある。|noodle clock
+garden|sofa|blossom|samurai|お花見の席はベンチ二人分|屋上のベンチ脇に敷物と小さな弁当。桜の鉢を持参したので場所取りは不要だった。|flower basket
+cafe|counter|heart|witch|魔女のバレンタイン試食会|カフェのカウンターに三粒のチョコ。惚れ薬ではなく、寝不足に効く砂糖らしい。|heart candy
+wellness|bed|music|princess|眠れる森の姫、目覚ましを導入|休憩室のベッド脇に目覚まし時計。百年寝坊する前に、五分スヌーズを覚えてしまった。|clock flower
+library|shelf|paper|holmes|福袋の中身は積読だった|本棚の前に一袋だけの福袋。名探偵が開けると、読みかけの本の続巻ばかり入っている。|gift book`,
+ghost: `library|shelf|ghosts|buster|ゴーストバスターズ、書架へ急行|本棚の間に小さな幽霊が三体。隊員は通路から捕獲しているが、貸出手続きだけは先に済ませた。|ghost book
+focus|desk|shadow|wednesday|ウェンズデーの影だけ残業|集中室の机に黒い影。本人は定時退勤、影だけは妙にまじめにキーボードを打っている。|hand paper
+studio|easel|mirror|phantom|肖像画の裏にオペラ座|既存のイーゼルに描かれた仮面が振り向いた。額縁の向こうから、非常に小さな拍手が聞こえる。|mask painting
+wellness|bed|shadow|dracula|ドラキュラ、夜勤明けの仮眠|ベッド脇に黒いマントと日傘。遮光が足りないので、アイマスクを二枚注文している。|umbrella glasses
+cafe|counter|steam|ghost|お化けの注文は透明ラテ|カウンターの横に透けるお客。ミルクもカップも透明なので、店員だけが困っている。|cup ghost
+workshop|workbench|sparks|franken|フランケンの肩こり修理|作業台脇の来客に予備のボルト。落雷より先に、六角レンチで何とかする方針。|gear hammer
+meeting|board|chalk|conan|コナン、動く議事録の謎|作戦室の白板の文字が一行ずつ増える。犯人はまだ会議が終わっていないことだった。|bowtie paper
+library|shelf|webs|witch|禁書の蜘蛛、索引を編む|資料棚の隅にだけ細い糸。魔女が頼んだのは蜘蛛の巣ではなく、検索用のリンク集だった。|spider book
+arcade|arcade|pixels|ghost|パックマンの敵、休憩申請|筐体の前に三角目の幽霊。追いかけられる側の気持ちを、一度だけ体験したいらしい。|ghost coin
+wellness|sofa|shadow|sadako|貞子、モニターから出勤|休憩室の小卓に古いテレビ。出てきた人は怖がらせる前に、長い髪を結ぶゴムを探している。|tv cable
+ops|monitor|scan|buster|深夜のアラートは幽霊だった|アラート画面の縁に小さな幽霊。隊員は除霊より先に、通知の重複設定を直している。|ghost bell
+sky|sofa|stars|jack|ジャック、星を頭蓋骨と間違える|ラウンジのソファ脇で細い手が星図を指す。望遠鏡をのぞいたら、全部ただの星だった。|skull star
+studio|easel|shadow|wednesday|ハンドのデッサンモデル|イーゼル前の台に片手だけ。モデル料は安いが、休憩時間に勝手に歩いていく。|hand pencil
+canteen|buffet|steam|ghost|幽霊、食券の読み取り失敗|配膳台の前に透けた食券。券売機には「実体をかざしてください」と出ている。|ticket plate`,
+waldo: `office|shelf|trace|waldo|ウォーリー、資料棚の陰に出勤|ひだまりの資料棚の横に、いつもの大きさの赤白帽子。目立たない席を探した結果、背表紙と同化している。|glasses book
+arcade|table|cards|shogi|将棋の神様、昼休みの一局|ゲーセンの実際のテーブルに小さな盤。対局相手が来る前に、おやつの手だけ読んでいる。|shogi cup
+meeting|table|cards|alice|アリス、会議机でチェックメイト|作戦室の会議机に卓上チェス。白の女王が「持ち帰って検討」を禁じた。|chess crown
+arcade|arcade|pixels|mario|マリオ、ジャンプ禁止の筐体|ゲーム機の前に赤い帽子。床では跳ばないでと注意され、ボタンを全力で押している。|coin mushroom
+arcade|table|cards|kaito|トランプ一枚だけ有給休暇|テーブルの手品に白い帽子。消えたカードは、ポケットではなく休暇申請の下にいた。|card paper
+wellness|sofa|music|snoopy|スヌーピー、空想の卓球|ソファ脇で白い犬がラケットの代わりに本を振る。球がないのに、試合は白熱している。|ball book
+workshop|workbench|trail|robot|ドミノ停止装置の実演|作業台の上だけ小さなドミノ列。最後に置いたクリップ一個が、全社の努力を止めている。|domino clip
+studio|table|paper|alice|ジグソーの一片、絵から脱走|作業テーブルのパズルに小さな空白。アリスが追う一片は、隣の絵の中で休んでいる。|puzzle painting
+arcade|table|orbit|goku|悟空のけん玉、ちょっと浮く|ゲーセンの小卓で玉が一個だけ浮く。気で止めるのは反則か、審判が悩んでいる。|ball ring
+library|table|cards|holmes|すごろくの犯人は一回休み|図書室の読書机に小さな盤。探偵が推理するほど、「会議」のマスに止まる。|dice magnifier
+cafe|table|cards|queen|ハートの女王、席の予約争い|カフェの二人席の脇に冠。順番札を見せられて、首ではなくコーヒーを注文し直した。|card crown cup
+sky|table|orbit|littleprince|王子さまの輪投げ|ラウンジの小卓で輪が星を一周。入ったかどうかは、その星に住む人に聞くことになった。|ring planet
+arcade|table|trace|jigen|次元、九番球を見失う|ゲーセンのテーブルで丸い球を探す。帽子を取ると一個だけ落ちてきた。|ball hat
+arcade|arcade|sparks|zenigata|銭形、クレーンの景品に手錠|ゲーム機の景品口に小さな鍵。先に取れた手錠から抜けられず、捜査が一時中断した。|key trophy`,
+delorean: `KEEP
+garden|sofa|outside|catbus|ネコバス、屋上ベンチに停留|ベンチ脇に猫顔の小さな行先札。車体は屋外、屋上の通路はちゃんと空けて待っている。|cat sign
+canteen|table|steam|porco|紅の豚、機内食の査定|食堂の食卓に飛行帽と一皿。豚は飛べるが、食後すぐは飛びたくないそうだ。|plane plate
+workshop|workbench|trail|doc|ドクの卓上鉄道模型|作業台の縁だけに細いレール。速度を上げると過去の請求書が届くので、ゆっくり試運転中。|train clock
+garden|sofa|ribbon|carl|『カールじいさん』の係留場所|屋上のベンチ横に旅行鞄と三つの風船。家は持ち込めないので、散歩だけで寄ってくれた。|balloon suitcase
+sky|telescope|beam|spock|転送先が望遠鏡の前だった|ラウンジの望遠鏡脇に青い転送光。論理的には到着したが、挨拶の順番が計算外。|ring telescope
+cockpit|pilot|sparks|amuro|アムロ、座席の高さ調整|実際のパイロット席に点検札。発進より先に、足がペダルに届くか確認している。|helmet ruler
+cafe|counter|feathers|kiki|キキの宅配、カフェに置き配|カウンターに小箱と黒猫。ほうきは店の外へ立てかけて、受領印を待っている。|gift cat broom
+library|shelf|trace|indiana|インディ、館内地図を入手|資料棚の前に革鞄と巻物。宝の位置より、コピー機の位置が急務だった。|scroll suitcase
+focus|desk|paper|marty|マーティ、昨日の締切へ戻りたい|集中室の机に時計とギターケース。昨日の自分にも同じ相談を断られたらしい。|clock guitar
+garden|plant|trail|et|E.T.の自転車、安全点検|屋上の鉢の脇に普通サイズの自転車。月を背景にする前に、ライトとベルを確認中。|bike moon
+arcade|arcade|music|mario|マリオカート、社内交通安全回|筐体脇の赤い帽子。バナナはコースではなく、ちゃんとゴミ箱へという講習が始まった。|car banana
+KEEP
+workshop|workbench|sparks|nausicaa|ナウシカのメーヴェ整備|作業台に小さな白い翼。エンジンより先に、オフィスの空調風向きを確認している。|plane gear`,
+terminator: `KEEP
+workshop|workbench|sparks|walle|WALL-E、クリップを宝物にする|工房の作業台に箱型ロボット。拾ったクリップを、宝石より丁寧に並べている。|robot clip leaf
+cafe|vending|scan|baymax|ベイマックス、自販機を診察|ドリンク機の前に白い看護ロボット。「痛みを十段階で」と聞いても、返るのは売切ランプだけ。|bottle heart
+studio|easel|paper|atom|鉄腕アトム、鉛筆で自画像|イーゼル脇に赤い靴。原子力より小さな鉛筆の力で、丸い前髪を描いている。|pencil painting
+meeting|table|sparks|c3po|C-3PO、議事録の翻訳渋滞|作戦室の会議机に翻訳メモ。人間の「なるはや」だけ、どの言語にも正確に訳せない。|paper gear
+ops|rack|scan|r2d2|R2-D2、ラックの保守当番|既存ラックの横で青いランプが応答。保守記録にはビープ音しか残っていない。|robot cable
+arcade|arcade|pixels|robocop|ロボコップ、反射神経測定|筐体前に銀の警官。法は守るが、連打の制限だけは納得がいかない。|helmet coin
+project|monitor|scan|neo|マトリックスの緑のログ|案件部屋のAPIモニターだけ緑の文字列。ネオは原因を探す前に、まず再現手順を聞いている。|cursor cable
+library|shelf|paper|atom|アトム、取扱説明書を探す|手順書棚の前でロボットが迷う。心のアップデートに対応する版だけが見つからない。|book heart
+wellness|bed|heart|baymax|ベイマックスの仮眠診断|ベッド脇で白い体が待機。「休息が必要です」の表示に、反論できる人がいない。|heart thermometer
+workshop|workbench|sparks|ironman|アイアンマン、USB-Cを探す|作業台の赤いヘルメットと充電線。世界は救えても、端子の規格は揃えられない。|helmet cable battery
+ops|monitor|scan|hal|HAL、赤いランプで応答|中央の既存モニターに赤い一点。電源を切る相談だけ、なぜか文字化けする。|bulb camera
+canteen|table|steam|walle eve|WALL-EとEVEの植木鉢ランチ|食卓の上に一鉢の若葉。二体のロボットは食べずに、ただ葉の成長を見ている。|seedling bottle
+cockpit|console|sparks|robot|鉄人28号、リモコン電池切れ|操縦卓に小さなリモコン。巨大ロボを動かす力は、単三電池二本に託されている。|battery radio`,
+momotaro: `canteen|buffet|steam|momotaro|桃太郎、食堂で桃を受け取る|配膳台に食べ頃の桃を一個。桃太郎は生まれるためではなく、食後のデザートとして取りに来た。|peach dumpling
+wellness|sofa|music|kintaro|金太郎の肩こり体操|休憩室のソファ脇で小さな斧が休憩中。熊との相撲より、デスクワークが腰に来るらしい。|hammer medal
+cafe|table|bubbles|issun|一寸法師、カップで渡航|カフェの卓上に普通のカップと針。小さな本人にとっては大海原だが、人間にはティースプーンの距離。|cup sword
+workshop|workbench|ribbon|crane|鶴の恩返し、見学禁止の試作|工房の作業台に織りかけの布。製作中はのぞかない約束なのに、進捗報告だけは求められる。|feather shirt
+garden|plant|blossom|oldman|花咲かじいさん、鉢限定開花|既存の屋上の鉢が一つだけ満開。床に灰をまく前に、掃除当番へちゃんと連絡してある。|flower seed
+office|shelf|ribbon|jizo|かさ地蔵、傘の返却に来る|ひだまりの棚の脇に小さな笠が六つ。恩返しの品より、返却場所の丁寧さが印象的。|hat basket
+cafe|counter|steam|tanuki|ぶんぶく茶釜、保温当番|カウンターの湯沸かし横に狸。お湯は得意だが、ラテアートの注文には首をかしげている。|cup leaf
+canteen|table|trail|mouse|おむすびころりん、食卓で止まる|食卓の上に小さなおむすび。今回は床へ落ちる前に、鼠が受け皿を差し出した。|sushi plate
+garden|plant|vine|jackbean|ジャックの豆、鉢から育つ|屋上の既存の鉢から一本のつる。天まで伸ばす前に、支柱の強度計算が始まった。|seedling ladder
+library|shelf|trace|redhood|赤ずきん、マニュアルを届ける|資料棚の前の赤いフードと籠。おばあさんの家より、最新版の保管場所の方が迷いやすい。|basket book
+workshop|workbench|paper|pig|三匹の子豚、耐震模型を提出|作業台に藁、木、煉瓦の小さな模型。狼の息は社内の扇風機で代替する予定。|tent tree castle
+library|shelf|trail|gretel|パンくずの道、図書室で回収|棚の間の通路にごく小さなパンくず。掃除機に消される前に、しおりへ変更した。|bread book
+studio|easel|stars|cinderella|シンデレラの靴、実寸デッサン|イーゼル脇に片方の靴。魔法が解ける前に、寸法だけでも残してほしいそうだ。|shoe ruler
+studio|easel|mirror|king|裸の王様、衣装の色校正|アトリエに王冠と白い色見本。誰も見えない布より、ちゃんと見える服を注文している。|crown shirt`,
+urashima: `library|table|smoke|urashima|浦島太郎の玉手箱、閲覧のみ|読書机の上に手のひら二つ分の箱。貸出規約の一行目が「開けないこと」になっている。|chest turtle
+library|shelf|trace|indiana|インディと失われた議事録|設計資料棚の奥に巻物。宝の地図ではなく、前任者しか知らない運用手順だった。|scroll book
+workshop|workbench|sand|mummy|ミイラ、包帯の巻き直し|作業台脇に布と糸巻き。三千年ものの包帯は、さすがに洗濯表示が読めない。|rope scissors
+studio|easel|chalk|pharaoh|ファラオの横顔アイコン|イーゼル前で金の冠が微動だにしない。正面顔を頼むと、壁画の規則違反だと言う。|crown painting
+library|shelf|paper|holmes|ホームズ、恐竜図鑑を誤配|本棚の前に大きな足跡のスケッチ。怪物事件かと思ったら、子供向け図鑑の付録だった。|fossil book
+cafe|counter|cards|jackpirate|ジャック・スパロウ、会計に金貨|カウンターに一枚だけ古い金貨。現金か電子決済にしてほしいと、店員が静かに説明中。|coin compass
+project|board|shadow|ninja|服部半蔵、区画の動線調査|CMS区画の白板に避難経路。天井裏は正規の通路ではない、と赤で追記された。|scroll paper
+office|shelf|trace|goemon|五ェ門、傘と刀を取り違える|資料棚脇に傘と鞘。「またつまらぬ物を」と言う前に、借りた傘を返している。|sword umbrella
+sky|sofa|music|cowboy|西部のガンマン、窓際指定|ラウンジのソファ脇に拍車付きの靴。夕日を待っているが、予約は昼までだった。|hat shoe
+wellness|sofa|sparks|knight|騎士の鎧、静かな脱着|休憩室のソファ前に手袋と兜。金属音を立てずに休むのが、今日一番の難題。|helmet shield
+workshop|workbench|bubbles|alchemist|錬金術師、コピー用紙を金に|作業台に一円玉と小瓶。変換には成功したが、経費申請の証憑がなくなった。|coin potion paper
+library|shelf|paper|pharaoh|古代司書の貸出カード|マニュアル棚に一枚のパピルス。氏名欄だけ象形文字で、返却日は普通の数字だった。|scroll stamp
+canteen|table|steam|caveman|原始人、電子食券と対面|食卓脇に石斧とICカード。火の起こし方より、タッチする位置に感動している。|bone ticket
+focus|desk|paper|marty|タイムカプセルの中は今日のTODO|集中室の机に開封した小箱。十年後の自分も、同じタスクを積み残していた。|chest paper`,
+kaguya: `garden|plant|stars|kaguya|かぐや姫、屋上の竹を間借り|既存の鉢に一本だけ光る竹。月のお迎えは屋上指定、入館申請はまだ未承認。|bamboo moon
+garden|plant|vine|totoro|トトロ、盆栽の背比べ|屋上の鉢の横でトトロが伸びをする。木を巨大にせず、今日の新芽だけ数えている。|seedling ruler
+studio|easel|blossom|belle|ベルの薔薇、描画時間を延長|イーゼルの前にガラスの小瓶と一輪。最後の花びらが落ちる前に、色だけ合わせたい。|flower bottle
+cafe|table|trace|littleprince|王子さま、サボテンと握手しない|カフェの小卓に小さなサボテン。大事なものは見えないが、針はよく見た方がいい。|cactus cup
+ops|rack|vine|nausicaa|ナウシカ、ラックの胞子を調査|サーバーラックの隙間に一輪のきのこ。まずネットワークを止めずに採取する段取りから。|mushroom bottle
+studio|table|blossom|arrietty|アリエッティの落ち葉画材|アトリエの作業机に葉っぱと針。小さな来客が、紙の端だけを絵具皿として借りている。|leaf pencil
+focus|desk|blossom|sunflower|集中室のひまわり、画面を追う|机の小鉢だけがモニター側を向く。ブルーライトより、コードレビューの熱量に反応している。|flower tv
+garden|plant|music|ponyo|ポニョ、芽の応援団|屋上の鉢の横に小さな赤い魚と水差し。「出ておいで」の掛け声だけは誰より大きい。|fish seedling
+project|rack|vine|nausicaa|インフラ区画、蔦の配線検査|検証ラックの足元に細いつる。結束バンドは不要だが、抜くと植物が不機嫌になる。|leaf cable
+office|plant|blossom|sakura|桜の魔法、鉢一つだけ春|ひだまりの既存の観葉植物に一枝の桜。部屋全部を変えず、入口の挨拶だけ華やかになった。|flower wand
+garden|sofa|feathers|san|サン、屋上ベンチで森を待つ|ベンチ脇に赤い仮面。植栽の剪定計画を、かなり真剣な表情で読んでいる。|mask leaf
+library|shelf|vine|belle|本の蔦が索引をつなぐ|資料棚に一本だけ緑の蔦。ベルが葉をめくると、関連ページが順番に見つかる。|book leaf
+workshop|workbench|paper|arrietty|つくしの実測、ミリ単位で|作業台のつくしと定規。小さな借りぐらしの人にとっては、ビルの高さを測るようなもの。|seedling ruler
+canteen|table|steam|totoro|トトロのどんぐり定食|食卓に小さな木の実が三つ。栄養表示を読んだあと、葉っぱをナプキンにしている。|seed plate leaf`,
+alice: `cafe|table|cards|alice|アリスのお茶会、サイズ確認済み|実際のカフェ卓に普通サイズのカップ。今日は大きくならないお菓子を選んでから着席した。|cup cake
+wellness|sofa|shadow|alice|チェシャ猫、ソファの背だけ借りる|既存のソファの背に小さな笑顔。体が消えても、クッションのへこみはそのまま残る。|cat glasses
+studio|table|mirror|arrietty|アリエッティ、消しゴムを借りる|作業机の端に小人と普通の消しゴム。一晩分の椅子にしたいので、角だけ借りたいらしい。|eraser pin
+focus|desk|paper|doraemon|ドラえもん、署名をスモール化|集中室の机に細い光と申請書。字だけ小さくしたら、承認欄から読めなくなった。|pencil paper
+arcade|table|pixels|ralph|シュガー・ラッシュの卓上映画館|ゲーセンの小卓に掌サイズのスクリーン。ポップコーンは普通サイズなので入口を通らない。|tv corn
+studio|table|paper|howl|ハウル、折り紙の城を提出|アトリエの作業机に小さな紙の城。動くが、コンセントの位置には従順だった。|castle paper
+workshop|workbench|trace|antman|アントマン、消しゴム下を点検|作業台の普通の消しゴムの横に極小の人。小さくなると、失くしたネジが立派な発見になる。|eraser gear
+wellness|bed|shadow|arrietty|靴下の寝袋を借りぐらし|ベッド脇の畳んだ靴下に小さな灯り。一泊だけと約束して、繊維一本の梯子をかけている。|sock lantern
+meeting|table|paper|doraemon|会議室模型、机の上にもう一室|会議机の端に小さな模型。模型の中でも会議が続いているので、電源は切れない。|desk chair
+library|shelf|paper|alice|絵本の扉が棚の中で開く|図書室の一冊だけ見開きの扉。アリスは通路を塞がず、本の端からそっとのぞいている。|book door
+cafe|counter|steam|hatter|帽子屋、カップの高さを採寸|カウンター上の普通のカップとメジャー。帽子をかぶせたいらしいが、まず飲み終えてほしい。|cup ruler hat
+workshop|workbench|ribbon|arrietty|クリップの物干し、机上で開業|作業台の隅に短い糸と小さな服。クリップ一個で一週間分の洗濯物が干せる。|clip shirt
+studio|easel|mirror|queen|女王の鏡、全員を褒める|イーゼルに立てた手鏡。「世界で一番」を聞くたびに、ちゃんと別の長所を見つけてくれる。|mirror crown
+cafe|table|paper|hatter|帽子屋の畳める休憩時間|小さなカフェ卓の端に折り畳み時計。五分だけ伸ばして、会議の前には元へ戻す。|clock cup`,
+oz: `garden|sofa|ribbon|dorothy|ドロシー、屋上の風向き待ち|屋上ベンチ脇に赤い靴と籠。竜巻は持ち込まず、帰りの風だけ確認している。|shoe basket
+ops|monitor|scan|neo|ネオ、ログの雨を見上げる|中央モニターに緑の縦列。立っている床の重力はいつもどおりなので、コーヒーはこぼれない。|cursor cup
+garden|sofa|ribbon|carl|風船の束、ベンチで休憩|屋上ベンチの脇に三本だけの風船。カールじいさんが結び目を二重に点検している。|balloon rope
+cafe|counter|steam|aladdin|アラジン、注文は水だけ|カウンターに小さなランプ。ジーニーに頼むより早い、と本人がコップを受け取った。|lantern cup
+studio|easel|music|belle|音符が絵の中で信号待ち|アトリエの絵の脇に小さな音符。ベルが譜面をめくるまで、ちゃんと順番を守っている。|note painting
+workshop|workbench|feathers|nausicaa|風の谷の風洞実験|既存の作業台に小さな翼と扇風機。紙が飛ばないよう、周囲の道具も片づけてある。|fan plane
+project|board|paper|dorothy|オズの黄色い経路図|案件部屋の区画白板に黄色い線。目的地は魔法使いではなく、インフラ担当の席だった。|paper shoe
+wellness|bed|feathers|mary|羽毛のエレベーターは小人専用|ベッド脇に羽根が一枚だけ浮く。メリーは重量制限を、紅茶一杯分と説明した。|feather cup
+workshop|workbench|paper|aladdin|魔法のじゅうたん、車検中|作業台に畳んだ小さな絨毯。端のほつれを直すまで、飛行許可は保留になった。|carpet ruler
+studio|easel|mirror|mime|透明な壁の位置図|イーゼルの前でパントマイム。見えない壁も、館内図には記載してほしいそうだ。|hand painting
+office|desk|paper|marty|紙飛行機の着陸許可|ひだまりのデスクの端だけ滑走路。マーティの申請書は、飛ばさず手で提出することになった。|plane paper
+library|table|bubbles|harry|ハリー、泡の中のしおり|読書机に小さな透明の球。防水にはなったが、本を閉じるときに毎回割れる。|book wand
+sky|telescope|stars|dorothy|ルビーの靴、東京タワーを指す|望遠鏡脇の赤い靴に星の光。「おうちが一番」の方向は、地図で再確認している。|shoe star
+focus|desk|shadow|mime|パントマイムの空気椅子|集中室の机脇で誰かが座る姿勢。実物の椅子は空いているのに、仕事へのこだわりが強い。|shoe cup`,
+pirate: `cafe|table|cards|jackpirate|ジャック船長、コースターを海図に|カフェの卓上でコンパスが回る。目指しているのは宝島ではなく、無料のおかわり。|compass cup
+sky|telescope|beam|nausicaa|風の谷の灯台点検|望遠鏡の脇に小さな照明と地図。東京湾の明かりを数えて、帰りの航路を決めている。|lantern scroll
+workshop|workbench|ribbon|popeye|ポパイ、結び目だけ力技|作業台に短いロープと工具。ほどく方が早いのに、腕力で解決しようとして止められた。|rope pan
+cafe|counter|music|ariel|アリエル、貝殻で呼び出し|カウンターに小さな貝殻のベル。注文番号は歌で届くので、毎回ちょっと長い。|shell bell
+library|shelf|paper|jackpirate|ボトルメールの保管規則|棚の一段に一通だけの瓶入り手紙。船長は添付ファイルの入れ方を真剣に相談している。|bottle envelope
+focus|desk|trace|popeye|錨は文鎮として重すぎた|集中室のデスク端に掌サイズの錨。これでも申請書より先に、机の強度を心配されている。|anchor paper
+meeting|board|chalk|luffy|ルフィ、海賊旗でプレゼン|既存の白板に小さな海賊旗の絵。事業計画の最初の一行が「自由」だけになっている。|flag paper
+canteen|table|steam|jackpirate|船長、ドーナツを浮き輪と呼ぶ|食卓に輪っかのお菓子が一つ。食べるか救命具にするか、本人だけが本気で迷っている。|donut ring
+canteen|buffet|steam|sanji|サンジ、非常食の味を改善|配膳台に缶詰と一皿。保存期間を伸ばす前に、おいしさの議論が始まった。|bread meat
+garden|pond|bubbles|ariel|人魚、屋上の池に立ち寄る|既存の池の縁に小さな貝とブラシ。陸の打ち合わせは、ここまで来てもらう予定だ。|shell fish
+arcade|arcade|music|jackpirate|舵輪ゲーム、宝の方向だけ不明|ゲーセンの筐体前で船長が舵を握る。コインの投入口だけはすぐ見つけた。|wheel coin
+workshop|workbench|paper|shipwright|ボトルシップ、出口を検証|作業台に普通の瓶と小さな帆船。作った本人も、どう出すかまでは考えていなかった。|boat bottle
+library|table|paper|nami|ナミ、昼食マップを測量|読書机に館内図と定規。宝島より食堂の混雑回避の方が、いまは大事らしい。|scroll ruler
+studio|easel|chalk|jackpirate|船長の指名手配、似顔絵修正|イーゼル前で帽子の角度を直す船長。懸賞金より写真写りを気にしている。|painting hat`,
+ninja: `workshop|board|trace|naruto|ナルト、的は白板の付箋だけ|工房の既存白板に紙の的。壁に刺すのは禁止なので、手裏剣も折り紙で作ってある。|star paper
+library|shelf|paper|ninja|巻物、横スクロールに未対応|本棚前に短い巻物とノートPCのメモ。忍者は指でスワイプしても進まない理由を聞いている。|scroll cursor
+library|shelf|shadow|goemon|五ェ門、本棚の隠し扉を探す|既存の資料棚を眺める剣士。回転扉はないので、普通に背表紙から探してもらう。|sword book
+cafe|counter|steam|samurai|侍の茶道、テイクアウト可|カフェのカウンターに小さな茶碗。正座は不要と聞いて、少しだけ安心した。|cup fan
+wellness|sofa|music|tanuki|招き猫、腕のリハビリ|休憩室のソファ脇に小さな招き猫。招きすぎて肩が凝ったので、今日は逆の手で営業。|cat medal
+studio|easel|chalk|daruma|だるま、眼鏡のサイズ合わせ|イーゼル前に小さなだるま。目標達成より先に、両目の視力を測っている。|glasses mask
+meeting|board|scan|samurai|将軍、オンライン参勤交代|作戦室の白板前にノートと扇。行列を作らなくてよいと知って、予算だけ大喜びしている。|tv flag
+focus|desk|trace|ninja|忍び足でも打鍵は聞こえる|集中室の机脇で忍者が反省中。移動は無音でも、Enterだけは全力だった。|shoe paper
+office|shelf|paper|miko|おみくじ、全部『要相談』|ひだまりの棚に小さな紙束。大吉より具体的な助言が欲しいと、巫女へ列ができかけている。|paper stamp
+garden|plant|music|miko|屋上の風鈴、静音モード|既存の鉢の支柱に一個だけ風鈴。風は吹くが、会議中は短冊を外す運用になった。|bell paper
+wellness|sofa|trace|lion|獅子舞、歯みがき指導|休憩室のソファ脇に獅子の頭。噛んで福を呼ぶ前に、歯ブラシの持ち方を習っている。|mask bone
+workshop|workbench|ribbon|samurai|畳の端材、マウスパッドに|作業台に小さな畳見本。侍の手触り評価は最高だが、光学マウスの反応は微妙。|carpet cursor
+arcade|table|music|festival|盆踊り、ゲーセンで一曲だけ|ゲーセンのテーブル脇に小太鼓。周囲を回る代わりに、二人分の足踏みで済ませている。|drum lantern
+studio|table|ribbon|miko|手ぬぐいの柄、色校正待ち|作業机に一枚の布と色見本。祭りの開催前に、洗濯で落ちない色を選んでいる。|shirt flag`,
+dragon: `garden|sofa|smoke|dragon|ドラゴン、屋上でくしゃみ我慢|ベンチ脇の小さな竜が鼻を押さえる。火気厳禁の表示を見て、ちゃんと我慢している。|dragon flower
+studio|easel|rainbow|unicorn|ユニコーンの証明写真|イーゼル前に小さな白馬。角を画角へ入れるため、カメラを少し後ろに下げた。|unicorn camera
+workshop|workbench|sparks|fawkes|不死鳥の羽ペン、熱すぎる|作業台に赤い羽根が一本。再生能力より、紙が焦げない筆圧が大事だ。|feather pencil
+cafe|counter|feathers|gryphon|グリフォン便、カフェで受領|カウンターに小さな羽根と宅配箱。猛禽の爪では受領印が押しにくい。|feather gift
+wellness|sofa|heart|cerberus|ケルベロス、三頭で一休み|ソファ脇に犬の顔が三つ。全員同時に寝ないので、静かになる時間が読めない。|dog dog dog
+garden|sofa|feathers|pegasus|ペガサスの駐輪区分相談|屋上ベンチ脇に白い翼。自転車置き場か来客受付か、総務が分類に迷っている。|horse feather
+library|table|paper|sphinx|スフィンクスのFAQ、答え付き|読書机の小さな猫像に問題集。答えないと通さないのでは、利用規約に反するらしい。|cat book
+garden|pond|bubbles|ariel|人魚のリモート会議席|既存の池の縁に貝殻のマイク。背景は本物、声だけはミュート解除を忘れている。|shell mic
+workshop|workbench|sand|golem|ゴーレム、予備の指を作る|作業台に粘土と小皿。壊れない体より、キーボードに合う細い指が欲しい。|statue cup
+wellness|bed|frost|snowqueen|雪女、冷房の設定交渉|ベッド脇に小さな氷と温度計。他の人も休める温度で、折り合いを探している。|crystal thermometer
+library|shelf|trace|troll|トロール、棚下の賃貸契約|資料棚の足元に小さな椅子。橋の下より乾燥しているが、返却本が天井をふさぐ。|chair coin
+studio|table|stars|fairy|妖精、ペン先を管制塔に|作業机の鉛筆のそばに小さな羽。飛行許可は、筆が止まっている間だけ下りる。|pencil feather
+project|board|chalk|minotaur|ミノタウロス、区画案内を添削|実際の区画白板に館内図。「迷わせない案内」にする仕事は、少し複雑な気分らしい。|scroll ruler
+workshop|workbench|sparks|arthur|聖剣、コピー用紙から抜けない|作業台の紙束に小さな剣。王の資格より、ホチキスを外す方が先だった。|sword paper`,
+slime: `arcade|table|bubbles|slime|スライム、卓上で組体操|ゲーセンの小卓に三匹だけの青いしずく。合体の練習だが、制限時間は休憩の五分。|slime crown
+cafe|table|bubbles|kirby|カービィ、ゼリーを見守る|小さなカフェ卓に普通サイズのゼリー。吸い込むと実演が終わるので、じっと待っている。|jelly fork
+workshop|workbench|bubbles|inventor|博士、泡の梱包材を試す|作業台に小箱と小さな泡。割れ物は守れたが、開け方の説明書も泡に包まれた。|cloud gift
+wellness|sofa|heart|baymax|ベイマックス、グミの応急処置|ソファ脇に小皿のグミ。「溶けています」と診断したあと、冷たい水をそっと置いた。|heart bottle
+studio|easel|chalk|ditto|メタモン、社員証の撮影日|イーゼル前に小さな桃色のかたまり。社員証の顔と本人の顔を合わせる方が難しい。|camera card
+canteen|table|steam|chef|プリン、食卓で耐震試験|実際の食卓に普通のプリン。揺らしすぎると検品ではなく試食になる。|pudding fork
+wellness|sofa|music|totoro|トトロ、クッションを返さない|既存ソファの脇で小さめのトトロがくつろぐ。クッションと自分の境目が気に入ったらしい。|leaf cup
+focus|desk|shadow|invisible|透明人間の机、名札だけ実在|集中室のデスクに名札とカップ。本人の姿より、空席扱いされることが悩みだった。|card cup
+workshop|workbench|sparks|inventor|ゴム風船発電、効率会議|作業台に小さな風船と電池。膨らませる人の方が、発電より多くカロリーを使っている。|balloon battery
+meeting|table|cards|kirby|カービィ、丸い議題を選ぶ|会議机の上のボールをじっと見ている。食べ物ではないとわかってから、出席が静かになった。|ball paper
+cafe|counter|steam|witch|魔女のマシュマロ雲|カウンターの一皿に白い雲。雨は降らないが、コーヒーへ入れるとすぐ消える。|cloud cup
+workshop|workbench|trace|spongebob|スポンジ・ボブ、拭き掃除当番|作業台の小さな水滴を、黄色い来客が拭いている。誰より吸水性のある担当者だ。|broom bottle
+arcade|arcade|pixels|sonic|ソニック、バネ台の修理依頼|ゲーム機脇に小さなバネ。ジャンプは得意でも、ネジ締めにはちゃんと工具を借りた。|gear shoe
+canteen|buffet|steam|chef|こんにゃく、見本より揺れる|配膳台の一皿だけ妙にぷるぷる。見本か本物か迷う人向けに「本物」の札がついた。|jelly sign`,
+robot: `workshop|workbench|sparks|robot|ロボットの定期健診|工房の作業台に工具と予備の歯車。健康診断の結果は「油を差して、よく休むこと」。|gear cable
+cafe|counter|music|doraemon|ドラえもん、扇風機を逆回転|カウンター脇の小型扇風機。未来の風は来ず、レシートだけが戻ってきた。|fan paper
+canteen|buffet|steam|inventor|シュレッダー製麺機、使用禁止|配膳台に試作品の小箱。紙と麺を同じ機械で扱う案は、衛生担当に一瞬で止められた。|printer noodle
+studio|easel|chalk|walle|WALL-E、焼き目の版画展|イーゼルの横にトースト一枚。拾ったパンの焼き目を、美術作品として保存している。|bread painting
+ops|rack|beam|r2d2|ルーターの灯台モード|実際のラック脇で青いドロイドが待機。点滅の意味を説明した結果、船員の方が詳しくなった。|radio satellite
+project|board|paper|robot|エレベーターの人気投票|CMS区画の白板に丸い投票シール。階数ではなく、閉じるボタンが一位だった。|bell paper
+cafe|counter|steam|calcifer|カルシファー、ケトルを担当|既存カウンターの端に小さな火。「ベーコンも焼かせろ」と湯気の中から抗議している。|fire cup
+library|shelf|paper|c3po|電池の保証書、古代語で届く|マニュアル棚に一枚の保証書。C-3POが翻訳すると、有効期限だけはとっくに切れていた。|battery paper
+garden|plant|trace|walle|WALL-Eの落ち葉標本|屋上の実際の鉢の隣に小箱。拾った葉を大事に並べて、ゴミとは別だと示している。|leaf chest
+studio|easel|mirror|robot|冷蔵庫マグネットの小さな個展|イーゼルに立てた金属板に磁石が三つ。作品を動かせるので、学芸員も気が抜けない。|magnet painting
+wellness|sofa|trace|holmes|靴下片方事件、洗濯機は無罪|ソファ脇に一足未満の証拠品。探偵は静電気で裏返った袖を見つけ、捜査を終えた。|sock magnifier
+focus|desk|paper|robot|電卓、桁あふれで休憩|集中室の机に電卓と小さな旗。「ここまで」の表示に、担当者も一緒に席を立った。|calculator flag
+canteen|table|stars|doraemon|電子レンジの星空弁当|食卓の小さな弁当箱に星形のおかず。未来の道具より、型抜きの腕が光っている。|star basket
+office|shelf|music|baymax|自動ドアへ拍手の練習|ひだまりの棚前で白いロボットが両手を上げる。開閉のたびに拍手すると、通る人が照れてしまう。|hand bell`,
+space: `cockpit|console|scan|alien|宇宙人、操縦卓の研修中|既存コンソールの前に緑の来客。「触るな」の札だけ、宇宙共通語で理解している。|ufo paper
+workshop|workbench|orbit|newton|ニュートン、落ちないりんご|作業台の上で一個だけ浮くりんご。万有引力の説明が、今日は少し長引きそうだ。|apple book
+ops|monitor|beam|spock|転送装置、靴だけ先着|モニター前の床に片方の靴。本人の到着まで、引継票が寂しく待っている。|shoe ring
+library|shelf|paper|astronaut|ロケット燃料、資料だけ持参|棚の前に小瓶と注意書き。実物の持ち込みは禁止なので、中身はただの水になった。|bottle rocket
+canteen|table|steam|spock|スポック、地球の給食に興味|食卓の一皿を論理的に観察。好き嫌いの説明だけ、数値化が難しいらしい。|plate bread
+workshop|workbench|trace|walle|火星探査車の文具採集|作業台の小箱にクリップが三つ。地球にも未知の金属があると、報告書が賑わっている。|clip robot
+garden|plant|feathers|astronaut|アンテナの巣、通信良好|屋上の既存の鉢の脇に小さな鳥の巣。親鳥が留まるたび、受信状態だけ少し変わる。|egg feather
+sky|telescope|orbit|leia|レイア、人工衛星の位置合わせ|望遠鏡のそばに小さな衛星模型。銀河の地図に東京湾がないので、まず座標の変換から。|satellite planet
+project|board|beam|spock|ワームホールの返品窓口|区画の白板に光る丸が二つ。戻した荷物より先に、返品理由の紙が出てきた。|ring gift
+library|table|paper|alien|宇宙語、献立表で翻訳成功|図書室の読書机に記号のメモ。最初に通じた単語が「おかわり」だった。|paper fork
+garden|plant|stars|astronaut|月面基地の盆栽、屋上研修|実際の鉢の横に小さなヘルメット。無重力でない水やりを、改めて練習している。|helmet seedling
+cafe|counter|steam|flash|光速配達員、冷めたラテ|カウンターに赤い来客と封筒。配達は速いが、休憩の注文を忘れていた。|envelope cup
+ops|monitor|scan|alien|宇宙の信号、アラートではない|監視モニターに点と線の通信。翻訳したら、ただの「こんにちは」が大音量だった。|satellite bell
+meeting|table|cards|alien|異星人の名刺、裏が吸盤|会議机に小さな名刺が二枚。握手のあと、紙だけがしばらく離れなかった。|card octopus`,
+dinosaur: `garden|pond|trace|grant|グラント博士、池の足跡調査|屋上の池の縁に三本指の小さな跡。恐竜が来たのか、植木屋の道具か、博士がしゃがんでいる。|footprint magnifier
+workshop|workbench|feathers|grant|始祖鳥の羽、接着剤禁止|作業台に羽根と小さな模型。飛ばす実験より先に、本物の標本の扱いを教わる。|feather plane
+studio|easel|chalk|dinosaur|トリケラトプスの帽子図面|イーゼルに三本角の帽子スケッチ。本人は小さな模型で参加し、採寸だけ現地対応。|dinosaur hat
+workshop|workbench|ribbon|mammoth|マンモスの毛糸、一本だけ|作業台に太めの糸と編み針。一本でも十分なマフラーになると、担当者が驚いている。|rope shirt
+library|shelf|trace|grant|アンモナイトの返却期限|資料棚の小さな化石と貸出カード。「一億年延滞」は桁が多すぎて入力できない。|fossil book
+library|table|paper|grant|三葉虫、しおりに似すぎる|読書机の端に小さな化石。薄いからといって本へ挟まないよう、注意書きが増えた。|fossil paper
+wellness|bed|heart|grant|恐竜の卵、休憩室で保温|ベッド脇の小さな籠に卵が一つ。湯たんぽと間違わないよう、博士が見張っている。|dinosaurEgg basket
+studio|easel|ribbon|dinosaur|首長竜のネクタイ、模型で試着|アトリエの小さな首長竜模型。布の長さではなく、締め方の説明が長くなった。|dinosaur shirt
+garden|plant|stars|grant|恐竜の背板、ソーラー見本|屋上の鉢脇に小型の背板模型。発電した電気で、注意書きのLEDだけ光っている。|dinosaur battery
+cafe|counter|feathers|grant|翼竜便、割れ物は別便|カウンターに羽根と封筒。卵の配送依頼だけは、博士が丁重に断っている。|feather envelope
+library|shelf|paper|fossil|化石の履歴書、職歴が長い|棚前の書類に「白亜紀から」。最後の職場は博物館、退職理由は閉館時間だった。|fossil paper
+canteen|table|frost|grant|氷河期の保冷弁当|食卓の小さな保冷材と弁当。冷やしすぎると味見できないと、博士もようやく気づいた。|snow basket
+meeting|board|chalk|caveman|石器時代のプレゼン、石板一枚|作戦室の実際の白板に石板の写し。「次のスライド」がなかなか運び込めない。|statue paper
+canteen|table|steam|grant|地層ケーキ、発掘しながら試食|食卓の一切れに三色の層。フォークの代わりに小さな刷毛を渡されている。|cake fossil`,
+magic: `arena|reactor|stars|harry|ハリー、魔法陣の安全点検|闘技場の既存の装置の足元に小さな光の輪。派手に広げる前に、避難通路を確認している。|wand book
+garden|sofa|trail|kiki|キキのほうき、屋上で教習|屋上ベンチ横にほうきと小さなコーン。飛ぶ高さは手すりより下、と今日の講習で決まった。|broom cone
+meeting|board|chalk|hermione|ハーマイオニー、呪文を議事録へ|白板に短い文字列。発音の修正だけで、会議の半分が終わりそうだ。|scroll wand
+cafe|counter|bubbles|snape|スネイプのドリンクバー監査|カフェのカウンターに小瓶が二本。砂糖を混ぜる順番だけ、やたら厳しく見られている。|potion cup
+wellness|sofa|shadow|mcgonagall|マクゴナガル、猫の姿で仮眠|既存ソファの横に縞猫と眼鏡。起こすと先生に戻るので、今日は静かに通ろう。|cat glasses
+studio|easel|mirror|queen|魔法の鏡、天気予報を担当|イーゼルの小さな鏡に傘の絵。世界一美しい人より、洗濯物の行方をよく聞かれる。|mirror umbrella
+canteen|table|sparks|harry|召喚されたのはスプーン一本|食卓の皿の隣にフォークが一本だけ増えた。大量召喚は後片づけが大変なので、今日はここまで。|fork plate
+library|shelf|stars|hermione|透明な本、返却確認が難航|資料棚の前にラベルだけ浮く。ハーマイオニーが貸出台帳を指さして、確かに一冊あると言う。|book glasses
+focus|desk|paper|wizard|ガンダルフの帽子から領収書|集中室の机に帽子と紙束。魔法の杖より、経理の照合の方が今日は強い。|hat paper
+cafe|table|portal|doctor|ドクター、ティーカップだけ転送|実際の小卓に小さな光の輪。本人は到着したが、紅茶はまだロンドンにあるらしい。|cup ring
+studio|easel|music|sakura|さくらの杖、指揮棒デビュー|イーゼルの譜面の前に小さな杖。魔法より先に、曲の入りを合わせる練習から。|wand note
+project|board|paper|snape|承認の呪文、レビューは別|CMS区画の白板前に判子。「すべて承認」の魔法にも、コードレビューは通してもらう。|stamp paper
+library|shelf|feathers|harry|飛ぶ本、書架の前で待機|本棚の前に一冊だけ浮く本。空中を巡回させず、返却先のラベルを待っている。|book feather
+workshop|workbench|ribbon|witch|魔女の洗濯表示、杖使用不可|作業台に小さな帽子と布。タグを読むと、魔法洗いだけは丸く取り消されていた。|hat shirt`,
+food: `canteen|table|steam|kirby|カービィ、プリンは一人一個|食堂の実際の食卓に一個だけプリン。量ではなく、ちゃんと味わう練習をしている。|pudding fork
+canteen|buffet|steam|anpanman|アンパンマン、パンの差し入れ|配膳台の小籠に丸いパン。自分の顔は無事なまま、予備をちゃんと用意してきた。|bread basket
+canteen|table|cards|sanji|サンジ、回らない寿司を提供|食卓の一皿に寿司が三貫。回転装置を使う前に、冷めないうちに食べてほしいそうだ。|sushi plate
+canteen|buffet|steam|naruto|ナルト、一楽の出張カウンター|既存の配膳台に一杯のラーメン。影分身の分は食券が必要だと確認している。|noodle ticket
+cafe|table|trace|remy|レミー、チーズの穴を点検|小さなカフェ卓に一切れのチーズ。会議室にするには狭いので、今日はそのまま食材へ。|cheese magnifier
+arcade|arcade|pixels|donkey|ドンキーコング、バナナの持込確認|筐体の前に小さな樽とバナナ。皮をコースへ投げない約束を、先に取りつけられた。|banana chest
+canteen|table|steam|ninja|ミュータント・タートルズのピザ会|食卓の一枚を四つに分ける作戦。下水道の地図より、最後の一切れの行方が難しい。|pizza mask
+cafe|counter|steam|homer|ホーマー、ドーナツの穴を見つめる|カウンターの皿に一個のドーナツ。なくなった中心部の料金について、静かに交渉中。|donut cup
+canteen|buffet|steam|popeye|ポパイ、ほうれん草の追加希望|配膳台の横に空の缶。今日はちゃんと野菜の皿から食べるよう、料理人にすすめられた。|carrot pan
+canteen|table|paper|chihiro|千尋、おにぎりでひと息|食堂の食卓に普通のおにぎり。大きな出来事のあとも、塩むすびの大きさは変わらない。|sushi cup
+cafe|counter|frost|elsa|エルサ、アイスの溶け方相談|カフェの一皿に小さなアイス。全部凍らせる前に、食べる人の歯へ配慮している。|icecream fork
+cafe|table|steam|pooh|プーさん、パンケーキより蜂蜜|小さなカフェ卓に二枚のパンケーキ。持参の瓶の方が重くて、椅子の横へ置き直した。|bread bottle
+cafe|counter|steam|porco|ポルコ、深煎りを一杯だけ|カウンターの脇に飛行帽。空を飛ぶ前のコーヒーは、格好より眠気対策らしい。|cup hat
+canteen|table|steam|goku|悟空、弁当のおかずを数える|食卓の弁当は普通サイズ。「足りる？」に全員がうなずいたので、とりあえず一個から始める。|basket meat`,
+festival: `garden|sofa|ribbon|festival|屋上縁日、ベンチ一台分|既存のベンチ脇に小さな提灯とお盆。屋台を建てず、通れる幅を残したお祭りになった。|lantern candy
+workshop|workbench|music|inventor|観覧車の模型、試運転中|作業台に一台だけの小さな観覧車。乗れるのは消しゴムまで、と安全確認が終わった。|ferris eraser
+arcade|table|cards|festival|付箋すくい、卓上で開催|ゲーセンの小卓に小さな容器。すくった付箋のTODOは、持ち帰らなくてよいルール。|paper ring
+arcade|arcade|pixels|usopp|ウソップ、射的の景品を申請|筐体の横に小さな的とトロフィー。自慢話だけは、命中率と分けて集計している。|trophy star
+cafe|counter|steam|festival|綿あめ雲、コーヒーの上だけ|カウンターのカップに小さな白い雲。天井まで広げないので、空調担当も安心した。|cloud cup
+studio|easel|mirror|noface|カオナシ、仮面のデザイン相談|イーゼル前の黒い来客。表情差分を頼んだら、静かに一枚だけ元の顔を出してきた。|mask painting
+arcade|table|music|mime|大道芸、卓上ボール三個まで|ゲーセンのテーブル脇で小さなジャグリング。増やすほど危ないので、三個がちょうどよい。|ball hat
+garden|sofa|music|festival|チンドン屋の屋上リハーサル|ベンチ脇に小太鼓とラッパ。下の集中室へ響かない音量で、にぎやかさを調整中。|drum trumpet
+studio|table|cards|kaito|キッド、箱より先に領収書を消す|作業テーブルの小箱は無事。手品で消えた経費の紙だけ、もう一度出してほしい。|chest paper
+office|shelf|ribbon|festival|パレード先頭、館内図を確認|ひだまりの棚前に小さな旗。行進する前に、入口と出口を間違えないよう打ち合わせ中。|flag scroll
+sky|telescope|stars|fireworker|花火師、窓辺で打上図を描く|望遠鏡脇の紙に小さな光の輪。室内では上げず、夜空の予定だけ見せてもらう。|star pencil
+canteen|table|music|rabbit|月の餅つき、食卓サイズ|実際の食卓に小さな臼の見本。兎の掛け声より、休憩中の手拍子の方が揃っている。|hammer dumpling
+arcade|table|cards|festival|福引きの玉、最後は参加賞|ゲーセンの小卓に玉が三つ。色より先に、参加した人全員へお菓子を渡している。|ball gift
+workshop|workbench|paper|walle|WALL-E、お祭りの紙吹雪を分別|作業台の端に赤と白の小片。全部宝物にする案は、箱の容量で却下された。|paper broom`,
+detective: `canteen|table|trace|conan|コナン、消えたおやつの現場検証|実際の食卓に空の皿とパンくず。犯人の名前より、次の差し入れ時刻が先に判明した。|plate magnifier
+library|table|paper|holmes|シャーロック、手順書の矛盾を解く|図書室の読書机に旧版と新版。密室より難しいのは、どちらが正しい運用かという謎だった。|book magnifier
+focus|desk|shadow|conan|机の下に逆向きの足跡|集中室のデスク横に小さな靴跡。椅子を後ろ向きで引いただけ、と名探偵は少し残念そう。|footprint shoe
+library|shelf|trace|holmes|虫眼鏡の忘れ物、持ち主は隣|資料棚の前に虫眼鏡が一つ。探している探偵の手には、すでに同じ物がもう一本ある。|magnifier hat
+project|board|chalk|conan|鍵の数と権限の数が合わない|案件部屋の白板に鍵のスケッチ。物理鍵の複製より、アカウント棚卸しが先だと結論が出た。|key paper
+studio|easel|trace|holmes|指紋の絵、作者の署名がない|イーゼルの絵に丸い指紋。すべて本人の指だったので、本人確認だけが妙に簡単。|fingerprint painting
+canteen|table|paper|conan|暗号の正体は麺の固さ|食堂の食卓に記号の注文メモ。解くと「かため・替え玉」だったので、捜査は昼食へ移行。|paper noodle
+studio|easel|shadow|cat|写真の猫、額から出る|イーゼル前に猫と写真。印刷された方まであくびをするので、作品の版管理に困っている。|camera cat
+library|table|ribbon|holmes|赤い糸、猫が先に解いた|読書机の小さな資料と糸。探偵の相関図は、猫にとっては絶好の遊び場だった。|rope paper
+meeting|board|chalk|zenigata|犯行予告、誤字だけ指摘|作戦室の既存白板に一枚の予告状。銭形は追跡前に、日時の表記揺れを直している。|paper pencil
+ops|monitor|scan|holmes|消えた金貨、ログには正常|管制室のモニターに会計記録。盗難ではなく、単に別勘定へ移しただけとわかった。|coin calculator
+office|shelf|trace|conan|落とし物の傘、全員が心当たり|ひだまりの棚脇に普通の傘。名前を書くという最小の対策が、今日の名推理になった。|umbrella paper
+studio|easel|mirror|holmes|似顔絵の容疑者、鏡の中|イーゼル前に手鏡とスケッチ。作者が自分に似せすぎたせいで、捜査線上へ浮かんでしまった。|painting mirror
+library|table|cards|conan|アリバイ時計、全部五分進み|読書机に小さな時計とメモ。全員遅刻しない仕組みだったので、事件性はなかった。|clock paper`,
+comic: `office|desk|portal|doraemon|ドラえもん、どこでもドアの入館申請|ひだまりのデスク脇に人サイズのピンクの扉。出入口を増やす前に、総務へちゃんと相談している。|door bell
+canteen|table|steam|goku|悟空、空の皿だけ先に積む|食堂の実際の食卓に空皿が三枚。「追加は食べ終わってから」と言われ、素直に待っている。|plate meat
+meeting|table|ribbon|luffy|ルフィの名札、伸ばしすぎ注意|会議机の端に名札と長めのひも。隣の人の資料を巻き込まない長さに調整中。|card rope
+canteen|buffet|shadow|naruto|ナルト、影分身の食券不足|配膳台の前に同じ忍者が二人。食券は一枚なので、分身を解いてから並び直した。|noodle ticket
+studio|easel|chalk|arale|アラレちゃん、地球儀の持ち方講座|イーゼル前に普通の地球儀。割ってはいけない備品だと聞いて、両手でそっと支えている。|planet ruler
+canteen|buffet|steam|anpanman|アンパンマン、工房から焼きたて便|食堂の配膳台に籠一つ分のパン。顔の交換ではなく、普通の差し入れなので安心。|bread flower
+cafe|counter|feathers|kiki|キキ、受領印をジジに頼めない|カウンターの小箱の隣に黒猫。猫の肉球でも受領できるか、伝票を見直している。|cat gift stamp
+garden|plant|blossom|totoro|トトロ、屋上の鉢を巡回|既存の植木鉢の前にトトロと小さな種。新しい森を床に増やさず、一本ずつ育てる日。|seed umbrella
+ops|monitor|scan|conan|コナン、蝶ネクタイの音声確認|既存モニター前に小さなマイク。声を変える前に、全館放送へつながっていないか確認中。|bowtie mic
+workshop|workbench|sparks|pikachu|ピカチュウ、静電気の放電担当|作業台に小さな電池。全館停電は起こさず、指先のぱちっとだけ実演している。|battery lightning
+cafe|table|suction|kirby|カービィ、吸い込みはパンくずだけ|小さなカフェ卓に一皿と数粒のくず。カップは残す約束をしてから、掃除が始まった。|bread plate
+workshop|workbench|paper|mario|マリオ、配管図を読んでから|作業台に配管の模型と図面。何でも土管へ入る前に、水道設備か確認している。|pipe scroll
+sky|sofa|stars|sailor|セーラームーン、月に代わって休憩|ラウンジのソファ脇に小さな月の杖。今日は罰ではなく、お茶の時間を知らせている。|moon cup
+focus|desk|paper|snoopy|スヌーピー、机で執筆中|集中室の本物のデスクに紙が一枚。「暗い嵐の夜だった」から先が、なかなか増えない。|paper pencil`,
+kaiju: `sky|telescope|outside|godzilla|ゴジラ、東京湾で信号待ち|ラウンジの窓の外に背びれ。レインボーブリッジを壊さず渡る経路を、じっと考えている。|dinosaur
+garden|sofa|outside|mothra|モスラ、屋上の風に乗る|屋上の外側を大きな羽が通過。鉢もベンチもそのまま、影だけが静かに横切っていく。|butterfly
+sky|telescope|outside|kong|キングコング、塔の点検員|ラウンジの窓の向こうで巨猿が塔をのぞく。手に持った点検票だけ、人間用では小さすぎた。|monkey
+sky|sofa|outside|zeppelin|飛行船の広告、文字が小さい|ラウンジの窓の外に飛行船。広告の文字を読むため、望遠鏡の予約が一枠埋まった。|balloon
+ops|monitor|scan|mulder|モルダー、UFO映像を解析|窓のない管制室では監視モニターで確認。拡大した映像は、たぶんカフェの照明の映り込みだった。|ufo camera
+garden|sofa|outside|luckycat|巨大な招き猫、湾岸へ招く|屋上の外側に猫の大きな影。手を振るたびに風が来るので、洗濯物は今日は室内へ。|cat
+sky|telescope|outside|laputa|ラピュタ、窓辺を静かに通過|ラウンジの窓の外に空の城。会議の開始より先に、みんなが一度だけ席を立った。|castle
+garden|sofa|outside|haku|ハク、屋上の外を旋回|屋上の向こうに細い白い竜。手すりより内側へは入らず、風の道だけを借りている。|dragon
+sky|telescope|outside|gamera|ガメラ、東京湾を飛び越える|ラウンジの窓の外を回る甲羅。航路確認のあと、室内のコーヒーだけ小さく揺れた。|turtle
+garden|sofa|outside|penguin|巨大ペンギン、湾岸の日陰探し|屋上の外を黒白の影が通る。暑い日でも、オフィスの冷房を分けるには大きすぎる。|penguin
+sky|telescope|outside|rainbow|二重の虹、窓の端から端へ|ラウンジの窓の外に七色が二本。どちらの虹にも、館内の椅子は一脚も動かされていない。|rainbow
+sky|sofa|outside|whale|宇宙クジラ、星空の回遊路|ラウンジの窓の外にゆっくり泳ぐ影。潮ではなく、星の粒だけを小さく残していく。|whale
+cockpit|viewport|screen|gundam|巨大ロボット同士の道の譲り合い|操縦室の実際のスクリーンに来客機。戦わず、先にどうぞの合図で仲良く通過した。|robot sign
+sky|telescope|outside|train|銀河鉄道、窓の外に終電案内|ラウンジの窓の外に星のレール。乗る予定はないが、終電だけはなぜか気になる。|train
+sky|table|stars|doctor|ドクターの砂時計、残り五分|ラウンジの小卓に普通サイズの砂時計。宇宙の危機ではなく、次の会議までのカウントだった。|hourglass star`,
 } as const;

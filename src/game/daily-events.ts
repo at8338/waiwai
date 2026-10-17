@@ -1,5 +1,5 @@
 import { DAILY_EPISODES, episodeById } from './daily-event-catalog.ts';
-import { ROOMS, getRoom } from './rooms.ts';
+import { getRoom } from './rooms.ts';
 import type { RoomId } from './rooms.ts';
 import { lostItemsAt } from './lost-items.ts';
 import { objectContains, walkableWithObjects } from './objects.ts';
@@ -14,8 +14,7 @@ export type DailyEvent = { day: string; episodeId: string; roomId: RoomId; start
 export type DailyEventSnapshot = { event: DailyEvent; serverNow: number; preview?: boolean };
 export function previewEventAt(now: number, episodeId: string, roomId?: RoomId): DailyEvent {
   const event = dailyEventAt(now), episode = episodeById(episodeId)!;
-  const eligible = ROOMS.filter((room) => episode.theme !== 'kaiju' || room.outlook !== 'none');
-  const room = roomId && eligible.some((entry) => entry.id === roomId) ? roomId : eligible[eventHash(`${event.day}:${episodeId}:room`) % eligible.length].id;
+  const room = roomId ?? episode.direction.room;
   return { ...event, episodeId, roomId: room };
 }
 export function eventHash(text: string): number {
@@ -44,13 +43,8 @@ export function dailyEventAt(now: number): DailyEvent {
   const index = ((dayIndex % 365) + 365) % 365, episodeId = deck(cycle)[index];
   const startsAt = EPOCH + dayIndex * EVENT_DAY_MS;
   const day = new Date(startsAt + JST).toISOString().slice(0, 10);
-  const theme = episodeById(episodeId)!.theme;
-  // Existing journal entries keep their original rooms. New rooms join the roster
-  // from 2026-10-18 JST, rather than rewriting discoveries already made on launch day.
-  const expandedRooms = startsAt >= Date.UTC(2026, 9, 18) - JST;
-  const eligible = ROOMS.filter((r) => r.id !== 'cockpit' && r.id !== 'arena' && (expandedRooms || (r.id !== 'project' && r.id !== 'canteen'))
-    && (theme !== 'kaiju' || r.outlook !== 'none'));
-  const roomId = eligible[eventHash(`${day}:${episodeId}:room`) % eligible.length].id;
+  // A room is part of the authored incident, never an unrelated random backdrop.
+  const roomId = episodeById(episodeId)!.direction.room;
   return { day, episodeId, roomId, startsAt, endsAt: startsAt + EVENT_DAY_MS };
 }
 // Events are decorations, never authoritative movement blockers. Prefer an empty 3x3

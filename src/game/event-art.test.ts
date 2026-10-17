@@ -26,7 +26,7 @@ test('new detailed source runs retain their dimensions in the scene, hero and ou
   for(const episode of DAILY_EPISODES){
     const stage=roomEventStage(episode,'meeting',[],-1);
     assert.ok([...stage.floor,...stage.scenery,...stage.effects].every(p=>[p.x,p.y,p.w,p.h].every(n=>Number.isInteger(n*2))),episode.id);
-    if(!episode.scene.special && episode.theme !== 'comic') assert.ok(eventPixels(episode).every(p=>p.h===1.25),episode.id);
+    if(!episode.direction.cast.length && !episode.scene.special && episode.theme !== 'comic') assert.ok(eventPixels(episode).every(p=>p.h===1.25),episode.id);
     for(const p of outsideEventPixels(episode,256,56))assert.ok(p.x>=0&&p.y>=0&&p.x+p.w<=256&&p.y+p.h<=56,episode.id);
   }
 });

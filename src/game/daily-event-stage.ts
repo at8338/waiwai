@@ -1,3 +1,5 @@
+import { directedIncidentStage } from './incident-staging.ts';
+import type { IncidentPlacement } from './incident-staging.ts';
 import { eventVisitorPixels } from './event-visitors.ts';
 import type { DailyEpisode, EventTheme } from './daily-event-catalog.ts';
 import type { RoomId } from './rooms.ts';
@@ -10,7 +12,7 @@ import { eventPropPixels } from './event-props.ts';
 
 export type StagePixel = { x: number; y: number; w: number; h: number; color: number; alpha: number };
 export type DamageShape = { kind: 'ellipse' | 'rect'; x: number; y: number; w: number; h: number };
-export type EventStage = { floor: StagePixel[]; scenery: StagePixel[]; effects: StagePixel[]; damage: DamageShape[]; inspectAreas?: DamageShape[]; hero: { x: number; y: number; scale: number }; caption: string };
+export type EventStage = { floor: StagePixel[]; scenery: StagePixel[]; effects: StagePixel[]; damage: DamageShape[]; inspectAreas?: DamageShape[]; hero: { x: number; y: number; scale: number }; caption: string; placements?: IncidentPlacement[] };
 const descriptions: Record<EventTheme, string> = {
   meteor: '部屋の半分がクレーターに。天井と壁を突き破った巨大隕石が、まだ熱を持っています。',
   thief: '泥棒がオフィスに侵入。開いた金庫、散らばった書類、忍び足の跡。風呂敷を抱えた本人も、まだどこかにいます。',
@@ -40,6 +42,7 @@ const descriptions: Record<EventTheme, string> = {
   kaiju: '巨大な来客が屋根と壁を押し破る大騒動。見上げるほどの体と、部屋いっぱいの破壊跡が残っています。',
 };
 export function eventStageDescription(event: DailyEpisode): string {
+  if (!event.direction.approved) return event.discovery;
   if (!event.scene.special) return STAGING[event.scene.layout];
   if (event.scene.special === 'aquarium') return '水槽から魚ごと水があふれ、机の間が水族館に。水面を泳ぐ魚と空っぽの水槽が見えます。';
   return descriptions[event.scene.special as EventTheme];
@@ -50,7 +53,8 @@ export function damageContains(shape: DamageShape, x: number, y: number): boolea
 
 // Room-sized scenery is deterministic for every episode. Only this small effects
 // layer changes over time; no debris physics, permanent edits or new colliders.
-export function roomEventStage(event: DailyEpisode, roomId: RoomId = 'meeting', objects: readonly RoomObject[] = [], frame = 0): EventStage {
+export function roomEventStage(event: DailyEpisode, roomId: RoomId = event.direction.room, objects: readonly RoomObject[] = [], frame = 0): EventStage {
+  if (!event.direction.approved || event.id === 'delorean-13') return directedIncidentStage(event, roomId, objects, frame);
   if (!event.scene.special) return tableauStage(event, frame);
   // Only the explicitly selected single episode receives a legacy bespoke stage.
   // Its historical category never causes the other thirteen scenes to repeat it.

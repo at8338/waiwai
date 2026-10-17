@@ -1,6 +1,12 @@
 import { EVENT_STORIES } from './daily-event-stories.ts';
-import type { EpisodeScene, Staging } from './event-tableaux.ts';
-import { STAGING } from './event-tableaux.ts';
+import type { EpisodeScene } from './event-tableaux.ts';
+import { APPROVED_INCIDENTS } from './incident-approved.ts';
+import { getRoom, isRoomId } from './rooms.ts';
+import type { RoomId } from './rooms.ts';
+import type { Furniture } from './world.ts';
+import { INCIDENT_BEATS } from './incident-script.ts';
+import type { IncidentScript, IncidentBeat } from './incident-script.ts';
+import { isIncidentCast } from './incident-cast.ts';
 import { EVENT_PROP_NAMES } from './event-props.ts';
 import type { EventProp } from './event-props.ts';
 // Keys and IDs stay stable for saved discoveries. The labels describe broad
@@ -14,15 +20,20 @@ export const EVENT_THEMES = {
   festival: '祭りと見世物', detective: '探偵の事件簿', comic: '漫画からの来客', kaiju: '窓の向こうの非日常',
 } as const;
 export type EventTheme = keyof typeof EVENT_THEMES;
-export type DailyEpisode = { id: string; theme: EventTheme; variant: number; title: string; discovery: string; scene: EpisodeScene };
-const specials = new Set<string>([...Object.keys(EVENT_THEMES), 'aquarium']);
+export type DailyEpisode = { id: string; theme: EventTheme; variant: number; title: string; discovery: string; scene: EpisodeScene; direction: IncidentScript };
+const approvedRooms: Record<string, RoomId> = { 'meteor-01':'office', 'thief-01':'office', 'flood-01':'workshop', 'flood-03':'office', 'flood-04':'cafe', 'santa-01':'office', 'delorean-01':'workshop', 'delorean-13':'meeting', 'terminator-01':'ops' };
 export const DAILY_EPISODES: readonly DailyEpisode[] = (Object.keys(EVENT_THEMES) as EventTheme[]).flatMap(theme =>
-  EVENT_STORIES[theme].split('\n').map((row, variant) => {
-    const [title, discovery, staging, names] = row.split('|');
-    const special = staging.startsWith('!') ? staging.slice(1) : undefined;
-    const layout = (special ? 'focus' : staging) as Staging;
-    const props = names.split(' ') as EventProp[];
-    if (!title || !discovery || !(layout in STAGING) || (special && !specials.has(special)) || props.some(p => !EVENT_PROP_NAMES.includes(p))) throw new Error('Invalid authored incident: ' + row);
-    return { id: theme + '-' + String(variant + 1).padStart(2, '0'), theme, variant, title, discovery, scene: { layout, props, ...(special ? { special } : {}) } };
+  EVENT_STORIES[theme].split('\n').map((row, variant): DailyEpisode => {
+    const id = theme + '-' + String(variant + 1).padStart(2, '0');
+    if (row === 'KEEP') {
+      const saved = APPROVED_INCIDENTS[id as keyof typeof APPROVED_INCIDENTS];
+      return { id,theme,variant,title:saved.title,discovery:saved.discovery,scene:{...saved.scene,props:[...saved.scene.props]},
+        direction:{room:approvedRooms[id],anchor:id==='delorean-13'?'table':id==='flood-01'||id==='delorean-01'?'workbench':id==='flood-04'?'vending':id==='terminator-01'?'monitor':'desk',beat:'trace',cast:[],approved:true} };
+    }
+    const [room,anchor,beat,actors,title,discovery,names] = row.split('|');
+    const props=names?.split(' ') as EventProp[], cast=actors.split(' ');
+    if (!isRoomId(room) || !getRoom(room).furniture.some(f=>f.kind===anchor) || !INCIDENT_BEATS.includes(beat as IncidentBeat)
+      || cast.some(c=>!isIncidentCast(c)) || !title || !discovery || !props?.length || props.some(p=>!EVENT_PROP_NAMES.includes(p))) throw new Error('Invalid room incident '+id+': '+row);
+    return { id,theme,variant,title,discovery,scene:{layout:'focus',props},direction:{room,anchor:anchor as Furniture['kind'],beat:beat as IncidentBeat,cast} };
   }));
 export function episodeById(id: string): DailyEpisode | undefined { return DAILY_EPISODES.find(event => event.id === id); }
