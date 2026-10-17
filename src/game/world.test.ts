@@ -19,7 +19,7 @@ test('the spawn and every room doorway are reachable on foot', () => {
 
 test('map edges, walls, and every furniture footprint block movement', () => {
   for (const [x, y] of [[-1, 5], [COLS, 5], [4, -1], [4, ROWS], [0, 5], [29, 5], [10, 5], [20, 5], [4, 10], [2.5, 5]]) assert.equal(canWalk(x, y), false);
-  for (const item of furniture) {
+  for (const item of furniture.filter((f) => f.kind !== 'parking')) {
     for (let y = item.y; y < item.y + item.h; y++) for (let x = item.x; x < item.x + item.w; x++) assert.equal(canWalk(x, y), false);
   }
   for (const x of [5, 6, 14, 15, 24, 25]) assert.equal(canWalk(x, 10), true);

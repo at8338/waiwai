@@ -18,7 +18,7 @@ test('held items have distinct texture keys and remain in bounds in all directio
     assert.deepEqual(parseAppearance(appearance), appearance);
     keys.add(appearanceKey(appearance)); drawings.add(JSON.stringify(avatarPixels(appearance)));
     for (let body = 0; body < 3; body++) for (let height = 0; height < 3; height++) {
-      for (const direction of directions) for (const pose of ['stand', 'bow', 'raise', 'happy'] as const) for (let frame = 0; frame < 3; frame++) {
+      for (const direction of directions) for (const pose of ['stand', 'sit', 'bow', 'raise', 'happy'] as const) for (let frame = 0; frame < 3; frame++) {
         for (const p of avatarPixels({ ...appearance, body, height }, direction, frame, pose)) {
           assert.ok(p.x >= 0 && p.y >= 0 && p.w > 0 && p.h > 0);
           assert.ok(p.x + p.w <= 20 && p.y + p.h <= 28, `${heldItem}/${body}/${height}/${direction}/${pose}/${frame}: ${JSON.stringify(p)}`);

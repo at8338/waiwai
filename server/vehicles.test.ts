@@ -28,3 +28,18 @@ test('pickup and return require the proper nearby dock; disconnect release works
   const copy = fleet.list(); copy[0].riderId = 'spoof'; assert.notEqual(fleet.list()[0].riderId, 'spoof');
   fleet.release(p); assert.equal(p.riding, undefined); assert.equal(fleet.list().filter((u) => !u.riderId).length, 9);
 });
+
+test('pad entry automatically borrows or returns once, rearms only after leaving, and preserves finite stock', () => {
+  const fleet = new VehicleFleet(), p = person('p', 3, 14);
+  assert.equal(fleet.touch(p), true); assert.equal(p.riding?.kind, 'bike');
+  p.x = 4; assert.equal(fleet.touch(p), false); assert.equal(p.riding?.kind, 'bike');
+  p.y = 13; assert.equal(fleet.touch(p), false);
+  p.y = 14; assert.equal(fleet.touch(p), true); assert.equal(p.riding, undefined);
+  p.x = 5; assert.equal(fleet.touch(p), false); assert.equal(p.riding, undefined);
+  p.x = 6; fleet.touch(p); p.x = 7; assert.equal(fleet.touch(p), true); assert.equal((p as Player).riding?.kind, 'skateboard');
+  p.x = 6; fleet.touch(p); p.x = 5; assert.equal(fleet.touch(p), true); assert.equal(p.riding, undefined);
+  fleet.forget(p); assert.equal(fleet.list().filter((u) => !u.riderId).length, 9);
+  const riders = Array.from({ length: 4 }, (_, i) => person(`r${i}`, 3, 14));
+  assert.deepEqual(riders.map((r) => fleet.touch(r)), [true, true, true, false]);
+  assert.equal(fleet.touch(riders[3]), false); assert.equal(riders[3].riding, undefined);
+});

@@ -1,3 +1,7 @@
+import { LOST_ITEM_CATALOG } from './lost-items.ts';
+import { LostItemsView } from './lost-items-view.ts';
+import { seatSpots, restingSeat } from './seating.ts';
+import type { SeatSpot } from './seating.ts';
 import { movementStep, VEHICLES } from './transport.ts';
 import { VehicleDocksView, vehicleTexture } from './transport-view.ts';
 import { TransportUI } from './transport-ui.ts';
@@ -31,6 +35,7 @@ import { REACTIONS, REACTION_KINDS, REACTION_COOLDOWN_MS, reactionMotion } from 
 import type { ReactionKind } from './reactions.ts';
 
 type AvatarView = {
+  seatId?: string;
   sprite: Phaser.GameObjects.Image;
   vehicle: Phaser.GameObjects.Image;
   shadow: Phaser.GameObjects.Graphics;
@@ -41,6 +46,8 @@ type AvatarView = {
 type Peer = { player: Player; walker: Walker; view: AvatarView };
 
 export class OfficeScene extends Phaser.Scene {
+  private lostItems?: LostItemsView;
+  private seats = new Map<string, SeatSpot>();
   private vehicleUI?: TransportUI;
   private vehicleDocks?: VehicleDocksView;
   private skyWindow?: SkyWindowView;
@@ -66,6 +73,7 @@ export class OfficeScene extends Phaser.Scene {
   private participantsDirty = false;
   private lastParticipantsAt = 0;
   private loginRequired: boolean;
+  private appearancePickup?: (appearance: Appearance) => void;
   private appearance: Appearance = { ...DEFAULT_APPEARANCE };
   private roomId: RoomId = 'office';
   private mapViews: Phaser.GameObjects.GameObject[] = [];
@@ -106,6 +114,15 @@ export class OfficeScene extends Phaser.Scene {
 
   create(): void {
     this.mapViews = drawOffice(this, this.roomId);
+    this.lostItems = new LostItemsView(this, this.inputController.signal, (item) => {
+      if (this.editMode !== 'none' || document.querySelector('dialog[open]')) return;
+      this.controls.clear();
+      const entry = LOST_ITEM_CATALOG[item.kind];
+      document.querySelector('#lost-item-title')!.textContent = entry.name;
+      document.querySelector('#lost-item-description')!.textContent = entry.note;
+      document.querySelector<HTMLDialogElement>('#lost-item-info')!.showModal();
+    });
+    document.querySelector('#lost-item-close')!.addEventListener('click', () => document.querySelector<HTMLDialogElement>('#lost-item-info')!.close(), { signal: this.inputController.signal });
     this.lighting = new RoomLighting(this);
     this.skyWindow = new SkyWindowView(document.querySelector<HTMLCanvasElement>('#sky-window')!);
     createAvatarTextures(this);
@@ -165,7 +182,7 @@ export class OfficeScene extends Phaser.Scene {
       vehicles: (units) => { this.vehicleUI?.inventory(units); this.vehicleDocks?.receive(units); },
       vehicleResult: (id, error) => this.vehicleUI?.result(id, error),
       pets: (roomId, pets) => this.companions?.pets(roomId, pets),
-      player: (player, snap) => this.receivePlayer(player, snap),
+      player: (player, snap, reason) => this.receivePlayer(player, snap, reason),
       reaction: (message) => {
         if (message.roomId !== this.roomId || this.players.get(message.playerId)?.roomId !== this.roomId) return;
         this.reactions.set(message.playerId, { kind: message.kind, startedAt: performance.now() });
@@ -182,7 +199,7 @@ export class OfficeScene extends Phaser.Scene {
       travelError: (error) => this.directoryUI?.fail(error),
       objects: (roomId, objects) => {
         if (roomId !== this.roomId) return;
-        this.objects = objects; this.lighting?.setObjects(objects); this.objectsReady = true; this.drawObjects(); this.updateObjectTools();
+        this.objects = objects; this.lostItems?.setObjects(objects); this.seats = seatSpots(roomId, objects); this.participantsDirty = true; this.lighting?.setObjects(objects); this.objectsReady = true; this.drawObjects(); this.updateObjectTools();
         this.linksUI?.refreshTarget(); this.linksUI?.setReady(this.connected);
       },
       objectLinks: (snapshot) => { if (snapshot.roomId === this.roomId) { this.linksUI?.snapshot(snapshot); this.linksUI?.setReady(this.connected && this.objectsReady); } },
@@ -210,7 +227,7 @@ export class OfficeScene extends Phaser.Scene {
       this.connection?.destroy();
       this.companions?.clear();
       this.lighting?.destroy();
-      this.vehicleDocks?.destroy(); this.vehicleUI?.destroy();
+      this.vehicleDocks?.destroy(); this.vehicleUI?.destroy(); this.lostItems?.destroy();
     };
     this.events.once('shutdown', cleanup);
     this.events.once('destroy', cleanup);
@@ -280,11 +297,16 @@ export class OfficeScene extends Phaser.Scene {
     view.sprite.destroy(); view.vehicle.destroy(); view.shadow.destroy(); view.label.destroy(); view.reactionLabel.destroy(); view.sparkles.destroy();
   }
 
-  private receivePlayer(player: Player, snap: boolean): void {
+  private receivePlayer(player: Player, snap: boolean, reason?: string): void {
     const previous = this.players.get(player.id);
     if (previous && (snap || previous.x !== player.x || previous.y !== player.y || previous.roomId !== player.roomId)) this.reactions.delete(player.id);
     this.players.set(player.id, player);
     if (player.id === this.localId) {
+      if (reason === 'vending' && player.appearance) {
+        this.appearance = { ...player.appearance };
+        this.appearancePickup?.(this.appearance);
+        document.querySelector('#office-notice')!.textContent = '自販機でペットボトルを受け取りました。ひと息つこう。';
+      }
       if (player.roomId !== this.roomId) this.showRoom(player.roomId);
       if (player.slackVerified) {
         this.playerName = player.name;
@@ -353,7 +375,8 @@ export class OfficeScene extends Phaser.Scene {
         slackStatus.className = 'participant-slack';
         const reaction = document.createElement('span'); reaction.className = 'participant-reaction';
         const vehicle = document.createElement('span'); vehicle.className = 'participant-vehicle';
-        item.append(name, location, slackStatus, reaction, vehicle);
+        const seat = document.createElement('span'); seat.className = 'participant-seat';
+        item.append(name, location, slackStatus, reaction, vehicle, seat);
         list.append(item);
       }
       item.dataset.playerId = player.id;
@@ -363,6 +386,9 @@ export class OfficeScene extends Phaser.Scene {
       item.dataset.buddyPosition = JSON.stringify(player.buddyPosition ?? null);
       item.dataset.riding = player.riding?.kind ?? '';
       item.children[4].textContent = player.riding ? `${VEHICLES[player.riding.kind].icon} ${VEHICLES[player.riding.kind].name}で移動中` : '';
+      const seatId = player.id === this.localId ? this.avatar.seatId : this.peers.get(player.id)?.view.seatId;
+      item.dataset.seatId = seatId ?? '';
+      item.children[5].textContent = seatId ? '着席中' : '';
       item.dataset.heldItem = String(player.appearance?.heldItem ?? 0);
       item.dataset.outfit = String(player.outfit);
       item.dataset.roomId = player.roomId;
@@ -397,6 +423,8 @@ export class OfficeScene extends Phaser.Scene {
   setOutfit(color: number): void {
     this.setAppearance({ ...this.appearance, color });
   }
+
+  onAppearancePickup(handler: (appearance: Appearance) => void): void { this.appearancePickup = handler; }
 
   setAppearance(appearance: Appearance): void { this.appearance = { ...appearance }; this.outfit = Math.min(appearance.color, 2); this.sendProfile(); }
 
@@ -457,7 +485,8 @@ export class OfficeScene extends Phaser.Scene {
     this.lastArea = '';
     this.clearPeers();
     this.setEditMode('none');
-    this.objects = []; this.objectsReady = false; this.pendingEdit = undefined;
+    this.lostItems?.setRoom(id); document.querySelector('#office-notice')!.textContent = '';
+    this.seats.clear(); this.objects = []; this.objectsReady = false; this.pendingEdit = undefined;
     for (const view of [...this.mapViews, ...this.objectViews]) view.destroy();
     this.objectViews = [];
     this.mapViews = drawOffice(this, id);
@@ -607,15 +636,18 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   private drawAvatar(view: AvatarView, walker: Walker, appearance: Appearance, name: string, time: number, id?: string): void {
-    const { x, y } = walker.position();
+    let { x, y } = walker.position();
     const reaction = id ? this.reactions.get(id) : undefined;
     const motion = reaction ? reactionMotion(reaction.kind, performance.now() - reaction.startedAt, this.reducedMotion) : undefined;
     if (reaction && !motion) { this.reactions.delete(id!); this.participantsDirty = true; }
     const riding = id ? this.players.get(id)?.riding : undefined;
+    const seat = this.connected && this.objectsReady ? restingSeat(this.seats, walker.tile, walker.moving, !!riding, !!motion) : undefined;
+    if (view.seatId !== seat?.id) { view.seatId = seat?.id; this.participantsDirty = true; }
+    if (seat) { x = seat.anchor.x; y = seat.anchor.y; }
     const lift = (motion?.lift ?? 0) + (riding?.kind === 'bike' ? 4 : 0);
     const frame = walker.moving && !motion ? 1 + Math.floor(time / 95) % 2 : 0;
     view.sprite.setPosition(Math.round(x), Math.round(y + 6 - lift)).setRotation(motion?.tilt ?? 0).setScale(1, motion?.scaleY ?? 1)
-      .setTexture(avatarTexture(this, appearance, motion ? 'down' : walker.facing, frame, motion?.pose)).setDepth(y + 7);
+      .setTexture(avatarTexture(this, appearance, motion ? 'down' : seat?.facing ?? walker.facing, frame, motion?.pose ?? (seat ? 'sit' : 'stand'))).setDepth(seat?.depth ?? y + 7);
     view.vehicle.setVisible(!!riding);
     if (riding) view.vehicle.setTexture(vehicleTexture(this, riding.kind, walker.facing, frame)).setPosition(Math.round(x), Math.round(y + 10 - (motion?.lift ?? 0))).setDepth(y + 6.5);
     view.shadow.setPosition(Math.round(x), Math.round(y) + 5).setScale(motion?.shadow ?? 1, 1).setDepth(y + 6);
@@ -630,11 +662,19 @@ export class OfficeScene extends Phaser.Scene {
         view.sparkles.lineBetween(dx - 2, dy, dx + 2, dy); view.sparkles.lineBetween(dx, dy - 2, dx, dy + 2);
       }
     }
-    if (id === this.localId) this.game.canvas.dataset.localReaction = motion && reaction ? reaction.kind : '';
+    if (id === this.localId) {
+      this.game.canvas.dataset.localReaction = motion && reaction ? reaction.kind : '';
+      this.game.canvas.dataset.seatId = seat?.id ?? '';
+      this.game.canvas.dataset.seatFacing = seat?.facing ?? '';
+      const status = document.querySelector('#seating-status')!;
+      const text = seat ? `${seat.name}に着席中 · 移動すると立ち上がります。` : '椅子・机・ソファの正面で止まると、自動で座ります。';
+      if (status.textContent !== text) status.textContent = text;
+    }
   }
 
   update(time: number, delta: number): void {
     const now = Date.now();
+    this.lostItems?.update(now);
     this.lighting?.update(now);
     this.skyWindow?.update(now, this.reducedMotion);
     if (this.reactionBlocked !== (!this.connected || performance.now() < this.nextReactionAt)) this.updateReactionTools();

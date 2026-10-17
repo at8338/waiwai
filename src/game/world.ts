@@ -9,7 +9,7 @@ export const SPAWN = { x: 15, y: 12 };
 export type Direction = 'up' | 'down' | 'left' | 'right';
 export type Point = { x: number; y: number };
 export type Furniture = Point & {
-  kind: 'desk' | 'workbench' | 'table' | 'sofa' | 'plant' | 'shelf' | 'board' | 'counter' | 'pond' | 'easel' | 'arcade' | 'bed' | 'telescope' | 'monitor' | 'rack' | 'parking';
+  kind: 'desk' | 'workbench' | 'table' | 'sofa' | 'plant' | 'shelf' | 'board' | 'counter' | 'pond' | 'easel' | 'arcade' | 'bed' | 'telescope' | 'monitor' | 'rack' | 'parking' | 'vending';
   w: number;
   h: number;
   label?: string;
@@ -28,7 +28,7 @@ export function isWall(x: number, y: number, roomId: RoomId = 'office'): boolean
 export function canWalk(x: number, y: number, roomId: RoomId = 'office'): boolean {
   if (!Number.isInteger(x) || !Number.isInteger(y)) return false;
   if (x < 0 || y < 0 || x >= COLS || y >= ROWS || isWall(x, y, roomId)) return false;
-  return !getRoom(roomId).furniture.some((item) =>
+  return !getRoom(roomId).furniture.some((item) => item.kind !== 'parking' &&
     x >= item.x && x < item.x + item.w && y >= item.y && y < item.y + item.h);
 }
 

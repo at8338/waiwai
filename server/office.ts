@@ -1,3 +1,4 @@
+import { vendingInReach } from '../src/game/amenities.ts';
 import { VehicleFleet } from './vehicles.ts';
 import { movementStep } from '../src/game/transport.ts';
 import { RoomPets, resetBuddy, advanceBuddy } from './companions.ts';
@@ -120,6 +121,16 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     let lastLinkEdit = -Infinity;
     let lastReaction = -Infinity;
     let lastVehicle = -Infinity;
+    let lastVending: string | undefined;
+    const contact = () => {
+      if (fleet.touch(player)) { pending.delete(player.id); broadcast({ type: 'player', player, reason: 'vehicle' }); sendFleet(); }
+      const machine = vendingInReach(player);
+      if (machine && machine !== lastVending && player.appearance?.heldItem !== 2) {
+        player.appearance = { ...(player.appearance ?? DEFAULT_APPEARANCE), heldItem: 2 };
+        pending.delete(player.id); broadcast({ type: 'player', player, reason: 'vending' });
+      }
+      lastVending = machine;
+    };
     ws.on('pong', () => alive.add(ws));
     ws.on('error', () => ws.terminate());
     ws.on('message', (data, isBinary) => {
@@ -192,6 +203,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
         if (!destination) { fail('相手の隣に空いているマスがありません。少し待ってから試してください。'); return; }
         Object.assign(player, destination, { roomId: target.roomId, facing: 'down' });
         resetBuddy(player, roomObjects(player.roomId));
+        contact();
         pending.delete(player.id);
         broadcast({ type: 'player', player, reason: 'warp', requestId: message.requestId });
         sendObjects(ws, player.roomId);
@@ -239,6 +251,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
         player.roomId = message.roomId;
         Object.assign(player, spawn(player.roomId, ws), { facing: 'down' });
         resetBuddy(player, roomObjects(player.roomId));
+        contact();
         pending.delete(player.id);
         broadcast({ type: 'player', player, reason: 'room', requestId: message.requestId });
         sendObjects(ws, player.roomId);
@@ -263,6 +276,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
           lastMove = now;
         }
       }
+      if (message.type !== 'profile') contact();
       if (message.type === 'profile') { broadcast({ type: 'player', player, reason: 'profile' }); directoryDirty = true; }
       else {
         // Immediate authoritative acknowledgment keeps local movement responsive.
@@ -275,7 +289,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
       }
     });
     ws.on('close', () => {
-      const hadVehicle = !!player.riding; fleet.release(player);
+      const hadVehicle = !!player.riding; fleet.forget(player);
       players.delete(ws);
       if (hadVehicle) sendFleet();
       directoryDirty = true;

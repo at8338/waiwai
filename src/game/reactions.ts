@@ -5,7 +5,7 @@ export const REACTIONS = {
   joy: { label: 'よろこぶ', icon: '🎉', text: 'やったー！', duration: 1900 },
 } as const;
 export type ReactionKind = keyof typeof REACTIONS;
-export type AvatarPose = 'stand' | 'bow' | 'raise' | 'happy';
+export type AvatarPose = 'stand' | 'sit' | 'bow' | 'raise' | 'happy';
 export const REACTION_COOLDOWN_MS = 2200;
 export const REACTION_KINDS = Object.keys(REACTIONS) as ReactionKind[];
 export const isReactionKind = (value: unknown): value is ReactionKind => typeof value === 'string' && Object.hasOwn(REACTIONS, value);

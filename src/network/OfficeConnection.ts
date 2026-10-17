@@ -15,7 +15,7 @@ export type ConnectionState = 'connecting' | 'online' | 'reconnecting';
 export type ConnectionHandlers = {
   state: (state: ConnectionState) => void;
   welcome: (id: string, players: Player[]) => void;
-  player: (player: Player, snap: boolean) => void;
+  player: (player: Player, snap: boolean, reason?: Extract<ServerMessage, { type: 'player' }>['reason']) => void;
   left: (id: string) => void;
   voice: (snapshot: VoiceSnapshot) => void;
   voiceSignal: (signal: VoiceSignal) => void;
@@ -87,7 +87,8 @@ export class OfficeConnection {
         }
         this.players.set(message.player.id, message.player);
         this.slots.set(message.player.slot, message.player.id);
-        this.handlers.player(message.player, message.reason === 'reset' || message.reason === 'join' || message.reason === 'room' || message.reason === 'warp');
+        if (message.player.id === this.id && message.reason === 'vending') this.profile = { ...this.profile, appearance: message.player.appearance };
+        this.handlers.player(message.player, message.reason === 'reset' || message.reason === 'join' || message.reason === 'room' || message.reason === 'warp', message.reason);
         if (message.player.id === this.id && message.reason === 'warp' && message.requestId === this.warpRequest) {
           this.warpRequest = undefined;
           this.handlers.travelComplete?.();

@@ -27,6 +27,11 @@ export function setupAvatarEditor(scene: OfficeScene): void {
     document.querySelectorAll<HTMLButtonElement>('[data-outfit]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.outfit) === saved.color)));
   };
   apply();
+  scene.onAppearancePickup((appearance: Appearance) => {
+    saved = { ...appearance };
+    preview(document.querySelector('#avatar-preview')!, saved);
+    try { localStorage.setItem(STORAGE, JSON.stringify(saved)); } catch { /* Optional preference. */ }
+  });
   document.querySelector('#avatar-edit')!.addEventListener('click', () => {
     draft = { ...saved };
     for (const select of fields.querySelectorAll('select')) select.value = String(draft[select.name as keyof Appearance]);

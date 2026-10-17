@@ -57,7 +57,7 @@ export type ServerMessage =
   | { type: 'objects'; roomId: RoomId; objects: RoomObject[] }
   | { type: 'object-result'; editId: string; error?: string }
   | { type: 'positions'; positions: Position[] }
-  | { type: 'player'; player: Player; reason: 'join' | 'profile' | 'move' | 'reset' | 'room' | 'warp' | 'vehicle'; requestId?: number }
+  | { type: 'player'; player: Player; reason: 'join' | 'profile' | 'move' | 'reset' | 'room' | 'warp' | 'vehicle' | 'vending'; requestId?: number }
   | { type: 'left'; id: string };
 
 export const directions = ['up', 'down', 'left', 'right'] as const;

@@ -1,14 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { VEHICLE_KINDS, VEHICLES, VEHICLE_DOCKS, movementStep, nearVehicleDock } from './transport.ts';
+import { VEHICLE_KINDS, VEHICLES, VEHICLE_DOCKS, movementStep, nearVehicleDock, touchingVehicleDock } from './transport.ts';
 import { vehiclePixels } from './vehicle-art.ts';
 import { Walker, STEP_MS, canWalk } from './world.ts';
 import { parseClientMessage, directions } from '../network/protocol.ts';
 
 test('docks require approaching the correct parking place and keep paths open', () => {
   for (const dock of VEHICLE_DOCKS) {
-    assert.equal(canWalk(dock.x, dock.y), false);
+    assert.equal(canWalk(dock.x, dock.y), true);
+    assert.equal(touchingVehicleDock({ roomId: 'office', x: dock.x, y: dock.y }), dock.kind);
+    assert.equal(touchingVehicleDock({ roomId: 'office', x: dock.x, y: dock.y - 1 }), undefined);
     assert.equal(canWalk(dock.x, dock.y - 1), true);
     assert.equal(nearVehicleDock({ roomId: 'office', x: dock.x, y: dock.y - 1 }, dock.kind), true);
     assert.equal(nearVehicleDock({ roomId: 'garden', x: dock.x, y: dock.y - 1 }, dock.kind), false);
