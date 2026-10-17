@@ -1,3 +1,4 @@
+import { RobotSimulation } from './robot.ts';
 import { dailyEventAt } from '../src/game/daily-events.ts';
 import { AnnouncementStore, AnnouncementError } from './announcements.ts';
 import { vendingInReach } from '../src/game/amenities.ts';
@@ -50,6 +51,13 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     const serialized = JSON.stringify(message);
     for (const ws of players.keys()) if (ws !== except) sendRaw(ws, serialized);
   };
+  const robot = new RobotSimulation();
+  const sendRobot = (target?: WebSocket) => {
+    const message: ServerMessage = { type: 'robot-state', ...robot.snapshot(Date.now()) };
+    if (target) { if (players.get(target)?.roomId === 'cockpit') send(target, message); }
+    else for (const [client, person] of players) if (person.roomId === 'cockpit') send(client, message);
+  };
+  const robotTimer = setInterval(() => { if (robot.tick(Date.now())) sendRobot(); }, 250); robotTimer.unref();
   const eventClock = options.eventClock ?? Date.now;
   let eventDay = dailyEventAt(eventClock()).day;
   const sendDailyEvent = (ws?: WebSocket) => {
@@ -151,6 +159,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     let lastLinkEdit = -Infinity;
     let lastReaction = -Infinity;
     let lastAnnouncementEdit = -Infinity, lastPublish = -Infinity;
+    let lastRobot = -Infinity;
     let lastVehicle = -Infinity;
     let lastVending: string | undefined;
     const contact = () => {
@@ -172,6 +181,11 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
       const message = parseClientMessage(data.toString());
       if (message?.type === 'voice-signal' ? ++signals > 120 : ++messages > 40) { ws.close(1008, 'Too many messages'); return; }
       if (!message) return;
+      if (message.type === 'robot-action') {
+        const error = player.roomId !== 'cockpit' ? '操縦室で試してください。' : now - lastRobot < 500 ? '少し待ってから操作してください。' : !robot.start(message.action, player.name, now) ? 'ただいま演出中です。終了したら次の操作を試せます。' : undefined;
+        lastRobot = now; if (!error) sendRobot();
+        send(ws, { type: 'robot-result', actionId: message.actionId, ...(error ? { error } : {}) }); return;
+      }
       if (message.type === 'announcement-publish' || message.type === 'announcement-dismiss' || message.type === 'schedule-save' || message.type === 'schedule-delete') {
         if (now - lastAnnouncementEdit < 350 || message.type === 'announcement-publish' && now - lastPublish < 10_000) {
           send(ws, { type: 'announcement-result', actionId: message.actionId, error: '少し待ってから、もう一度設定してください。放送の間隔は10秒です。' }); return;
@@ -250,6 +264,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
         broadcast({ type: 'player', player, reason: 'warp', requestId: message.requestId });
         sendObjects(ws, player.roomId);
         sendPets(ws, player.roomId);
+        sendRobot(ws);
         sendLinks(ws, player.roomId);
         directoryDirty = true;
         voice.refresh();
@@ -298,6 +313,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
         broadcast({ type: 'player', player, reason: 'room', requestId: message.requestId });
         sendObjects(ws, player.roomId);
         sendPets(ws, player.roomId);
+        sendRobot(ws);
         sendLinks(ws, player.roomId);
         directoryDirty = true;
         voice.refresh();
@@ -363,6 +379,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
   }, 15_000);
   heartbeat.unref();
   return () => {
+    clearInterval(robotTimer);
     clearInterval(dailyEventTimer);
     clearInterval(announcementTimer);
     clearInterval(heartbeat);

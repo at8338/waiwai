@@ -1,10 +1,10 @@
 import { VEHICLE_DOCKS, VEHICLES } from './transport.ts';
 import type { Furniture, Point } from './world.ts';
-export const ROOM_IDS = ['office', 'focus', 'meeting', 'cafe', 'library', 'garden', 'studio', 'arcade', 'wellness', 'workshop', 'sky', 'ops'] as const;
+export const ROOM_IDS = ['office', 'focus', 'meeting', 'cafe', 'library', 'garden', 'studio', 'arcade', 'wellness', 'workshop', 'sky', 'ops', 'cockpit'] as const;
 export type RoomId = typeof ROOM_IDS[number];
 export type Room = {
   id: RoomId; name: string; description: string; icon: string;
-  floor: number; grain: number; wall: number; rug: number; style: 'wood' | 'tile' | 'grass' | 'stars' | 'checker' | 'control';
+  floor: number; grain: number; wall: number; rug: number; style: 'wood' | 'tile' | 'grass' | 'stars' | 'checker' | 'control' | 'mech';
   outlook: 'window' | 'open' | 'none';
   spawn: Point; door: Point; furniture: Furniture[];
 };
@@ -45,6 +45,13 @@ export const ROOMS: Room[] = [
       tool('monitor', 'CloudWatch', 2, 2, 6, 3), tool('monitor', 'サービス稼働状況', 11, 1, 8, 3), tool('monitor', 'New Relic', 22, 2, 6, 3),
       tool('monitor', 'ログ検索', 3, 8, 5, 2), tool('monitor', 'アラート', 11, 8, 8, 2), tool('monitor', 'デプロイ', 22, 8, 5, 2),
       tool('rack', 'インフラ', 2, 13, 3, 3), tool('table', '障害対応', 10, 13, 9, 2), tool('shelf', '手順書', 23, 14, 4, 1),
+    ] },
+  { id: 'cockpit', name: 'ワイワイガー操縦室', description: 'このオフィスの正体は巨大ロボ〈ワイワイガー〉。みんなで起動・歩行・パンチを試せる、遊び専用のブリッジ。', icon: '✺', floor: 0x516679, grain: 0x455a6b, wall: 0xa9b9bc, rug: 0x6f8992, style: 'mech', outlook: 'none', ...common,
+    furniture: [
+      tool('viewport', '正面スクリーン', 9, 1, 12, 5), tool('reactor', '機体全身図', 2, 2, 5, 4), tool('monitor', '航行レーダー', 23, 2, 5, 4),
+      tool('console', '左腕コントロール', 2, 8, 6, 2), tool('console', 'メイン操縦パネル', 11, 8, 8, 2), tool('console', '右腕コントロール', 22, 8, 6, 2),
+      tool('pilot', 'パイロット席', 14, 11, 2, 2), tool('console', '歩行ペダル', 2, 13, 6, 2), tool('console', 'バリア発生装置', 22, 13, 6, 2),
+      tool('sofa', '見学シート', 3, 16, 5, 1), tool('sofa', 'クルーシート', 22, 16, 5, 1),
     ] },
 ];
 // A hanging calendar on the north wall, away from the window panes.

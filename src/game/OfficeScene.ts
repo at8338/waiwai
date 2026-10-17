@@ -1,3 +1,6 @@
+import { CockpitUI } from './cockpit-ui.ts';
+import { CockpitView } from './CockpitView.ts';
+import { ROBOT_CONSOLE_KINDS, robotLocation } from './robot.ts';
 import { walkingMotion } from './walking.ts';
 import { DailyEventsUI } from './daily-events-ui.ts';
 import { DailyEventsView } from './daily-events-view.ts';
@@ -50,6 +53,8 @@ type AvatarView = {
 type Peer = { player: Player; walker: Walker; view: AvatarView };
 
 export class OfficeScene extends Phaser.Scene {
+  private cockpitUI?: CockpitUI;
+  private cockpitView?: CockpitView;
   private dailyUI?: DailyEventsUI;
   private dailyView?: DailyEventsView;
   private announcementsUI?: AnnouncementsUI;
@@ -135,6 +140,10 @@ export class OfficeScene extends Phaser.Scene {
       this.controls.clear(); this.setEditMode('none'); return true;
     });
     this.dailyView = new DailyEventsView(this, () => { if (this.editMode === 'none') this.dailyUI?.inspect(); });
+    this.cockpitUI = new CockpitUI(this.inputController.signal, (action, id) => this.connection?.robot(action, id) ?? false, (room) => this.connection?.changeRoom(room), () => {
+      if (document.querySelector('dialog[open]')) return false; this.controls.clear(); this.setEditMode('none'); return true;
+    });
+    this.cockpitView = new CockpitView(this);
     this.lighting = new RoomLighting(this);
     this.skyWindow = new SkyWindowView(document.querySelector<HTMLCanvasElement>('#sky-window')!);
     createAvatarTextures(this);
@@ -192,6 +201,8 @@ export class OfficeScene extends Phaser.Scene {
         this.showRoom(players.find((p) => p.id === id)?.roomId ?? 'office');
         for (const player of players) this.receivePlayer(player, true);
       },
+      robotState: (state) => { if (this.roomId === 'cockpit') { this.cockpitUI?.receive(state); this.cockpitView?.receive(state); } },
+      robotResult: (result) => this.cockpitUI?.result(result.actionId, result.error),
       dailyEvent: (state) => { this.dailyUI?.receive(state); this.dailyView?.receive(state); this.skyWindow?.setDailyEvent(state); },
       announcements: (state) => { this.announcementsUI?.snapshot(state); this.dailyUI?.receiveSchedules(state); },
       announcementResult: (id, error) => this.announcementsUI?.result(id, error),
@@ -243,7 +254,7 @@ export class OfficeScene extends Phaser.Scene {
       this.connection?.destroy();
       this.companions?.clear();
       this.lighting?.destroy();
-      this.vehicleDocks?.destroy(); this.vehicleUI?.destroy(); this.announcementsUI?.destroy(); this.dailyUI?.destroy(); this.dailyView?.destroy(); this.lostItems?.destroy();
+      this.vehicleDocks?.destroy(); this.vehicleUI?.destroy(); this.announcementsUI?.destroy(); this.dailyUI?.destroy(); this.cockpitUI?.destroy(); this.cockpitView?.destroy(); this.dailyView?.destroy(); this.lostItems?.destroy();
     };
     this.events.once('shutdown', cleanup);
     this.events.once('destroy', cleanup);
@@ -254,7 +265,7 @@ export class OfficeScene extends Phaser.Scene {
 
   private setConnectionState(state: ConnectionState): void {
     this.connected = state === 'online';
-    this.announcementsUI?.setConnected(this.connected); this.dailyUI?.setConnected(this.connected);
+    this.announcementsUI?.setConnected(this.connected); this.dailyUI?.setConnected(this.connected); this.cockpitUI?.setConnected(this.connected);
     this.vehicleUI?.setConnected(this.connected);
     this.voice?.setConnected(this.connected);
     this.linksUI?.setReady(this.connected && this.objectsReady);
@@ -492,7 +503,7 @@ export class OfficeScene extends Phaser.Scene {
 
   private showRoom(id: RoomId): void {
     this.reactions.clear();
-    this.roomId = id;
+    this.roomId = id; this.cockpitUI?.setRoom(id); this.cockpitView?.setRoom(id);
     this.companions?.setRoom(id);
     this.lighting?.setRoom(id);
     this.vehicleDocks?.setRoom(id);
@@ -512,9 +523,10 @@ export class OfficeScene extends Phaser.Scene {
     this.game.canvas.setAttribute('aria-label', `${room.name}。矢印キーまたはWASDで移動。Tabキーでマップから移動できます。`);
     document.querySelectorAll('[data-room-name]').forEach((node) => { node.textContent = room.name; });
     document.querySelector('#room-description')!.textContent = room.description;
+    document.querySelector('#robot-location')!.textContent = `WAIWAI-01 / ${robotLocation(id)}`;
     document.querySelector('#map-title')!.textContent = `${room.name}へ、ようこそ。`;
     document.querySelector('#room-number')!.textContent = String(ROOMS.indexOf(room) + 1).padStart(2, '0');
-    document.querySelector('.map-legend')!.textContent = `${room.description} 近づいて会話。人をクリックしてSlackへ、家具をクリックしてリンクへ。`;
+    document.querySelector('.map-legend')!.textContent = id === 'cockpit' ? '操縦パネルでシミュレーターへ。機体の部位から、各部屋へ移動できます。' : `${room.description} 近づいて会話。人をクリックしてSlackへ、家具をクリックしてリンクへ。`;
     for (const button of document.querySelectorAll<HTMLButtonElement>('[data-room]')) button.disabled = button.dataset.room === id;
     // Other-room roster entries are kept for occupancy, but avatars stay local.
     for (const player of this.players.values()) if (player.id !== this.localId && player.roomId === id) this.receivePlayer(player, true);
@@ -625,7 +637,7 @@ export class OfficeScene extends Phaser.Scene {
     if (this.editMode === 'none') {
       const door = getRoom(this.roomId).door;
       if (x === door.x && y === door.y) this.openRoomPicker();
-      else if (this.connected && this.objectsReady) { const target = targetAt(this.roomId, this.objects, { x, y }); if (target?.kind === 'calendar') this.dailyUI?.openCalendar(); else if (target) this.linksUI?.open(target); }
+      else if (this.connected && this.objectsReady) { const target = targetAt(this.roomId, this.objects, { x, y }); if (target?.kind === 'calendar') this.dailyUI?.openCalendar(); else if (target && this.roomId === 'cockpit' && (ROBOT_CONSOLE_KINDS as readonly string[]).includes(target.kind)) this.cockpitUI?.open(); else if (target) this.linksUI?.open(target); }
       return;
     }
     if (!this.connected || !this.objectsReady || this.pendingEdit) return;
@@ -697,7 +709,7 @@ export class OfficeScene extends Phaser.Scene {
   update(time: number, delta: number): void {
     const now = Date.now();
     this.lostItems?.update(now); this.dailyView?.update(now, this.reducedMotion);
-    this.lighting?.update(now);
+    this.lighting?.update(now); this.cockpitView?.update(now, this.reducedMotion);
     this.skyWindow?.update(now, this.reducedMotion);
     if (this.reactionBlocked !== (!this.connected || performance.now() < this.nextReactionAt)) this.updateReactionTools();
     if (this.participantsDirty && time - this.lastParticipantsAt >= 100) {

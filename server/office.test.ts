@@ -790,3 +790,21 @@ test('walking style synchronizes to peers and late joins; invalid styles cannot 
   const reset = await a.next('player', (m) => m.reason === 'profile');
   assert.equal(reset.player.appearance?.walkStyle, 0); assert.equal(reset.player.appearance?.heldItem, 3);
 });
+
+test('cockpit play synchronizes only inside the simulator, reaches late entrants, and rejects overlapping or outside commands', async (t) => {
+  const { connect } = await fixture(t), a = await connect(), b = await connect(), outside = await connect();
+  const denied = randomUUID(); outside.send({ type: 'robot-action', action: 'punch', actionId: denied });
+  assert.match((await outside.next('robot-result', (m) => m.actionId === denied)).error!, /操縦室/);
+  for (const client of [a, b]) { client.send({ type: 'change-room', roomId: 'cockpit', requestId: 1 }); await client.next('robot-state'); }
+  a.send({ type: 'profile', name: '操縦テスト', outfit: 0 }); await a.next('player', (m) => m.reason === 'profile');
+  const actionId = randomUUID(); a.send({ type: 'robot-action', action: 'punch', actionId, operator: 'spoof', startedAt: 1 });
+  const started = await a.next('robot-state', (m) => m.state.action === 'punch');
+  assert.deepEqual((await b.next('robot-state', (m) => m.state.action === 'punch')).state, started.state);
+  assert.equal((await a.next('robot-result', (m) => m.actionId === actionId)).error, undefined);
+  const overlap = randomUUID(); b.send({ type: 'robot-action', action: 'pose', actionId: overlap });
+  assert.match((await b.next('robot-result', (m) => m.actionId === overlap)).error!, /演出中/);
+  const late = await connect(); late.send({ type: 'change-room', roomId: 'cockpit', requestId: 1 });
+  assert.deepEqual((await late.next('robot-state')).state, started.state);
+  assert.equal(outside.seen.some((m) => m.type === 'robot-state'), false);
+  assert.equal(started.state.operator, '操縦テスト'); assert.notEqual(started.state.startedAt, 1);
+});

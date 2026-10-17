@@ -28,7 +28,9 @@ export function seatSpots(roomId: RoomId, objects: readonly RoomObject[]): Map<s
   }
   for (const item of getRoom(roomId).furniture) {
     const id = `fixed:${roomId}:${item.kind}:${item.x}:${item.y}`;
-    if (item.kind === 'desk' || item.kind === 'workbench') {
+    if (item.kind === 'pilot') {
+      add({ id, name: 'パイロット席', approach: { x: item.x + 1, y: item.y + item.h }, anchor: { x: (item.x + 1) * TILE, y: (item.y + item.h) * TILE - 4 }, facing: 'up', depth: (item.y + item.h) * TILE + 7 });
+    } else if (item.kind === 'desk' || item.kind === 'workbench') {
       add({ id, name: item.kind === 'desk' ? 'デスク' : '作業台', approach: { x: item.x + 1, y: item.y + item.h },
         anchor: { x: (item.x + 1.5) * TILE, y: (item.y + item.h) * TILE }, facing: 'up', depth: (item.y + item.h) * TILE + 7 });
     } else if (item.kind === 'sofa') {
