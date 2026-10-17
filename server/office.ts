@@ -55,6 +55,13 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
   const birthdayClock = options.birthdayClock ?? Date.now;
   const birthdays = new BirthdayStore(options.birthdaysFile, birthdayClock);
   const birthdayOwner = (player: Player) => player.slackVerified && player.slack ? `slack:${player.slack.teamId}:${player.slack.userId}` : `guest:${player.id}`;
+  const birthdayThreads = new Map<WebSocket, { id: string; date: string }>();
+  const sendBirthdayThreads = () => {
+    for (const [client, thread] of birthdayThreads) {
+      try { send(client, { type: 'birthday-thread', ...birthdays.thread(thread.id, thread.date) }); }
+      catch { birthdayThreads.delete(client); send(client, { type: 'birthday-thread', ...thread, comments: [], serverNow: birthdayClock() }); }
+    }
+  };
   let announcementWarning: string | undefined;
   let directoryDirty = false;
   let directoryWarning: string | undefined;
@@ -349,11 +356,19 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
         if (message.command === 'lost' || message.command === 'reset') sendLostItems();
         sendDailyEvent(); sendDevWorld(); send(ws, { type: 'dev-world-result', actionId: message.actionId }); return;
       }
-      if (message.type === 'birthday-save' || message.type === 'birthday-delete' || message.type === 'birthday-cheer') {
+      if (message.type === 'birthday-thread') {
+        try {
+          const thread = birthdays.thread(message.id, message.date); birthdayThreads.set(ws, { id: message.id, date: message.date });
+          send(ws, { type: 'birthday-thread', ...thread });
+        } catch (error) { send(ws, { type: 'birthday-result', actionId: message.actionId, error: error instanceof BirthdayError ? error.message : 'コメントを読み込めませんでした。' }); }
+        return;
+      }
+      if (message.type === 'birthday-save' || message.type === 'birthday-delete' || message.type === 'birthday-cheer' || message.type === 'birthday-comment') {
         if (now - lastBirthday < 750) { send(ws, { type: 'birthday-result', actionId: message.actionId, error: '少し待ってから操作してください。' }); return; }
         lastBirthday = now;
         void birthdays.apply(message, birthdayOwner(player), player.name, () => players.has(ws) && (!identity || auth?.identify(request)?.id === identity.id)).then(() => {
-          sendBirthdays(); send(ws, { type: 'birthday-result', actionId: message.actionId });
+          if (message.type !== 'birthday-comment') sendBirthdays();
+          sendBirthdayThreads(); send(ws, { type: 'birthday-result', actionId: message.actionId });
         }).catch((error: unknown) => send(ws, { type: 'birthday-result', actionId: message.actionId, error: error instanceof BirthdayError ? error.message : '誕生日を保存できませんでした。時間をおいて試してください。' }));
         return;
       }
@@ -557,7 +572,8 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
       const hadVehicle = !!player.riding; fleet.forget(player);
       players.delete(ws);
       contacts.delete(player.id); movementBlocks.delete(player.id); summonedAt.delete(player.id);
-      if (!identity) void birthdays.removeGuest(birthdayOwner(player)).then(() => sendBirthdays()).catch(() => {});
+      birthdayThreads.delete(ws);
+      if (!identity) void birthdays.removeGuest(birthdayOwner(player)).then(() => { sendBirthdays(); sendBirthdayThreads(); }).catch(() => {});
       if (hadVehicle) sendFleet();
       directoryDirty = true;
       identities.delete(ws);

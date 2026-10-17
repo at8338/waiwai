@@ -5,7 +5,7 @@ import type { ArenaAction, ArenaState, IceSnapshot } from '../game/arena.ts';
 import { parseDevWorldAction } from '../game/dev-world.ts';
 import type { DevWorldAction, DevWorldSnapshot } from '../game/dev-world.ts';
 import { parseBirthdayAction } from '../game/birthdays.ts';
-import type { BirthdayAction, BirthdaySnapshot } from '../game/birthdays.ts';
+import type { BirthdayAction, BirthdaySnapshot, BirthdayThread } from '../game/birthdays.ts';
 import { parseArcadeAction } from '../game/arcade.ts';
 import type { ArcadeAction, ArcadeSnapshot } from '../game/arcade.ts';
 import { isRobotAction } from '../game/robot.ts';
@@ -65,6 +65,7 @@ export type ClientMessage =
   | { type: 'dash'; direction: Direction; requestId: number }
   | { type: 'reset'; requestId: number };
 export type ServerMessage =
+  | ({ type: 'birthday-thread' } & BirthdayThread)
   | ({ type: 'ice-state' } & IceSnapshot)
   | { type: 'arena-state'; state: ArenaState; serverNow: number }
   | { type: 'arena-result'; actionId: string; error?: string }
