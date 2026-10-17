@@ -80,7 +80,7 @@ kbd { font: 11px monospace; width: 19px; height: 21px; display: inline-grid; pla
 .page-footer { border-top: 1px solid var(--border); display: flex; justify-content: space-between; padding: 18px 42px; color: #9da48e; font-size: 9px; letter-spacing: .07em; }
 .page-footer > span:last-child { font: 8px monospace; letter-spacing: .12em; }.page-footer > span:last-child span { color: #baa574; margin-left: 7px; }
 .touch-controls { display: none; }
-dialog { background: #faf8ec; border: 2px solid #6d8363; border-radius: 4px; padding: 30px; max-width: 440px; width: calc(100% - 40px); color: #455943; box-shadow: 5px 5px 0 #354b3e33; }
+dialog { background: #faf8ec; border: 2px solid #6d8363; border-radius: 4px; padding: 30px; max-width: 440px; width: calc(100% - 40px); max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; color: #455943; box-shadow: 5px 5px 0 #354b3e33; }
 dialog::backdrop { background: #263f30aa; }
 dialog h2 { font-family: 'DotGothic16', monospace; font-size: 20px; font-weight: 400; }
 dialog p { font-size: 12px; line-height: 1.9; color: #77816b; }
@@ -567,3 +567,11 @@ select { color: #354b3e; background: #fffdf6; border: 1px solid #ced7c2; border-
 
 .chat-dialog button { border: 1px solid #bccab1; border-radius: 4px; padding: 9px 12px; background: #fffdf3; font-size: 12px; }
 #chat-send { background: #355b49; color: #fff7da; white-space: nowrap; min-width: 72px; }
+
+/* A sticky exit shared by every modal, including long journals and forms. */
+dialog .dialog-dismiss-bar { position: sticky; top: -16px; z-index: 100; display: flex; justify-content: flex-end; height: 44px; margin: -16px -16px 8px 0; background: inherit; }
+dialog .dialog-dismiss-button { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; min-height: 44px; margin: 0; padding: 0; border: 1px solid #b6c3a8; border-radius: 50%; background: #fffdf3; color: #355b49; font: 28px/1 system-ui, sans-serif; cursor: pointer; pointer-events: auto; box-shadow: 0 2px 5px #354b3e1a; }
+dialog .dialog-dismiss-button:hover { background: #e7edda; border-color: #6d8363; }
+dialog .dialog-dismiss-button:focus-visible { outline: 3px solid #98713c; outline-offset: 2px; }
+dialog.has-dismiss-controls #chat-close, dialog.has-dismiss-controls #arcade-close { display: none; }
+@media (max-width: 620px) { dialog .dialog-dismiss-bar { top: -8px; margin-top: -8px; margin-right: -8px; } }

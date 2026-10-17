@@ -1,5 +1,6 @@
 import { SPELLS, SPELL_KINDS } from './game/spells.ts';
 import { POKEMON_KINDS } from './game/pokemon.ts';
+import { setupDialogDismissals } from './game/dialog-dismiss.ts';
 import { ARCADE_GAMES } from './game/arcade.ts';
 import { ROBOT_ACTIONS, ROBOT_PARTS, robotLocation } from './game/robot.ts';
 import { DURATIONS, LEADS, REPEATS } from './game/announcements.ts';
@@ -166,6 +167,7 @@ app.innerHTML = `
 `;
 
 const parent = document.querySelector<HTMLElement>('#game')!;
+const disposeDialogDismissals = setupDialogDismissals(document.body);
 const { game, scene } = startOffice(parent, initialSlack, authUnavailable || (!!auth.required && !auth.user));
 const disposeAvatarEditor = setupAvatarEditor(scene);
 setupBuddyEditor(scene);
@@ -257,4 +259,4 @@ dialog.addEventListener('close', () => game.canvas.focus({ preventScroll: true }
 
 document.querySelectorAll<HTMLDialogElement>('#avatar-dialog, #room-dialog, #object-links-dialog, #lost-item-info, #broadcast-dialog, #schedule-dialog, #event-detail-dialog, #event-journal-dialog, #office-calendar-dialog, #cockpit-dialog, #arcade-dialog').forEach((item) => item.addEventListener('close', () => game.canvas.focus({ preventScroll: true })));
 
-if (import.meta.hot) import.meta.hot.dispose(() => { disposeAvatarEditor(); game.destroy(true); });
+if (import.meta.hot) import.meta.hot.dispose(() => { disposeDialogDismissals(); disposeAvatarEditor(); game.destroy(true); });
