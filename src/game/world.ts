@@ -14,6 +14,7 @@ export type Furniture = Point & {
   h: number;
   label?: string;
   vehicleKind?: VehicleKind;
+  boardMount?: 'wall' | 'stand';
 };
 
 export const furniture: Furniture[] = officeFurniture;

@@ -2,7 +2,7 @@ import { getRoom } from './rooms.ts';
 import { WEATHER_LABELS } from './weather.ts';
 import type { WeatherKind } from './weather.ts';
 import Phaser from 'phaser';
-import { roomLightingAt, LIGHTING_LABELS, roomLights, WINDOW_COLUMNS } from './lighting.ts';
+import { roomLightingAt, LIGHTING_LABELS, roomLights, roomWindowColumns } from './lighting.ts';
 import type { RoomId } from './rooms.ts';
 import type { RoomObject } from './objects.ts';
 import { COLS, ROWS, TILE } from './world.ts';
@@ -34,7 +34,9 @@ export class RoomLighting {
     this.sunlight.clear(); this.shade.clear(); this.glow.clear(); this.sources.clear();
     this.shade.fillStyle(p.tint, p.shade).fillRect(0, 0, COLS * TILE, ROWS * TILE);
     const outlook = getRoom(this.roomId).outlook;
+    const windowColumns = roomWindowColumns(this.roomId);
     if (outlook === 'window') for (const start of [3, 7, 14, 24]) {
+      if (!windowColumns.includes(start)) continue;
       const min = this.roomId !== 'office' ? TILE : (start < 10 ? 1 : start < 20 ? 11 : 21) * TILE;
       const max = this.roomId !== 'office' ? (COLS - 1) * TILE : (start < 10 ? 10 : start < 20 ? 20 : 29) * TILE;
       const clamp = (x: number) => Phaser.Math.Clamp(x, min, max);
@@ -49,7 +51,7 @@ export class RoomLighting {
         ], true);
       }
     }
-    if (outlook === 'window') for (const x of WINDOW_COLUMNS) {
+    if (outlook === 'window') for (const x of windowColumns) {
       this.sources.fillStyle(p.glass).fillRect(x * TILE + 2, 3, 12, 7);
       this.sources.fillStyle(0xf7e9c4, 0.4).fillRect(x * TILE + 3, 3, 1, 6);
       if (phase === 'night') this.sources.fillStyle(0xd8e7df, 0.75).fillRect(x * TILE + (x % 2 ? 7 : 10), 4, 1, 1);

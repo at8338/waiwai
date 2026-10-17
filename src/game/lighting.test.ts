@@ -1,9 +1,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { lightingAt, roomLightingAt, roomLights } from './lighting.ts';
+import { lightingAt, roomLightingAt, roomLights, roomWindowColumns, WINDOW_COLUMNS } from './lighting.ts';
 import { ROOMS } from './rooms.ts';
 import type { RoomObject } from './objects.ts';
 const at = (clock: string) => lightingAt(Date.parse(`2026-10-18T${clock}:00+09:00`), 'clear');
+
+test('whiteboards have clear wall space without window glass or a sconce over the writing surface', () => {
+  for (const id of ['office', 'meeting', 'workshop'] as const) {
+    const board = ROOMS.find((room) => room.id === id)!.furniture.find((item) => item.kind === 'board')!;
+    assert.ok(roomWindowColumns(id).every((x) => x < board.x || x >= board.x + board.w));
+    assert.ok(roomLights(id, []).filter((light) => light.y === 20).every((light) => light.x < board.x * 16 || light.x >= (board.x + board.w) * 16));
+  }
+  assert.deepEqual(roomWindowColumns('focus'), WINDOW_COLUMNS);
+  assert.deepEqual(roomWindowColumns('ops'), []);
+});
 
 test('lighting follows the four JST periods including midnight and exact boundaries', () => {
   for (const [clock, phase] of [['00:00', 'night'], ['05:59', 'night'], ['06:00', 'morning'], ['09:59', 'morning'],
