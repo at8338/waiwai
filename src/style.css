@@ -271,6 +271,25 @@ select { color: #354b3e; background: #fffdf6; border: 1px solid #ced7c2; border-
 .buddy-card input, .buddy-filter input, .buddy-none input { width: auto; margin: 0; accent-color: #477766; }
 #buddy-info { max-width: min(420px, calc(100vw - 32px)); }
 .pokemon-journal-dialog { width: min(800px, calc(100vw - 32px)); max-width: 800px; max-height: calc(100dvh - 32px); overflow-y: auto; background: #faf6e9; }
+.birthday-dialog { width: min(580px, calc(100vw - 32px)); max-width: 580px; max-height: calc(100dvh - 32px); overflow: auto; background: #fff8ec; }
+.birthday-dialog p { font-size: 13px; line-height: 1.8; }
+.birthday-date { display: flex; gap: 16px; }
+.birthday-date label { flex: 1; }
+.birthday-date select { display: block; width: 100%; margin: 6px 0 16px; padding: 10px; background: #fffdf5; border: 1px solid #d8c5a6; border-radius: 6px; font: inherit; }
+#birthday-list { list-style: none; padding: 0; max-height: 220px; overflow: auto; }
+#birthday-list li { padding: 10px 0; border-bottom: 1px solid #e5d7c0; font-size: 13px; }
+.birthday-banner { margin: 16px 0; padding: 18px 22px; background: #fff0d6; border: 1px solid #dfbe82; border-radius: 12px; }
+.birthday-banner[hidden] { display: none; }
+.birthday-banner h3 { margin: 8px 0 14px; font-size: 18px; color: #745531; }
+.birthday-person { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 0; font-size: 13px; }
+.birthday-person strong { flex: 1; min-width: 180px; }
+.birthday-person span { font-size: 12px; color: #826e4e; }
+.birthday-person button { padding: 9px 12px; white-space: nowrap; }
+.birthday-status { font-size: 12px; color: #5f7450; }
+.birthday-status:empty { display: none; }
+.birthday-banner.is-celebrating h3 { animation: birthday-hop .4s ease-in-out 3; }
+@keyframes birthday-hop { 50% { transform: translateY(-4px) rotate(-1deg); } }
+@media (prefers-reduced-motion: reduce) { .birthday-banner.is-celebrating h3 { animation: none; } }
 .pokemon-journal-dialog > p { font-size: 13px; line-height: 1.8; }
 #pokemon-journal-notice:not(:empty) { padding: 12px 16px; border: 1px solid #bbcf9b; border-radius: 8px; background: #eef3d9; color: #426448; font-weight: 700; }
 .pokemon-progress { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 20px 0; font-size: 13px; }

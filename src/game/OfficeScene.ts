@@ -18,6 +18,7 @@ import { SkyWindowView } from './SkyWindowView.ts';
 import { RoomLighting } from './RoomLighting.ts';
 import { CompanionsView } from './companions-view.ts';
 import { PokemonJournalUI } from './pokemon-journal-ui.ts';
+import { BirthdaysUI } from './birthdays-ui.ts';
 import { isPokemonKind } from './pokemon-journal.ts';
 import { BUDDIES } from './buddies.ts';
 import type { BuddyKind } from './buddies.ts';
@@ -71,6 +72,7 @@ export class OfficeScene extends Phaser.Scene {
   private lighting?: RoomLighting;
   private companions?: CompanionsView;
   private pokemonJournal?: PokemonJournalUI;
+  private birthdaysUI?: BirthdaysUI;
   private buddyChoice: BuddyKind | null = null;
   readonly walker = new Walker();
   private controls = new Controls();
@@ -173,6 +175,9 @@ export class OfficeScene extends Phaser.Scene {
     this.controls.attach(this.game.canvas);
     this.setupRoomTools();
     this.setupReactions();
+    this.birthdaysUI = new BirthdaysUI(this.inputController.signal, (action) => this.connection?.birthday(action) ?? false, () => {
+      if (document.querySelector('dialog[open]')) return false; this.controls.clear(); this.setEditMode('none'); return true;
+    });
     this.announcementsUI = new AnnouncementsUI(this.inputController.signal, (action) => this.connection?.announcement(action) ?? false, () => { this.controls.clear(); this.setEditMode('none'); });
     this.vehicleUI = new TransportUI(this.inputController.signal, (action, id) => this.connection?.vehicle(action, id) ?? false, () => { this.controls.clear(); this.setEditMode('none'); });
     this.vehicleDocks = new VehicleDocksView(this, (unitId) => { if (this.editMode === 'none') this.vehicleUI?.open(unitId); });
@@ -222,6 +227,8 @@ export class OfficeScene extends Phaser.Scene {
       robotResult: (result) => this.cockpitUI?.result(result.actionId, result.error),
       dailyEvent: (state) => { this.dailyUI?.receive(state); this.dailyView?.receive(state); this.skyWindow?.setDailyEvent(state); },
       announcements: (state) => { this.announcementsUI?.snapshot(state); this.dailyUI?.receiveSchedules(state); },
+      birthdays: (state) => { this.birthdaysUI?.receive(state); this.dailyUI?.receiveBirthdays(state); },
+      birthdayResult: (id, error) => this.birthdaysUI?.result(id, error),
       announcementResult: (id, error) => this.announcementsUI?.result(id, error),
       vehicles: (units) => { this.vehicleUI?.inventory(units); this.vehicleDocks?.receive(units); },
       vehicleResult: (id, error) => this.vehicleUI?.result(id, error),
@@ -270,6 +277,7 @@ export class OfficeScene extends Phaser.Scene {
       this.voice?.destroy();
       this.connection?.destroy();
       this.companions?.clear();
+      this.birthdaysUI?.destroy();
       this.lighting?.destroy();
       this.vehicleDocks?.destroy(); this.vehicleUI?.destroy(); this.announcementsUI?.destroy(); this.dailyUI?.destroy(); this.arcadeUI?.destroy(); this.cockpitUI?.destroy(); this.cockpitView?.destroy(); this.dailyView?.destroy(); this.lostItems?.destroy();
     };
@@ -283,6 +291,7 @@ export class OfficeScene extends Phaser.Scene {
   private setConnectionState(state: ConnectionState): void {
     this.connected = state === 'online';
     this.announcementsUI?.setConnected(this.connected); this.dailyUI?.setConnected(this.connected); this.cockpitUI?.setConnected(this.connected); this.arcadeUI?.setConnected(this.connected);
+    this.birthdaysUI?.setConnected(this.connected);
     this.lostItems?.setConnected(this.connected);
     this.vehicleUI?.setConnected(this.connected); this.vehicleDocks?.setConnected(this.connected);
     this.voice?.setConnected(this.connected);

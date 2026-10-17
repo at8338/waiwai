@@ -1,4 +1,6 @@
 import { DAILY_EPISODES, episodeById, EVENT_THEMES } from './daily-event-catalog.ts';
+import { birthdayOnDay } from './birthdays.ts';
+import type { BirthdaySnapshot } from './birthdays.ts';
 import { drawEventPreview } from './daily-event-art.ts';
 import { eventHistory } from './daily-events.ts';
 import type { DailyEventSnapshot, DailyEvent } from './daily-events.ts';
@@ -17,6 +19,7 @@ export class DailyEventsUI {
   private found = new Set<string>();
   private history: DailyEvent[] = [];
   private schedules: AnnouncementSnapshot['schedules'] = [];
+  private birthdays: BirthdaySnapshot['entries'] = [];
   private month = calendarDay(Date.now());
   private selectedDay = this.month;
   private lastDay = '';
@@ -64,6 +67,7 @@ export class DailyEventsUI {
     this.renderBanner(); this.renderJournal(); this.renderCalendar();
   }
   receiveSchedules(state: AnnouncementSnapshot): void { this.schedules = state.schedules; this.renderCalendar(); }
+  receiveBirthdays(state: BirthdaySnapshot): void { this.birthdays = state.entries; this.renderCalendar(); }
   private renderBanner(): void {
     const event = this.snapshot?.event;
     if (!event) { el('daily-event-title').textContent = '今日の事件を確認しています…'; return; }
@@ -121,16 +125,19 @@ export class DailyEventsUI {
     for (const day of calendarCells(this.month)) {
       if (day === null) { const blank = document.createElement('span'); blank.setAttribute('aria-hidden', 'true'); grid.append(blank); continue; }
       const event = recordedEvent(day, this.now()), meetings = schedulesOnDay(this.schedules, day), button = document.createElement('button');
+      const birthdays = this.birthdays.filter((entry) => birthdayOnDay(entry, day));
       button.type = 'button'; button.dataset.calendarDay = String(day); button.setAttribute('aria-pressed', String(day === this.selectedDay));
       if (day === calendarDay(this.now())) button.setAttribute('aria-current', 'date');
       const number = document.createElement('strong'); number.textContent = String(new Date(day + JST).getUTCDate()); button.append(number);
-      const tag = document.createElement('span'); tag.className = 'calendar-cell-tag'; tag.textContent = `${meetings.length ? `予定 ${meetings.length}` : ''}${event ? `${meetings.length ? ' · ' : ''}✦` : ''}`; button.append(tag);
-      button.setAttribute('aria-label', `${jstInput(day).slice(0, 10)}、予定${meetings.length}件${event ? `、事件：${episodeById(event.episodeId)!.title}` : ''}`);
+      const tag = document.createElement('span'); tag.className = 'calendar-cell-tag'; tag.textContent = [meetings.length ? `予定 ${meetings.length}` : '', event ? '✦' : '', birthdays.length ? `🎂 ${birthdays.length}` : ''].filter(Boolean).join(' · '); button.append(tag);
+      button.setAttribute('aria-label', `${jstInput(day).slice(0, 10)}、予定${meetings.length}件${event ? `、事件：${episodeById(event.episodeId)!.title}` : ''}${birthdays.length ? `、誕生日：${birthdays.map((entry) => entry.name).join('、')}` : ''}`);
       grid.append(button);
     }
     el('calendar-selected-date').textContent = `${jstInput(this.selectedDay).slice(0, 10)}（JST）`;
     const detail = el('calendar-day-detail'); detail.replaceChildren();
     const add = (tag: string, text: string) => { const node = document.createElement(tag); node.textContent = text; detail.append(node); return node; };
+    const birthdays = this.birthdays.filter((entry) => birthdayOnDay(entry, this.selectedDay));
+    if (birthdays.length) { add('h4', '🎂 お誕生日'); for (const entry of birthdays) add('p', `${entry.name}さん、おめでとう！`); }
     const incident = recordedEvent(this.selectedDay, this.now());
     if (incident) {
       add('h4', `✦ ${episodeById(incident.episodeId)!.title}`);

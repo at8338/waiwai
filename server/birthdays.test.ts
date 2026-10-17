@@ -1,0 +1,50 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { mkdtemp, readFile, writeFile, rm, mkdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { BirthdayStore } from './birthdays.ts';
+const owner = 'slack:T1:U1', other = 'slack:T1:U2';
+const save = (month = 10, day = 17, expectedVersion = 0) => ({ type: 'birthday-save' as const, month, day, expectedVersion, actionId: randomUUID() });
+const cheer = (id = owner) => ({ type: 'birthday-cheer' as const, id, actionId: randomUUID() });
+const allow = () => true;
+
+test('verified birthdays persist while guests do not, and stale or unauthorized edits leave previous state intact', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'waiwai-birthdays-')); t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = join(dir, 'birthdays.json'), store = new BirthdayStore(file);
+  await store.apply(save(), owner, 'はな', allow);
+  const guest = `guest:${randomUUID()}`; await store.apply(save(1, 1), guest, 'お試し', allow);
+  assert.equal(store.snapshot(owner).entries.length, 2);
+  assert.deepEqual(new BirthdayStore(file).snapshot(owner).entries.map((entry) => entry.id), [owner]);
+  await assert.rejects(store.apply(save(1, 1), owner, 'はな', allow), /更新/);
+  await assert.rejects(store.apply(save(1, 1, 1), owner, '偽', () => false), /接続/);
+  assert.equal(store.snapshot(owner).entries[0].month, 10);
+  await store.apply({ type: 'birthday-delete', expectedVersion: 0, actionId: randomUUID() }, other, '別人', allow);
+  assert.ok(store.snapshot(owner).entries.some((entry) => entry.id === owner));
+  await store.removeGuest(guest); assert.equal(store.snapshot(owner).entries.length, 1);
+  await store.apply({ type: 'birthday-delete', expectedVersion: 1, actionId: randomUUID() }, owner, 'はな', allow);
+  assert.equal(new BirthdayStore(file).snapshot(owner).entries.length, 0);
+});
+test('one cheer per person per JST birthday is shared, persists, and resets for the next year', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'waiwai-birthday-cheers-')); t.after(() => rm(dir, { recursive: true, force: true }));
+  let now = Date.parse('2026-10-17T12:00:00+09:00'); const file = join(dir, 'birthdays.json');
+  let store = new BirthdayStore(file, () => now); await store.apply(save(), owner, 'はな', allow);
+  await Promise.all(Array.from({ length: 3 }, () => store.apply(cheer(), other, 'たろう', allow)));
+  assert.equal(store.snapshot(owner).entries[0].cheers, 1); assert.equal(store.snapshot(other).entries[0].cheered, true);
+  assert.equal('actors' in store.snapshot(owner).entries[0], false);
+  store = new BirthdayStore(file, () => now); assert.equal(store.snapshot(other).entries[0].cheered, true);
+  now = Date.parse('2026-10-18T00:00:00+09:00'); assert.equal(store.snapshot(owner).entries[0].cheers, 0);
+  await assert.rejects(store.apply(cheer(), other, 'たろう', allow), /今日/);
+  now = Date.parse('2027-10-17T00:00:00+09:00'); await store.apply(cheer(), other, 'たろう', allow);
+  assert.equal(store.snapshot(owner).entries[0].cheers, 1);
+});
+test('failed writes roll back and corrupt birthday files are preserved', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'waiwai-birthday-failure-')); t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = join(dir, 'birthdays.json'), store = new BirthdayStore(file);
+  await store.apply(save(), owner, 'はな', allow); await rm(file); await mkdir(file);
+  await assert.rejects(store.apply(save(1, 1, 1), owner, 'はな', allow));
+  assert.equal(store.snapshot(owner).entries[0].month, 10);
+  await rm(file, { recursive: true }); await writeFile(file, 'broken');
+  assert.throws(() => new BirthdayStore(file), /Cannot load birthdays/); assert.equal(await readFile(file, 'utf8'), 'broken');
+});
