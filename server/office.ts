@@ -17,6 +17,7 @@ import { directoryPeople } from '../src/game/directory.ts';
 import { adjacentTile } from './warp.ts';
 import { LinkStore } from './links.ts';
 import { MAX_FAVORITES, objectTargets } from '../src/game/object-links.ts';
+import { REACTION_COOLDOWN_MS } from '../src/game/reactions.ts';
 
 class EditError extends Error {}
 
@@ -102,6 +103,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     let lastEdit = -Infinity;
     let lastWarp = -Infinity;
     let lastLinkEdit = -Infinity;
+    let lastReaction = -Infinity;
     ws.on('pong', () => alive.add(ws));
     ws.on('error', () => ws.terminate());
     ws.on('message', (data, isBinary) => {
@@ -112,6 +114,18 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
       const message = parseClientMessage(data.toString());
       if (message?.type === 'voice-signal' ? ++signals > 120 : ++messages > 40) { ws.close(1008, 'Too many messages'); return; }
       if (!message) return;
+      if (message.type === 'reaction') {
+        if (now - lastReaction < REACTION_COOLDOWN_MS) return;
+        lastReaction = now;
+        // Deliver the actor's last step first so a coalesced movement frame
+        // cannot arrive after the gesture and immediately cancel it for peers.
+        const position = pending.get(player.id);
+        if (position) { broadcast({ type: 'positions', positions: [position] }); pending.delete(player.id); }
+        for (const [client, person] of players) if (person.roomId === player.roomId) {
+          send(client, { type: 'reaction', playerId: player.id, roomId: player.roomId, kind: message.kind });
+        }
+        return;
+      }
       if (message.type === 'voice-state') { voice.state(ws, message); return; }
       if (message.type === 'voice-signal') { voice.signal(ws, message); return; }
       if (message.type === 'favorite-add' || message.type === 'object-links-set') {

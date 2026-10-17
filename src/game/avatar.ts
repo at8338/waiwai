@@ -1,3 +1,5 @@
+import type { AvatarPose } from './reactions.ts';
+
 export type Appearance = {
   gender: number; body: number; height: number; skin: number; hair: number;
   hairColor: number; clothing: number; color: number; accessory: number;
@@ -30,7 +32,7 @@ export function parseAppearance(value: unknown, outfit = 0): Appearance | undefi
 }
 export const appearanceKey = (a: Appearance) => (Object.keys(AVATAR_OPTIONS) as Array<keyof Appearance>).map((k) => a[k]).join('');
 export type Pixel = { color: number; x: number; y: number; w: number; h: number };
-export function avatarPixels(a: Appearance, direction = 'down', frame = 0): Pixel[] {
+export function avatarPixels(a: Appearance, direction = 'down', frame = 0, pose: AvatarPose = 'stand'): Pixel[] {
   const pixels: Pixel[] = [];
   const p = (color: number, x: number, y: number, w: number, h: number) => pixels.push({ color, x, y, w, h });
   const skin = SKINS[a.skin], hair = HAIR[a.hairColor], shirt = SHIRTS[a.color];
@@ -49,8 +51,14 @@ export function avatarPixels(a: Appearance, direction = 'down', frame = 0): Pixe
     p(0xe4dfc9, 8, top + bob, 1, 4); p(0xe4dfc9, 11, top + bob, 1, 4);
     p(0x4f665c, 8, top + bob + 6, 4, 2);
   }
-  p(skin, left - 1, top + bob + 2, 2, 5); p(skin, left + width - 1, top + bob + 2, 2, 5);
-  const head = top - 8 + bob;
+  if (pose === 'raise' || pose === 'happy') {
+    p(shirt, left - 2, top + bob - 2, 3, 4); p(shirt, left + width - 1, top + bob - 2, 3, 4);
+    p(skin, left - 3, top + bob - 9, 2, 9); p(skin, left + width + 1, top + bob - 9, 2, 9);
+    p(skin, left - 3, top + bob - 11, 3, 3); p(skin, left + width, top + bob - 11, 3, 3);
+  } else if (pose === 'bow') {
+    p(skin, left + 1, top + 6, 3, 3); p(skin, left + width - 4, top + 6, 3, 3);
+  } else { p(skin, left - 1, top + bob + 2, 2, 5); p(skin, left + width - 1, top + bob + 2, 2, 5); }
+  const head = top - (pose === 'bow' ? 3 : 8) + bob;
   p(skin, 6, head, 8, 8);
   if (a.gender === 1) p(skin, 5, head + 4, 10, 3);
   if (a.gender === 2) { p(0xce9478, 6, head + 6, 1, 1); p(0xce9478, 13, head + 6, 1, 1); }
@@ -63,7 +71,10 @@ export function avatarPixels(a: Appearance, direction = 'down', frame = 0): Pixe
   if (direction === 'up') {
     if (a.hair !== 4) p(hair, 6, head, 8, a.hair === 2 ? 11 : 7);
   } else if (direction === 'down') {
-    p(0x34352f, 7, head + 3, 1, 2); p(0x34352f, 12, head + 3, 1, 2);
+    if (pose === 'bow' || pose === 'happy') {
+      p(0x34352f, 7, head + 3, 2, 1); p(0x34352f, 11, head + 3, 2, 1);
+      if (pose === 'happy') { p(0x34352f, 8, head + 2, 1, 1); p(0x34352f, 12, head + 2, 1, 1); }
+    } else { p(0x34352f, 7, head + 3, 1, 2); p(0x34352f, 12, head + 3, 1, 2); }
     p(0xc48b73, 9, head + 6, 2, 1);
     if (a.accessory === 1) { p(0x374b4c, 6, head + 2, 4, 3); p(0x374b4c, 11, head + 2, 4, 3); p(0xa8c8bd, 7, head + 3, 2, 1); p(0xa8c8bd, 12, head + 3, 2, 1); p(0x374b4c, 10, head + 3, 1, 1); }
   } else {

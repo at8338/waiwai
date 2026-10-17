@@ -7,6 +7,7 @@ import { avatarPixels, appearanceKey, DEFAULT_APPEARANCE, SHIRTS } from './avata
 import type { Appearance } from './avatar.ts';
 import type { RoomObject } from './objects.ts';
 import { objectSize } from './objects.ts';
+import type { AvatarPose } from './reactions.ts';
 
 type Paint = Phaser.GameObjects.Graphics;
 const rect = (g: Paint, color: number, x: number, y: number, w: number, h: number) => {
@@ -221,14 +222,14 @@ export function createAvatarTextures(scene: Phaser.Scene): void {
   avatarTexture(scene, DEFAULT_APPEARANCE, 'down', 0);
 }
 const textureKeys = new WeakMap<Phaser.Textures.TextureManager, Map<string, true>>();
-export function avatarTexture(scene: Phaser.Scene, appearance: Appearance, direction: Direction, frame: number): string {
-  const key = `person-${appearanceKey(appearance)}-${direction}-${frame}`;
+export function avatarTexture(scene: Phaser.Scene, appearance: Appearance, direction: Direction, frame: number, pose: AvatarPose = 'stand'): string {
+  const key = `person-${appearanceKey(appearance)}-${direction}-${frame}-${pose}`;
   let cache = textureKeys.get(scene.textures);
   if (!cache) { cache = new Map(); textureKeys.set(scene.textures, cache); }
   cache.delete(key); cache.set(key, true);
   if (!scene.textures.exists(key)) {
     const g = scene.make.graphics({ x: 0, y: 0 });
-    for (const p of avatarPixels(appearance, direction, frame)) rect(g, p.color, p.x, p.y, p.w, p.h);
+    for (const p of avatarPixels(appearance, direction, frame, pose)) rect(g, p.color, p.x, p.y, p.w, p.h);
     g.generateTexture(key, 20, 28); g.destroy();
   }
   if (cache.size > 2048) {
