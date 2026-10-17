@@ -2,7 +2,7 @@ import type { AvatarPose } from './reactions.ts';
 
 export type Appearance = {
   gender: number; body: number; height: number; skin: number; hair: number;
-  hairColor: number; clothing: number; color: number; accessory: number;
+  hairColor: number; clothing: number; color: number; accessory: number; heldItem: number;
 };
 export const AVATAR_OPTIONS = {
   gender: { label: '性別・表現', choices: ['中性的', '男性タイプ', '女性タイプ'] },
@@ -14,8 +14,9 @@ export const AVATAR_OPTIONS = {
   clothing: { label: '服装', choices: ['シャツ', 'ジャケット', 'ワンピース', 'パーカー'] },
   color: { label: '服の色', choices: ['グリーン', 'テラコッタ', 'ブルー', 'マスタード', 'ラベンダー', 'アイボリー'] },
   accessory: { label: 'アクセサリー', choices: ['なし', 'めがね', 'キャップ', 'ヘッドホン'] },
+  heldItem: { label: '持ちもの', choices: ['なし', 'マグカップ', 'ペットボトル', 'サンドイッチ'] },
 } as const;
-export const DEFAULT_APPEARANCE: Appearance = { gender: 0, body: 1, height: 1, skin: 1, hair: 0, hairColor: 0, clothing: 0, color: 0, accessory: 0 };
+export const DEFAULT_APPEARANCE: Appearance = { gender: 0, body: 1, height: 1, skin: 1, hair: 0, hairColor: 0, clothing: 0, color: 0, accessory: 0, heldItem: 0 };
 export const SHIRTS = [0x668d77, 0xc17b5e, 0x698aab, 0xc5a34e, 0x9b83b5, 0xe5ddc1];
 const SKINS = [0xffdfbd, 0xf2cba2, 0xdcb18a, 0xc38d60, 0x966443, 0x65432f];
 const HAIR = [0x624632, 0x333536, 0xccab60, 0xb8b9b5, 0x9d83a7];
@@ -24,7 +25,8 @@ export function parseAppearance(value: unknown, outfit = 0): Appearance | undefi
   if (!value || typeof value !== 'object' || Array.isArray(value)) return;
   const result = {} as Appearance;
   for (const key of Object.keys(AVATAR_OPTIONS) as Array<keyof Appearance>) {
-    const n = (value as Record<string, unknown>)[key];
+    // Existing browser preferences and older clients have no held-item field.
+    const n = (value as Record<string, unknown>)[key] ?? (key === 'heldItem' && !Object.hasOwn(value, key) ? 0 : undefined);
     if (!Number.isInteger(n) || (n as number) < 0 || (n as number) >= AVATAR_OPTIONS[key].choices.length) return;
     result[key] = n as number;
   }
@@ -85,5 +87,28 @@ export function avatarPixels(a: Appearance, direction = 'down', frame = 0, pose:
   }
   if (a.accessory === 2) { p(shirt, 5, head - 3, 10, 4); p(shirt, direction === 'left' ? 2 : 6, head, 12, 1); }
   if (a.accessory === 3) { p(0x374b4c, 5, head - 3, 10, 1); p(0x374b4c, 4, head, 2, 5); p(0x374b4c, 14, head, 2, 5); }
+  if (a.heldItem) {
+    // Keep the prop in the same hand while walking, bowing or raising both arms.
+    const onLeft = direction === 'left';
+    const x = onLeft ? left - 4 : left + width - 2;
+    const raised = pose === 'raise' || pose === 'happy';
+    const y = raised ? Math.max(0, top + bob - 10) : pose === 'bow' ? top + 5 : top + bob + 4;
+    const item = (color: number, dx: number, dy: number, w: number, h: number) => p(color, x + dx, y + dy, w, h);
+    if (a.heldItem === 1) {
+      item(0x627f80, 0, 1, 4, 6); item(0x627f80, 4, 2, 2, 4);
+      item(0xece5cf, 1, 2, 3, 4); item(shirt, 4, 3, 1, 2);
+      item(0x6d4934, 1, 1, 2, 1); item(0xfff4d7, 1, 2, 1, 2);
+    } else if (a.heldItem === 2) {
+      item(0x4c839d, 2, 0, 3, 1); item(0xc9e6de, 2, 1, 3, 2);
+      item(0x83bcc4, 1, 3, 5, 5); item(0xe5f1dc, 2, 3, 1, 4);
+      item(0xe7eee0, 1, 5, 5, 2); item(0x5d94a8, 3, 5, 2, 2);
+    } else if (a.heldItem === 3) {
+      item(0xb9824f, 0, 1, 2, 6); item(0xb9824f, 2, 3, 2, 4); item(0xb9824f, 4, 5, 2, 2);
+      item(0xf6e2b7, 1, 2, 1, 3); item(0xf6e2b7, 2, 4, 2, 1);
+      item(0x71945c, 0, 5, 6, 1); item(0xc77b5c, 1, 6, 4, 1);
+      item(0xf6e2b7, 0, 7, 6, 1);
+    }
+    item(skin, onLeft ? 4 : -1, 4, 2, 2);
+  }
   return pixels;
 }

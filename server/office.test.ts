@@ -546,3 +546,19 @@ test('buddies share authoritative trail positions and pets stay scoped to the cu
   const none = await b.next('player', (m) => m.player.id === initial.id && m.reason === 'profile' && m.player.buddy === null);
   assert.equal(none.player.buddyPosition, undefined);
 });
+
+test('handheld items synchronize, survive movement and reject invalid choices', async (t) => {
+  const { connect } = await fixture(t); const a = await connect(), b = await connect();
+  for (const heldItem of [1, 2, 3, 0]) {
+    a.send({ type: 'profile', name: '持ちもの', outfit: 0, appearance: { ...DEFAULT_APPEARANCE, heldItem } });
+    const received = await b.next('player', (m) => m.player.id === a.welcome.id && m.reason === 'profile');
+    assert.equal(received.player.appearance?.heldItem, heldItem);
+  }
+  a.send({ type: 'profile', name: 'サンドイッチ', outfit: 0, appearance: { ...DEFAULT_APPEARANCE, heldItem: 3 } });
+  await b.next('player', (m) => m.player.id === a.welcome.id && m.player.appearance?.heldItem === 3);
+  const c = await connect(); assert.equal(c.welcome.players.find((p) => p.id === a.welcome.id)?.appearance?.heldItem, 3);
+  a.send({ type: 'profile', name: '不正', outfit: 0, appearance: { ...DEFAULT_APPEARANCE, heldItem: 99 } });
+  a.send({ type: 'move', direction: 'right', requestId: 1 });
+  const moved = await a.next('player', (m) => m.player.id === a.welcome.id && m.requestId === 1);
+  assert.equal(moved.player.name, 'サンドイッチ'); assert.equal(moved.player.appearance?.heldItem, 3);
+});

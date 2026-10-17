@@ -336,6 +336,7 @@ export class OfficeScene extends Phaser.Scene {
       item.dataset.tileY = String(player.y);
       item.dataset.buddy = player.buddy ?? '';
       item.dataset.buddyPosition = JSON.stringify(player.buddyPosition ?? null);
+      item.dataset.heldItem = String(player.appearance?.heldItem ?? 0);
       item.dataset.outfit = String(player.outfit);
       item.dataset.roomId = player.roomId;
       item.dataset.speaking = String(this.speaking.has(player.id));
