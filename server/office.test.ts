@@ -616,3 +616,43 @@ test('shared vehicle stock handles competing borrowers, server speed limits and 
   const freed = await newcomer.next('vehicles', (m) => m.units.some((u) => u.id === borrowed.player.riding!.id && u.riderId === null));
   assert.equal(freed.units.filter((u) => u.kind === 'bike' && u.riderId).length, 2);
 });
+
+test('library document collections sync on fixed and placed shelves, persist and survive moving the shelf', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'waiwai-library-')); t.after(() => rm(dir, { recursive: true, force: true }));
+  const objectsFile = join(dir, 'objects.json'), linksFile = join(dir, 'links.json');
+  const { connect } = await fixture(t, objectsFile, linksFile); const a = await connect(), b = await connect();
+  for (const client of [a, b]) {
+    client.send({ type: 'change-room', roomId: 'library', requestId: 1 });
+    await client.next('objects', (m) => m.roomId === 'library');
+  }
+  const ids: string[] = [];
+  for (const [i, title] of ['リリース手順書', '操作マニュアル'].entries()) {
+    if (i) await new Promise((r) => setTimeout(r, 360));
+    const editId = randomUUID();
+    a.send({ type: 'favorite-add', title, url: `https://example.atlassian.net/wiki/spaces/TEAM/pages/${i + 1}`, editId });
+    const result = await a.next('link-result', (m) => m.editId === editId);
+    assert.equal(result.error, undefined); ids.push(result.favoriteId!);
+  }
+  await new Promise((r) => setTimeout(r, 360));
+  a.send({ type: 'object-links-set', objectId: 'fixed:library:shelf:3:3', linkIds: ids, editId: randomUUID() });
+  assert.equal((await a.next('link-result')).error, undefined);
+  await b.next('object-links', (m) => m.bindings.some((s) => s.objectId === 'fixed:library:shelf:3:3' && s.linkIds.length === 2));
+  a.send({ type: 'object-place', kind: 'bookshelf', x: 11, y: 13, rotation: 0, editId: randomUUID() });
+  assert.equal((await a.next('object-result')).error, undefined);
+  const shelf = (await b.next('objects', (m) => m.objects.some((o) => o.kind === 'bookshelf'))).objects[0];
+  await new Promise((r) => setTimeout(r, 360));
+  a.send({ type: 'object-links-set', objectId: `placed:${shelf.id}`, linkIds: ids, editId: randomUUID() });
+  assert.equal((await a.next('link-result')).error, undefined);
+  await b.next('object-links', (m) => m.bindings.some((s) => s.objectId === `placed:${shelf.id}`));
+  b.send({ type: 'object-links-set', objectId: `placed:${shelf.id}`, linkIds: [], editId: randomUUID() });
+  assert.match((await b.next('link-result')).error!, /配置した本人/);
+  a.send({ type: 'object-move', id: shelf.id, x: 17, y: 12, rotation: 1, editId: randomUUID() });
+  assert.equal((await a.next('object-result')).error, undefined);
+  const moved = (await b.next('objects', (m) => m.objects[0]?.x === 17)).objects[0];
+  assert.equal(moved.rotation, 1); assert.equal(moved.id, shelf.id);
+  assert.deepEqual(new ObjectStore(objectsFile).list(), [moved]);
+  const stored = new LinkStore(linksFile).list();
+  assert.deepEqual(stored.bindings.find((s) => s.objectId === `placed:${shelf.id}`)?.linkIds, ids);
+  const c = await connect(); c.send({ type: 'change-room', roomId: 'library', requestId: 1 });
+  assert.equal((await c.next('object-links', (m) => m.roomId === 'library')).bindings.length, 2);
+});

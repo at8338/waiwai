@@ -38,3 +38,14 @@ test('link messages and saved state enforce multiple unique known favorites and 
   assert.equal(validLinkState({ ...state, bindings: [{ ...state.bindings[0], roomId: 'cafe' }] }), false);
   assert.equal(validLinkState({ ...state, favorites: [...state.favorites, state.favorites[0]] }), false);
 });
+
+test('library shelves keep stable IDs and placed bookshelves retain document links after relocation and rotation', () => {
+  const shelves = objectTargets('library', []).filter((o) => o.kind === 'shelf');
+  assert.deepEqual(shelves.map((s) => s.name), ['手順書', 'マニュアル', 'Confluence', '設計資料', '議事録', 'ナレッジ']);
+  assert.equal(targetAt('library', [], { x: 16, y: 3 })!.id, 'fixed:library:shelf:11:3');
+  const shelf: RoomObject = { id: randomUUID(), owner: 'guest:test', roomId: 'library', kind: 'bookshelf', x: 11, y: 13, rotation: 0 };
+  const original = targetAt('library', [shelf], { x: 14, y: 13 })!;
+  const moved = targetAt('library', [{ ...shelf, x: 17, y: 12, rotation: 1 }], { x: 17, y: 15 })!;
+  assert.equal(moved.id, original.id); assert.equal(moved.owner, original.owner);
+  assert.equal(moved.name, '資料の本棚');
+});

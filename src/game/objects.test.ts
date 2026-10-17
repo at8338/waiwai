@@ -72,3 +72,16 @@ test('monitor and rack footprints rotate, block walking and protect the operatio
     assert.match(placementProblem({ ...item, x: 22, y: 2 }, [])!, /壁や家具/);
   }
 });
+
+test('document bookshelves occupy four tiles, rotate and leave library aisles accessible', () => {
+  for (let rotation = 0; rotation < 4; rotation++) {
+    const shelf: RoomObject = { ...desk, kind: 'bookshelf', roomId: 'library', x: 11, y: 13, rotation };
+    assert.equal(validObject(shelf), true);
+    assert.equal(placementProblem(shelf, []), undefined);
+    assert.equal(objectTiles(shelf).length, 4);
+    for (const tile of objectTiles(shelf)) assert.equal(walkableWithObjects(tile.x, tile.y, 'library', [shelf]), false);
+    assert.deepEqual(objectSize(shelf.kind, rotation), rotation % 2 ? { w: 1, h: 4 } : { w: 4, h: 1 });
+  }
+  assert.equal(validObject({ ...desk, kind: 'bookshelf', x: 27 }), false);
+  assert.equal(validObject({ ...desk, kind: 'bookshelf', y: 17, rotation: 1 }), false);
+});
