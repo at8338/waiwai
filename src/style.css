@@ -200,3 +200,28 @@ select { color: #354b3e; background: #fffdf6; border: 1px solid #ced7c2; border-
   .object-tools { padding: 13px; }.object-heading h2 { font-size: 14px; }.object-actions { gap: 7px; }.object-actions button { padding: 10px 8px; }
 }
 #object-dimensions { font-size: 10px; color: var(--text-muted, #777b69); font-weight: 400; }
+.room-switcher-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+#people-travel-status:empty { display: none; }
+#people-travel-status { margin: -5px 0 16px; color: #567a60; font-size: 12px; }
+.people-dialog { width: min(720px, calc(100vw - 32px)); max-width: 720px; max-height: 88vh; overflow: auto; }
+.people-dialog[open] { display: flex; flex-direction: column; }
+.people-dialog > :not(#people-results) { flex-shrink: 0; }
+.people-help, #people-status, #people-empty, #people-warning { font-size: 12px; line-height: 1.8; color: #788571; }
+#people-warning:empty { display: none; }
+.people-search { display: grid; grid-template-columns: 1fr 140px; gap: 12px; margin-top: 20px; }
+.people-search label { font-size: 11px; }
+.people-search input, .people-search select { display: block; width: 100%; margin-top: 7px; padding: 11px; }
+#people-result-count { color: #788571; font-size: 11px; }
+#people-results { list-style: none; margin: 0; padding: 0; max-height: 42vh; min-height: 0; flex: 1 1 auto; overflow: auto; }
+#people-results li { display: flex; align-items: center; gap: 14px; padding: 15px 4px; border-bottom: 1px solid #dce1d1; }
+.person-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; overflow-wrap: anywhere; }
+.person-info strong { font-size: 14px; }.person-info span, .person-info small { font-size: 10px; color: #819085; }
+.person-presence { color: #8a8f86; font-size: 10px; white-space: nowrap; }
+.person-presence[data-online='true'] { color: #466e51; }.person-presence::before { content: '●'; margin-right: 4px; }
+#people-results button { background: #f0f3e7; border: 1px solid #bacab0; padding: 11px 12px; border-radius: 4px; font-size: 11px; white-space: nowrap; }
+#people-results button:disabled { opacity: .45; cursor: default; }
+@media (max-width: 760px) {
+  .room-switcher-actions { max-width: 110px; flex-shrink: 0; }.room-switcher-actions button { width: 100%; }
+  .people-dialog { padding: 22px 16px; }.people-search { grid-template-columns: 1fr; gap: 5px; }
+  #people-results li { flex-wrap: wrap; gap: 10px; }.person-info { flex-basis: 55%; }
+}

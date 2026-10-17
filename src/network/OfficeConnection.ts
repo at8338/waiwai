@@ -5,6 +5,7 @@ import { STEP_MS } from '../game/world.ts';
 import { directions } from './protocol.ts';
 import type { ClientMessage, Player, Profile, ServerMessage } from './protocol.ts';
 import type { VoiceSignal, VoiceSnapshot, VoicePayload, VoiceState } from '../audio/protocol.ts';
+import type { Person } from '../game/directory.ts';
 
 export type ConnectionState = 'connecting' | 'online' | 'reconnecting';
 export type ConnectionHandlers = {
@@ -16,6 +17,9 @@ export type ConnectionHandlers = {
   voiceSignal: (signal: VoiceSignal) => void;
   objects?: (roomId: RoomId, objects: RoomObject[]) => void;
   objectResult?: (editId: string, error?: string) => void;
+  directory?: (people: Person[], warning?: string) => void;
+  travelComplete?: () => void;
+  travelError?: (error: string) => void;
 };
 
 export class OfficeConnection {
@@ -27,6 +31,7 @@ export class OfficeConnection {
   private profile: Profile = { name: 'あなた', outfit: 0 };
   private sequence = 0;
   private pending?: number;
+  private warpRequest?: number;
   private id?: string;
   private online = false;
   private nextRequestAt = 0;
@@ -72,7 +77,11 @@ export class OfficeConnection {
         }
         this.players.set(message.player.id, message.player);
         this.slots.set(message.player.slot, message.player.id);
-        this.handlers.player(message.player, message.reason === 'reset' || message.reason === 'join' || message.reason === 'room');
+        this.handlers.player(message.player, message.reason === 'reset' || message.reason === 'join' || message.reason === 'room' || message.reason === 'warp');
+        if (message.player.id === this.id && message.reason === 'warp' && message.requestId === this.warpRequest) {
+          this.warpRequest = undefined;
+          this.handlers.travelComplete?.();
+        }
       } else if (message.type === 'positions') {
         for (const [slot, x, y, flags] of message.positions) {
           const id = this.slots.get(slot);
@@ -89,6 +98,14 @@ export class OfficeConnection {
         if (player) this.slots.delete(player.slot);
         this.players.delete(message.id); this.handlers.left(message.id);
       }
+      else if (message.type === 'directory') this.handlers.directory?.(message.people, message.warning);
+      else if (message.type === 'travel-error') {
+        if (message.requestId !== this.warpRequest) return;
+        this.warpRequest = undefined;
+        this.pending = undefined;
+        window.clearTimeout(this.watchdog);
+        this.handlers.travelError?.(message.error);
+      }
       else if (message.type === 'objects') this.handlers.objects?.(message.roomId, message.objects);
       else if (message.type === 'object-result') this.handlers.objectResult?.(message.editId, message.error);
       else if (message.type === 'voice') this.handlers.voice(message);
@@ -100,6 +117,7 @@ export class OfficeConnection {
       window.clearTimeout(this.watchdog);
       this.online = false;
       this.pending = undefined;
+      this.warpRequest = undefined;
       this.id = undefined;
       this.players.clear();
       this.slots.clear();
@@ -129,6 +147,12 @@ export class OfficeConnection {
     if (this.online) this.request({ type: 'change-room', roomId, requestId: ++this.sequence });
   }
 
+  warpTo(targetId: string): boolean {
+    if (!this.online) return false;
+    this.request({ type: 'warp-to', targetId, requestId: ++this.sequence });
+    return true;
+  }
+
   editObject(message: Extract<ClientMessage, { editId: string }>): void { if (this.online) this.send(message); }
 
   reset(): void {
@@ -136,6 +160,8 @@ export class OfficeConnection {
   }
 
   private request(message: Extract<ClientMessage, { requestId: number }>): void {
+    if (this.warpRequest !== undefined) this.handlers.travelError?.('別の移動操作に切り替えました。');
+    this.warpRequest = message.type === 'warp-to' ? message.requestId : undefined;
     this.pending = message.requestId;
     this.nextRequestAt = performance.now() + STEP_MS;
     window.clearTimeout(this.watchdog);

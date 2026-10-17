@@ -366,3 +366,34 @@ test('desks and chairs share, persist, move, rotate and remove with full-footpri
   await b.next('objects', (m) => m.objects.length === 0);
   assert.equal(new ObjectStore(file).list().length, 0);
 });
+
+test('person warps synchronize across rooms, revoke old voice pairs, reject stale targets and retain movement limits', async (t) => {
+  const { connect } = await fixture(t); const a = await connect(), b = await connect(), c = await connect();
+  b.send({ type: 'profile', name: 'はな', outfit: 0 });
+  b.send({ type: 'change-room', roomId: 'cafe', requestId: 1 });
+  const target = (await b.next('player', (m) => m.reason === 'room' && m.player.id === b.welcome.id)).player;
+  const directory = await a.next('directory', (m) => m.people.some((p) => p.name === 'はな' && p.roomId === 'cafe'));
+  assert.equal(directory.people.find((p) => p.name === 'はな')!.online, true);
+  for (const client of [a, b, c]) client.send({ type: 'voice-state', listening: true, microphone: false });
+  await a.next('voice', (m) => m.peers.some((p) => p.id === c.welcome.id));
+  a.send({ type: 'warp-to', targetId: target.id, requestId: 2, x: 999, y: 999 });
+  const warped = (await a.next('player', (m) => m.reason === 'warp' && m.player.id === a.welcome.id)).player;
+  assert.equal(warped.roomId, 'cafe'); assert.equal(Math.abs(warped.x - target.x) + Math.abs(warped.y - target.y), 1);
+  assert.ok(canWalk(warped.x, warped.y, warped.roomId));
+  assert.equal((await c.next('player', (m) => m.reason === 'warp')).player.id, a.welcome.id);
+  await a.next('objects', (m) => m.roomId === 'cafe');
+  await a.next('voice', (m) => m.peers.some((p) => p.id === target.id));
+  await c.next('voice', (m) => m.peers.length === 0);
+  a.send({ type: 'move', direction: 'left', requestId: 3 });
+  const blocked = (await a.next('player', (m) => m.requestId === 3)).player;
+  assert.deepEqual([blocked.x, blocked.y], [warped.x, warped.y]);
+  a.send({ type: 'warp-to', targetId: c.welcome.id, requestId: 4 });
+  assert.match((await a.next('travel-error', (m) => m.requestId === 4)).error, /少し待って/);
+  b.ws.close(); await a.next('left', (m) => m.id === target.id);
+  await new Promise((resolve) => setTimeout(resolve, 1010));
+  a.send({ type: 'warp-to', targetId: target.id, requestId: 5 });
+  assert.match((await a.next('travel-error', (m) => m.requestId === 5)).error, /オフライン/);
+  a.send({ type: 'reset', requestId: 6 });
+  assert.equal((await a.next('player', (m) => m.requestId === 6)).player.roomId, 'cafe');
+  assert.ok(!a.seen.some((m) => m.type === 'player' && m.reason === 'warp' && m.requestId === 5));
+});
