@@ -37,6 +37,14 @@ export function parseAppearance(value: unknown, outfit = 0): Appearance | undefi
 export const appearanceKey = (a: Appearance) => (Object.keys(AVATAR_OPTIONS) as Array<keyof Appearance>).filter((k) => k !== 'walkStyle').map((k) => a[k]).join('');
 export type Pixel = { color: number; x: number; y: number; w: number; h: number };
 export function avatarPixels(a: Appearance, direction = 'down', frame = 0, pose: AvatarPose = 'stand'): Pixel[] {
+  if (pose === 'lie') {
+    // A flat, face-up resting pose. Reuse the person's clothes, hair and held
+    // item, close their eyes, and lay the body horizontally in a wider texture.
+    return avatarPixels(a, 'down', 0, 'stand').map(pixel => {
+      const p = pixel.color === 0x34352f && pixel.w === 1 && pixel.h === 2 ? { ...pixel, w: 2, h: 1 } : pixel;
+      return { color: p.color, x: p.y + 2, y: 25 - p.x - p.w, w: p.h, h: p.w };
+    });
+  }
   const pixels: Pixel[] = [];
   const p = (color: number, x: number, y: number, w: number, h: number) => pixels.push({ color, x, y, w, h });
   const skin = SKINS[a.skin], hair = HAIR[a.hairColor], shirt = SHIRTS[a.color];

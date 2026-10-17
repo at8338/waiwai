@@ -368,7 +368,7 @@ export function avatarTexture(scene: Phaser.Scene, appearance: Appearance, direc
   if (!scene.textures.exists(key)) {
     const g = scene.make.graphics({ x: 0, y: 0 });
     for (const p of avatarPixels(appearance, direction, frame, pose)) rect(g, p.color, p.x, p.y, p.w, p.h);
-    g.generateTexture(key, 20, 28); g.destroy();
+    g.generateTexture(key, pose === 'lie' ? 32 : 20, 28); g.destroy();
   }
   if (cache.size > 2048) {
     const oldest = cache.keys().next().value!;
