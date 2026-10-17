@@ -7,6 +7,7 @@ import type { ClientMessage, Player, Profile, ServerMessage } from './protocol.t
 import type { VoiceSignal, VoiceSnapshot, VoicePayload, VoiceState } from '../audio/protocol.ts';
 import type { Person } from '../game/directory.ts';
 import type { LinkEdit } from '../game/object-links.ts';
+import type { ReactionKind } from '../game/reactions.ts';
 
 export type ConnectionState = 'connecting' | 'online' | 'reconnecting';
 export type ConnectionHandlers = {
@@ -23,6 +24,7 @@ export type ConnectionHandlers = {
   travelError?: (error: string) => void;
   objectLinks?: (snapshot: Extract<ServerMessage, { type: 'object-links' }>) => void;
   linkResult?: (result: Extract<ServerMessage, { type: 'link-result' }>) => void;
+  reaction?: (message: Extract<ServerMessage, { type: 'reaction' }>) => void;
 };
 
 export class OfficeConnection {
@@ -101,6 +103,7 @@ export class OfficeConnection {
         if (player) this.slots.delete(player.slot);
         this.players.delete(message.id); this.handlers.left(message.id);
       }
+      else if (message.type === 'reaction') this.handlers.reaction?.(message);
       else if (message.type === 'directory') this.handlers.directory?.(message.people, message.warning);
       else if (message.type === 'travel-error') {
         if (message.requestId !== this.warpRequest) return;
@@ -160,6 +163,10 @@ export class OfficeConnection {
 
   editObject(message: Extract<ClientMessage, { editId: string }>): void { if (this.online) this.send(message); }
   editLinks(message: LinkEdit): void { if (this.online) this.send(message); }
+  react(kind: ReactionKind): boolean {
+    if (!this.online || this.socket?.readyState !== WebSocket.OPEN) return false;
+    this.send({ type: 'reaction', kind }); return true;
+  }
 
   reset(): void {
     if (this.online) this.request({ type: 'reset', requestId: ++this.sequence });

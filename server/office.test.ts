@@ -17,6 +17,7 @@ import type { ServerMessage, Player } from '../src/network/protocol.ts';
 import { MAX_PLAYERS, directions, parseClientMessage } from '../src/network/protocol.ts';
 import { MAX_VOICE_MEMBERS, MAX_VOICE_PEERS } from '../src/audio/proximity.ts';
 import { STEP_MS, canWalk } from '../src/game/world.ts';
+import { REACTION_COOLDOWN_MS } from '../src/game/reactions.ts';
 
 async function fixture(t: TestContext, objectsFile?: string, linksFile?: string) {
   const server = createServer((_request, response) => response.end('ok'));
@@ -241,7 +242,7 @@ test('Slack IDs synchronize in profiles and join snapshots, reject invalid edits
 // Exercise real upgrades at the production limit, including capacity recovery.
 test('150 clients join, compact frames coalesce moves and the 151st is refused', async (t) => {
   const { connect, origin } = await fixture(t);
-  const clients = [];
+  const clients: Awaited<ReturnType<typeof connect>>[] = [];
   for (let i = 0; i < MAX_PLAYERS; i++) clients.push(await connect());
   assert.equal(clients.at(-1)!.welcome.players.length, MAX_PLAYERS);
   const extra = new WebSocket(origin.replace('http:', 'ws:') + '/office', { origin });
@@ -256,6 +257,11 @@ test('150 clients join, compact frames coalesce moves and the 151st is refused',
   assert.deepEqual(frame.positions.find(([slot]) => slot === a.welcome.players[0].slot),
     [ack.player.slot, ack.player.x, ack.player.y, directions.indexOf(ack.player.facing)]);
   assert.ok(!JSON.stringify(frame).includes('slack'));
+  for (const client of clients) client.send({ type: 'reaction', kind: 'cheer' });
+  for (const client of clients) await client.next('reaction', (m) => m.playerId === client.welcome.id);
+  await a.next('reaction', (m) => m.playerId === clients.at(-1)!.welcome.id);
+  assert.equal(new Set(a.seen.filter((m) => m.type === 'reaction').map((m) => m.playerId)).size, MAX_PLAYERS);
+  assert.ok(clients.every((client) => client.ws.readyState === WebSocket.OPEN));
   clients.at(-1)!.ws.close();
   await a.next('left');
   assert.equal((await connect()).welcome.players.length, MAX_PLAYERS);
@@ -484,4 +490,30 @@ test('the operations room shares named monitor links and supports placing and ro
   a.send({ type: 'object-place', kind: 'rack', x: 21, y: 16, rotation: 2, editId: randomUUID() });
   assert.equal((await a.next('object-result')).error, undefined);
   assert.ok((await b.next('objects', (m) => m.objects.length === 2)).objects.some((o) => o.kind === 'rack'));
+});
+
+test('reactions share only with the current room, use the authenticated connection actor, throttle repeats and do not alter position', async (t) => {
+  const { connect } = await fixture(t); const a = await connect(), b = await connect(), c = await connect();
+  c.send({ type: 'change-room', roomId: 'cafe', requestId: 1 }); await c.next('objects', (m) => m.roomId === 'cafe');
+  a.send({ type: 'move', direction: 'right', requestId: 1 });
+  a.send({ type: 'reaction', kind: 'bow', playerId: b.welcome.id, roomId: 'cafe', x: 999, y: 999 });
+  const baseline = (await a.next('player', (m) => m.reason === 'move' && m.player.id === a.welcome.id && m.requestId === 1)).player;
+  const self = await a.next('reaction'), shared = await b.next('reaction');
+  assert.deepEqual(shared, { type: 'reaction', kind: 'bow', playerId: a.welcome.id, roomId: 'office' });
+  assert.deepEqual(shared, self);
+  const stepIndex = b.seen.findIndex((m) => m.type === 'positions' && m.positions.some(([slot]) => slot === baseline.slot));
+  assert.ok(stepIndex >= 0 && stepIndex < b.seen.findIndex((m) => m.type === 'reaction'));
+  a.send({ type: 'reaction', kind: 'joy' }); a.send({ type: 'reaction', kind: 'cheer' });
+  a.send({ type: 'profile', name: 'リアクション', outfit: 0 });
+  const unchanged = (await a.next('player', (m) => m.reason === 'profile')).player;
+  assert.deepEqual([unchanged.x, unchanged.y, unchanged.roomId], [baseline.x, baseline.y, baseline.roomId]);
+  assert.equal(a.seen.filter((m) => m.type === 'reaction').length, 1);
+  assert.equal(c.seen.filter((m) => m.type === 'reaction').length, 0);
+  const newcomer = await connect(); assert.equal(newcomer.seen.filter((m) => m.type === 'reaction').length, 0);
+  await new Promise((resolve) => setTimeout(resolve, REACTION_COOLDOWN_MS + 10));
+  a.send({ type: 'change-room', roomId: 'cafe', requestId: 2 }); await a.next('objects', (m) => m.roomId === 'cafe');
+  a.send({ type: 'reaction', kind: 'jump' });
+  assert.equal((await c.next('reaction')).playerId, a.welcome.id);
+  await a.next('reaction', (m) => m.kind === 'jump');
+  assert.equal(b.seen.filter((m) => m.type === 'reaction').length, 1);
 });

@@ -12,6 +12,8 @@ import type { VoicePayload, VoiceSignal, VoiceSnapshot } from '../audio/protocol
 import { parseVoicePayload } from '../audio/protocol.ts';
 import type { SlackIdentity } from '../slack/dm.ts';
 import { parseSlackIdentity } from '../slack/dm.ts';
+import { isReactionKind } from '../game/reactions.ts';
+import type { ReactionKind } from '../game/reactions.ts';
 
 export type Profile = { name: string; outfit: number; appearance?: Appearance; slack?: SlackIdentity | null };
 export type Player = Profile & { id: string; slot: number; roomId: RoomId; x: number; y: number; facing: Direction; slackVerified?: boolean };
@@ -23,6 +25,7 @@ export const MAX_PLAYERS = 150;
 export const POSITION_FRAME_MS = 50;
 export type ClientMessage =
   | LinkEdit
+  | { type: 'reaction'; kind: ReactionKind }
   | { type: 'warp-to'; targetId: string; requestId: number }
   | { type: 'change-room'; roomId: RoomId; requestId: number }
   | { type: 'object-place'; kind: ObjectKind; x: number; y: number; rotation: number; editId: string }
@@ -36,6 +39,7 @@ export type ClientMessage =
 export type ServerMessage =
   | VoiceSnapshot
   | VoiceSignal
+  | { type: 'reaction'; playerId: string; roomId: RoomId; kind: ReactionKind }
   | { type: 'object-links'; roomId: RoomId; favorites: Favorite[]; bindings: LinkBinding[] }
   | { type: 'link-result'; editId: string; error?: string; favoriteId?: string }
   | { type: 'directory'; people: Person[]; warning?: string }
@@ -57,6 +61,7 @@ export function parseClientMessage(raw: string): ClientMessage | undefined {
   try { value = JSON.parse(raw); } catch { return; }
   if (!value || typeof value !== 'object') return;
   const data = value as Record<string, unknown>;
+  if (data.type === 'reaction' && isReactionKind(data.kind)) return { type: 'reaction', kind: data.kind };
   if (data.type === 'voice-state' && typeof data.listening === 'boolean' && typeof data.microphone === 'boolean') {
     return { type: 'voice-state', listening: data.listening, microphone: data.listening && data.microphone };
   }

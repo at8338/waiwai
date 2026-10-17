@@ -19,11 +19,15 @@ import type { ObjectKind, RoomObject } from './objects.ts';
 import { ObjectLinksEditor } from './object-links-editor.ts';
 import { boardInFront, objectTargets, targetAt } from './object-links.ts';
 import { PeopleDirectory } from './people-directory.ts';
+import { REACTIONS, REACTION_KINDS, REACTION_COOLDOWN_MS, reactionMotion } from './reactions.ts';
+import type { ReactionKind } from './reactions.ts';
 
 type AvatarView = {
   sprite: Phaser.GameObjects.Image;
   shadow: Phaser.GameObjects.Graphics;
   label: Phaser.GameObjects.Text;
+  reactionLabel: Phaser.GameObjects.Text;
+  sparkles: Phaser.GameObjects.Graphics;
 };
 type Peer = { player: Player; walker: Walker; view: AvatarView };
 
@@ -63,6 +67,10 @@ export class OfficeScene extends Phaser.Scene {
   private directoryUI?: PeopleDirectory;
   private linksUI?: ObjectLinksEditor;
   private frontBoard?: string;
+  private reactions = new Map<string, { kind: ReactionKind; startedAt: number }>();
+  private nextReactionAt = 0;
+  private reactionBlocked = true;
+  private reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   constructor(slack: SlackIdentity | null = null, loginRequired = false) { super('office'); this.slack = slack; this.loginRequired = loginRequired; }
 
@@ -74,7 +82,10 @@ export class OfficeScene extends Phaser.Scene {
       fontFamily: 'sans-serif', fontSize: '8px', color: '#fff9e6',
       backgroundColor: local ? '#355b49' : '#786346', padding: { x: 3, y: 2 },
     }).setOrigin(0.5, 1).setResolution(2);
-    return { sprite, shadow, label };
+    const reactionLabel = this.add.text(0, 0, '', { fontFamily: 'sans-serif', fontSize: '8px', color: '#506444',
+      backgroundColor: '#fff0bf', padding: { x: 4, y: 2 } }).setOrigin(0.5, 1).setResolution(2).setVisible(false);
+    const sparkles = this.add.graphics();
+    return { sprite, shadow, label, reactionLabel, sparkles };
   }
 
   create(): void {
@@ -83,6 +94,7 @@ export class OfficeScene extends Phaser.Scene {
     this.avatar = this.makeAvatar(true);
     this.controls.attach(this.game.canvas);
     this.setupRoomTools();
+    this.setupReactions();
     this.linksUI = new ObjectLinksEditor({ signal: this.inputController.signal, owner: () => this.owner(),
       resolve: (id) => objectTargets(this.roomId, this.objects).find((o) => o.id === id),
       send: (edit) => this.connection?.editLinks(edit), open: () => this.controls.clear() });
@@ -123,6 +135,16 @@ export class OfficeScene extends Phaser.Scene {
         for (const player of players) this.receivePlayer(player, true);
       },
       player: (player, snap) => this.receivePlayer(player, snap),
+      reaction: (message) => {
+        if (message.roomId !== this.roomId || this.players.get(message.playerId)?.roomId !== this.roomId) return;
+        this.reactions.set(message.playerId, { kind: message.kind, startedAt: performance.now() });
+        this.participantsDirty = true;
+        if (message.playerId === this.localId) {
+          this.nextReactionAt = performance.now() + REACTION_COOLDOWN_MS;
+          document.querySelector('#reaction-status')!.textContent = `${REACTIONS[message.kind].label}をみんなに伝えました。`;
+          this.updateReactionTools();
+        }
+      },
       left: (id) => this.removePlayer(id),
       directory: (people, warning) => this.directoryUI?.setPeople(people, warning),
       travelComplete: () => this.directoryUI?.complete(),
@@ -168,6 +190,7 @@ export class OfficeScene extends Phaser.Scene {
     this.voice?.setConnected(this.connected);
     this.linksUI?.setReady(this.connected && this.objectsReady);
     if (!this.connected) {
+      this.reactions.clear(); this.nextReactionAt = 0;
       this.controls.clear();
       this.clearPeers();
       this.players.clear();
@@ -189,6 +212,8 @@ export class OfficeScene extends Phaser.Scene {
     this.renderParticipants();
     this.directoryUI?.setConnection(this.connected, this.localId);
     this.updateObjectTools();
+    this.updateReactionTools();
+    if (this.connected) document.querySelector('#reaction-status')!.textContent = 'ボタンやマップ操作中の1〜4キーで、気持ちを伝えよう。歩くと動作が終わります。';
   }
 
   private renderVoice(state: VoiceUI): void {
@@ -216,10 +241,12 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   private destroyView(view: AvatarView): void {
-    view.sprite.destroy(); view.shadow.destroy(); view.label.destroy();
+    view.sprite.destroy(); view.shadow.destroy(); view.label.destroy(); view.reactionLabel.destroy(); view.sparkles.destroy();
   }
 
   private receivePlayer(player: Player, snap: boolean): void {
+    const previous = this.players.get(player.id);
+    if (previous && (snap || previous.x !== player.x || previous.y !== player.y || previous.roomId !== player.roomId)) this.reactions.delete(player.id);
     this.players.set(player.id, player);
     if (player.id === this.localId) {
       if (player.roomId !== this.roomId) this.showRoom(player.roomId);
@@ -253,6 +280,7 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   private removePlayer(id: string): void {
+    this.reactions.delete(id);
     const peer = this.peers.get(id);
     if (peer) this.destroyView(peer.view);
     this.peers.delete(id);
@@ -281,7 +309,8 @@ export class OfficeScene extends Phaser.Scene {
         const location = document.createElement('span');
         const slackStatus = document.createElement('span');
         slackStatus.className = 'participant-slack';
-        item.append(name, location, slackStatus);
+        const reaction = document.createElement('span'); reaction.className = 'participant-reaction';
+        item.append(name, location, slackStatus, reaction);
         list.append(item);
       }
       item.dataset.playerId = player.id;
@@ -295,6 +324,9 @@ export class OfficeScene extends Phaser.Scene {
       if (player.id !== this.localId) name.setAttribute('aria-label', `${player.name}さんのSlack DMを開く`);
       item.children[1].textContent = areaAt(player);
       item.children[2].textContent = player.slackVerified ? 'Slackログイン済み' : player.slack ? 'Slack手動設定' : 'Slack未設定';
+      const reaction = this.reactions.get(player.id);
+      item.dataset.reaction = reaction?.kind ?? '';
+      item.children[3].textContent = reaction ? `${REACTIONS[reaction.kind].icon} ${REACTIONS[reaction.kind].label}` : '';
     }
     document.querySelectorAll('[data-player-count]').forEach((element) => {
       const text = this.connected ? `${this.players.size}人が滞在中` : '接続を待っています';
@@ -363,6 +395,7 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   private showRoom(id: RoomId): void {
+    this.reactions.clear();
     this.roomId = id;
     this.frontBoard = undefined; this.linksUI?.reset();
     this.atDoor = false;
@@ -410,6 +443,34 @@ export class OfficeScene extends Phaser.Scene {
       if (this.editMode === 'none' && over.length) return;
       this.editAt(pointer);
     });
+  }
+
+  private setupReactions(): void {
+    const signal = this.inputController.signal;
+    for (const button of document.querySelectorAll<HTMLButtonElement>('[data-reaction]')) button.addEventListener('click', () => {
+      this.playReaction(button.dataset.reaction as ReactionKind);
+    }, { signal });
+    this.game.canvas.addEventListener('keydown', (event) => {
+      if (event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      const index = ['Digit1', 'Digit2', 'Digit3', 'Digit4'].indexOf(event.code);
+      if (index !== -1) { event.preventDefault(); this.playReaction(REACTION_KINDS[index]); }
+    }, { signal });
+    const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
+    preference.addEventListener('change', () => { this.reducedMotion = preference.matches; }, { signal });
+    this.updateReactionTools();
+  }
+  private playReaction(kind: ReactionKind): void {
+    if (!this.connected || performance.now() < this.nextReactionAt) return;
+    this.controls.clear(); this.setEditMode('none');
+    if (!this.connection?.react(kind)) return;
+    this.nextReactionAt = performance.now() + REACTION_COOLDOWN_MS;
+    document.querySelector('#reaction-status')!.textContent = 'リアクションを伝えています…';
+    this.updateReactionTools(); this.game.canvas.focus({ preventScroll: true });
+  }
+  private updateReactionTools(): void {
+    this.reactionBlocked = !this.connected || performance.now() < this.nextReactionAt;
+    for (const button of document.querySelectorAll<HTMLButtonElement>('[data-reaction]')) button.disabled = this.reactionBlocked;
+    if (!this.connected) document.querySelector('#reaction-status')!.textContent = 'オフィスへの接続後にリアクションできます。';
   }
 
   private owner(): string {
@@ -489,16 +550,32 @@ export class OfficeScene extends Phaser.Scene {
     this.objectStatus('家具・小物を保存しています…'); this.updateObjectTools();
   }
 
-  private drawAvatar(view: AvatarView, walker: Walker, appearance: Appearance, name: string, time: number): void {
+  private drawAvatar(view: AvatarView, walker: Walker, appearance: Appearance, name: string, time: number, id?: string): void {
     const { x, y } = walker.position();
-    const frame = walker.moving ? 1 + Math.floor(time / 95) % 2 : 0;
-    view.sprite.setPosition(Math.round(x), Math.round(y) + 6)
-      .setTexture(avatarTexture(this, appearance, walker.facing, frame)).setDepth(y + 7);
-    view.shadow.setPosition(Math.round(x), Math.round(y) + 5).setDepth(y + 6);
-    view.label.setText(name).setPosition(Math.round(x), Math.round(y) - 20).setDepth(ROWS * TILE + 20);
+    const reaction = id ? this.reactions.get(id) : undefined;
+    const motion = reaction ? reactionMotion(reaction.kind, performance.now() - reaction.startedAt, this.reducedMotion) : undefined;
+    if (reaction && !motion) { this.reactions.delete(id!); this.participantsDirty = true; }
+    const lift = motion?.lift ?? 0;
+    const frame = walker.moving && !motion ? 1 + Math.floor(time / 95) % 2 : 0;
+    view.sprite.setPosition(Math.round(x), Math.round(y + 6 - lift)).setRotation(motion?.tilt ?? 0).setScale(1, motion?.scaleY ?? 1)
+      .setTexture(avatarTexture(this, appearance, motion ? 'down' : walker.facing, frame, motion?.pose)).setDepth(y + 7);
+    view.shadow.setPosition(Math.round(x), Math.round(y) + 5).setScale(motion?.shadow ?? 1, 1).setDepth(y + 6);
+    view.label.setText(name).setPosition(Math.round(x), Math.round(y - 20 - lift)).setDepth(ROWS * TILE + 20);
+    view.reactionLabel.setVisible(!!motion);
+    if (motion && reaction) view.reactionLabel.setText(REACTIONS[reaction.kind].text)
+      .setPosition(Math.round(x), Math.max(14, Math.round(y - 35 - lift))).setDepth(ROWS * TILE + 21);
+    view.sparkles.clear().setPosition(x, y - lift).setDepth(y + 8);
+    if (motion?.sparkle) {
+      view.sparkles.lineStyle(1, 0xf1cf7b, motion.sparkle);
+      for (const [dx, dy] of [[-13, -23], [14, -30], [-8, -37]]) {
+        view.sparkles.lineBetween(dx - 2, dy, dx + 2, dy); view.sparkles.lineBetween(dx, dy - 2, dx, dy + 2);
+      }
+    }
+    if (id === this.localId) this.game.canvas.dataset.localReaction = motion && reaction ? reaction.kind : '';
   }
 
   update(time: number, delta: number): void {
+    if (this.reactionBlocked !== (!this.connected || performance.now() < this.nextReactionAt)) this.updateReactionTools();
     if (this.participantsDirty && time - this.lastParticipantsAt >= 100) {
       this.participantsDirty = false;
       this.lastParticipantsAt = time;
@@ -507,13 +584,13 @@ export class OfficeScene extends Phaser.Scene {
     this.walker.update(delta);
     if (this.editMode === 'none' && !this.walker.moving && this.connection?.readyToMove) {
       const direction = this.controls.direction();
-      if (direction) this.connection.move(direction);
+      if (direction) { if (this.localId) this.reactions.delete(this.localId); this.connection.move(direction); }
     }
-    this.drawAvatar(this.avatar, this.walker, this.appearance, this.playerName, time);
+    this.drawAvatar(this.avatar, this.walker, this.appearance, this.playerName, time, this.localId);
     this.avatar.sprite.setAlpha(this.connected ? 1 : 0.45);
     for (const peer of this.peers.values()) {
       peer.walker.update(delta);
-      this.drawAvatar(peer.view, peer.walker, parseAppearance(peer.player.appearance, peer.player.outfit)!, peer.player.name + (this.speaking.has(peer.player.id) ? ' ♪' : ''), time);
+      this.drawAvatar(peer.view, peer.walker, parseAppearance(peer.player.appearance, peer.player.outfit)!, peer.player.name + (this.speaking.has(peer.player.id) ? ' ♪' : ''), time, peer.player.id);
     }
     const area = areaAt({ ...this.walker.tile, roomId: this.roomId });
     if (area !== this.lastArea) {
