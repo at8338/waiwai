@@ -16,6 +16,7 @@ import type { ReactionKind } from '../game/reactions.ts';
 
 export type ConnectionState = 'connecting' | 'online' | 'reconnecting';
 export type ConnectionHandlers = {
+  lostItems?: (message: Extract<ServerMessage, { type: 'lost-items' }>) => void;
   arcadeState?: (message: Extract<ServerMessage, { type: 'arcade-state' }>) => void;
   arcadeResult?: (message: Extract<ServerMessage, { type: 'arcade-result' }>) => void;
   robotState?: (message: Extract<ServerMessage, { type: 'robot-state' }>) => void;
@@ -119,6 +120,7 @@ export class OfficeConnection {
         if (player) this.slots.delete(player.slot);
         this.players.delete(message.id); this.handlers.left(message.id);
       }
+      else if (message.type === 'lost-items') this.handlers.lostItems?.(message);
       else if (message.type === 'arcade-state') this.handlers.arcadeState?.(message);
       else if (message.type === 'arcade-result') this.handlers.arcadeResult?.(message);
       else if (message.type === 'robot-state') this.handlers.robotState?.(message);

@@ -207,6 +207,7 @@ export class OfficeScene extends Phaser.Scene {
         this.showRoom(players.find((p) => p.id === id)?.roomId ?? 'office');
         for (const player of players) this.receivePlayer(player, true);
       },
+      lostItems: (state) => this.lostItems?.receive(state),
       arcadeState: (state) => { if (this.roomId === 'arcade') this.arcadeUI?.receive(state); },
       arcadeResult: (result) => this.arcadeUI?.result(result.actionId, result.error),
       robotState: (state) => { if (this.roomId === 'cockpit') { this.cockpitUI?.receive(state); this.cockpitView?.receive(state); } },
@@ -234,7 +235,7 @@ export class OfficeScene extends Phaser.Scene {
       travelError: (error) => this.directoryUI?.fail(error),
       objects: (roomId, objects) => {
         if (roomId !== this.roomId) return;
-        this.objects = objects; this.lostItems?.setObjects(objects); this.dailyView?.setObjects(objects); this.seats = seatSpots(roomId, objects); this.participantsDirty = true; this.lighting?.setObjects(objects); this.objectsReady = true; this.drawObjects(); this.updateObjectTools();
+        this.objects = objects; this.dailyView?.setObjects(objects); this.seats = seatSpots(roomId, objects); this.participantsDirty = true; this.lighting?.setObjects(objects); this.objectsReady = true; this.drawObjects(); this.updateObjectTools();
         this.linksUI?.refreshTarget(); this.linksUI?.setReady(this.connected);
       },
       objectLinks: (snapshot) => { if (snapshot.roomId === this.roomId) { this.linksUI?.snapshot(snapshot); this.linksUI?.setReady(this.connected && this.objectsReady); } },
@@ -274,6 +275,7 @@ export class OfficeScene extends Phaser.Scene {
   private setConnectionState(state: ConnectionState): void {
     this.connected = state === 'online';
     this.announcementsUI?.setConnected(this.connected); this.dailyUI?.setConnected(this.connected); this.cockpitUI?.setConnected(this.connected); this.arcadeUI?.setConnected(this.connected);
+    this.lostItems?.setConnected(this.connected);
     this.vehicleUI?.setConnected(this.connected);
     this.voice?.setConnected(this.connected);
     this.linksUI?.setReady(this.connected && this.objectsReady);
