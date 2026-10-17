@@ -67,12 +67,17 @@ export class OfficeConnection {
       else if (message.type === 'voice-signal') this.handlers.voiceSignal(message);
     };
     socket.onerror = () => socket.close();
-    socket.onclose = () => {
+    socket.onclose = (event) => {
       if (this.disposed || this.socket !== socket) return;
       window.clearTimeout(this.watchdog);
       this.online = false;
       this.pending = undefined;
       this.id = undefined;
+      if (event.code === 4001) {
+        this.handlers.state('reconnecting');
+        window.location.reload();
+        return;
+      }
       this.attempts++;
       this.handlers.state('reconnecting');
       this.reconnectTimer = window.setTimeout(() => this.connect(), Math.min(750 * 2 ** (this.attempts - 1), 10_000));

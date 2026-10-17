@@ -3,6 +3,10 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { extname, resolve, sep } from 'node:path';
 import { attachOffice } from './office.ts';
+import { readAuthConfig, SlackAuth } from './auth.ts';
+
+try { process.loadEnvFile(); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+const auth = new SlackAuth(readAuthConfig(process.env));
 
 const root = fileURLToPath(new URL('../dist/', import.meta.url));
 const types: Record<string, string> = {
@@ -10,6 +14,8 @@ const types: Record<string, string> = {
   '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.woff2': 'font/woff2',
 };
 const server = createServer(async (request, response) => {
+  try { if (await auth.handle(request, response)) return; }
+  catch { response.writeHead(500).end('Authentication unavailable'); return; }
   if (request.method !== 'GET' && request.method !== 'HEAD') { response.writeHead(405).end(); return; }
   try {
     const pathname = decodeURIComponent(new URL(request.url ?? '/', 'http://localhost').pathname);
@@ -20,10 +26,10 @@ const server = createServer(async (request, response) => {
     response.end(request.method === 'HEAD' ? undefined : content);
   } catch { response.writeHead(404).end('Not found'); }
 });
-const closeOffice = attachOffice(server);
+const closeOffice = attachOffice(server, auth);
 const port = Number(process.env.PORT ?? 5173);
 const host = process.env.HOST ?? '127.0.0.1';
 server.listen(port, host, () => console.log(`Waiwai: http://${host}:${port}/`));
-const close = () => { closeOffice(); server.close(); };
+const close = () => { closeOffice(); auth.close(); server.close(); };
 process.once('SIGINT', close);
 process.once('SIGTERM', close);

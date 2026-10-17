@@ -5,7 +5,7 @@ import type { SlackIdentity } from '../slack/dm.ts';
 import { parseSlackIdentity } from '../slack/dm.ts';
 
 export type Profile = { name: string; outfit: number; slack?: SlackIdentity | null };
-export type Player = Profile & { id: string; x: number; y: number; facing: Direction };
+export type Player = Profile & { id: string; x: number; y: number; facing: Direction; slackVerified?: boolean };
 export type ClientMessage =
   | { type: 'voice-state'; listening: boolean; microphone: boolean }
   | { type: 'voice-signal'; to: string; session: string; payload: VoicePayload }

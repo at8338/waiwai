@@ -6,8 +6,9 @@ import { COLS, ROWS, SPAWN, STEP_MS, canWalk } from '../src/game/world.ts';
 import { parseClientMessage } from '../src/network/protocol.ts';
 import type { Player, ServerMessage } from '../src/network/protocol.ts';
 import { VoiceRoom, readIceServers } from './voice.ts';
+import type { SlackAuth } from './auth.ts';
 
-export function attachOffice(server: Server): () => void {
+export function attachOffice(server: Server, auth?: SlackAuth): () => void {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 });
   const players = new Map<WebSocket, Player>();
   const alive = new Set<WebSocket>();
@@ -32,8 +33,15 @@ export function attachOffice(server: Server): () => void {
     return tiles[0] ?? SPAWN;
   };
 
-  wss.on('connection', (ws) => {
-    const player: Player = { id: randomUUID(), name: 'ゲスト', outfit: 0, slack: null, ...spawn(), facing: 'down' };
+  const identities = new Map<WebSocket, string>();
+  const unsubscribe = auth?.onRevoke((id) => {
+    for (const [ws, session] of identities) if (session === id) ws.close(4001, 'Session ended');
+  });
+  wss.on('connection', (ws, request) => {
+    const identity = auth?.identify(request);
+    if (identity) identities.set(ws, identity.id);
+    const player: Player = { id: randomUUID(), name: identity?.user.name ?? 'ゲスト', outfit: 0,
+      slack: identity?.user.slack ?? null, slackVerified: !!identity, ...spawn(), facing: 'down' };
     players.set(ws, player);
     alive.add(ws);
     send(ws, { type: 'welcome', id: player.id, players: [...players.values()] });
@@ -45,6 +53,7 @@ export function attachOffice(server: Server): () => void {
     ws.on('pong', () => alive.add(ws));
     ws.on('error', () => ws.terminate());
     ws.on('message', (data, isBinary) => {
+      if (identity && auth?.identify(request)?.id !== identity.id) { ws.close(4001, 'Session ended'); return; }
       if (isBinary) { ws.close(1003, 'Text messages only'); return; }
       const now = Date.now();
       if (now - windowStart >= 1000) { windowStart = now; messages = 0; signals = 0; }
@@ -54,9 +63,9 @@ export function attachOffice(server: Server): () => void {
       if (message.type === 'voice-state') { voice.state(ws, message); return; }
       if (message.type === 'voice-signal') { voice.signal(ws, message); return; }
       if (message.type === 'profile') {
-        player.name = message.name;
+        player.name = identity?.user.name ?? message.name;
         player.outfit = message.outfit;
-        player.slack = message.slack ?? null;
+        player.slack = identity?.user.slack ?? message.slack ?? null;
       } else if (message.type === 'reset') {
         Object.assign(player, spawn(ws), { facing: 'down' });
         lastMove = now;
@@ -75,6 +84,7 @@ export function attachOffice(server: Server): () => void {
     });
     ws.on('close', () => {
       players.delete(ws);
+      identities.delete(ws);
       alive.delete(ws);
       voice.leave(ws);
       broadcast({ type: 'left', id: player.id });
@@ -99,6 +109,7 @@ export function attachOffice(server: Server): () => void {
   heartbeat.unref();
   return () => {
     clearInterval(heartbeat);
+    unsubscribe?.();
     server.off('upgrade', upgrade);
     for (const ws of wss.clients) ws.terminate();
     wss.close();
