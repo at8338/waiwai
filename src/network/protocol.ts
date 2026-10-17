@@ -1,3 +1,4 @@
+import type { LostItemsSnapshot } from '../game/lost-items.ts';
 import { parseArcadeAction } from '../game/arcade.ts';
 import type { ArcadeAction, ArcadeSnapshot } from '../game/arcade.ts';
 import { isRobotAction } from '../game/robot.ts';
@@ -53,6 +54,7 @@ export type ClientMessage =
   | { type: 'move'; direction: Direction; requestId: number }
   | { type: 'reset'; requestId: number };
 export type ServerMessage =
+  | ({ type: 'lost-items' } & LostItemsSnapshot)
   | ({ type: 'arcade-state' } & ArcadeSnapshot)
   | { type: 'arcade-result'; actionId: string; error?: string }
   | ({ type: 'robot-state' } & RobotSnapshot)

@@ -1,3 +1,4 @@
+import { lostItemsSnapshot, lostItemPeriod } from '../src/game/lost-items.ts';
 import { ArcadeRoom } from './arcade.ts';
 import { RobotSimulation } from './robot.ts';
 import { dailyEventAt } from '../src/game/daily-events.ts';
@@ -30,7 +31,7 @@ import { REACTION_COOLDOWN_MS } from '../src/game/reactions.ts';
 
 class EditError extends Error {}
 
-export function attachOffice(server: Server, auth?: SlackAuth, options: { objectsFile?: string; membersFile?: string; linksFile?: string; announcementsFile?: string; eventClock?: () => number } = {}): () => void {
+export function attachOffice(server: Server, auth?: SlackAuth, options: { objectsFile?: string; membersFile?: string; linksFile?: string; announcementsFile?: string; eventClock?: () => number; lostClock?: () => number } = {}): () => void {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 });
   const players = new Map<WebSocket, Player>();
   const store = new ObjectStore(options.objectsFile);
@@ -78,6 +79,17 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     else for (const [client, person] of players) if (person.roomId === 'cockpit') send(client, message);
   };
   const robotTimer = setInterval(() => { if (robot.tick(Date.now())) sendRobot(); }, 250); robotTimer.unref();
+  const lostClock = options.lostClock ?? Date.now;
+  let lostState = lostItemsSnapshot(lostClock(), store.list());
+  let lostPeriod = lostItemPeriod(lostState.serverNow);
+  const sendLostItems = (ws?: WebSocket): void => {
+    const now = lostClock();
+    if (ws && lostItemPeriod(now) !== lostPeriod) { sendLostItems(); return; }
+    if (!ws) { lostPeriod = lostItemPeriod(now); lostState = lostItemsSnapshot(now, store.list()); }
+    const message: ServerMessage = { type: 'lost-items', ...lostState, serverNow: now };
+    if (ws) send(ws, message); else broadcast(message);
+  };
+  const lostTimer = setInterval(() => { if (lostItemPeriod(lostClock()) !== lostPeriod) sendLostItems(); }, 1000); lostTimer.unref();
   const eventClock = options.eventClock ?? Date.now;
   let eventDay = dailyEventAt(eventClock()).day;
   const sendDailyEvent = (ws?: WebSocket) => {
@@ -170,6 +182,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     sendFleet(ws);
     sendAnnouncements(ws);
     sendDailyEvent(ws);
+    sendLostItems(ws);
     let lastMove = -Infinity;
     let windowStart = Date.now();
     let messages = 0;
@@ -322,6 +335,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
           else objects.push(candidate);
         }).then(() => {
           for (const [client, person] of players) if (person.roomId === roomId) sendObjects(client, roomId);
+          sendLostItems();
           for (const person of players.values()) if (person.roomId === roomId && person.buddyPosition && !walkableWithObjects(person.buddyPosition.x, person.buddyPosition.y, roomId, roomObjects(roomId))) {
             resetBuddy(person, roomObjects(roomId)); pending.delete(person.id); broadcast({ type: 'player', player: person, reason: 'profile' });
           }
@@ -415,6 +429,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
   }, 15_000);
   heartbeat.unref();
   return () => {
+    clearInterval(lostTimer);
     clearInterval(arcadeTimer);
     clearInterval(robotTimer);
     clearInterval(dailyEventTimer);

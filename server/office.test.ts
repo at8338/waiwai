@@ -1,3 +1,4 @@
+import { LOST_ITEMS_EPOCH, LOST_ITEM_PERIOD_MS } from '../src/game/lost-items.ts';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -20,9 +21,9 @@ import { MAX_VOICE_MEMBERS, MAX_VOICE_PEERS } from '../src/audio/proximity.ts';
 import { STEP_MS, canWalk } from '../src/game/world.ts';
 import { REACTION_COOLDOWN_MS } from '../src/game/reactions.ts';
 
-async function fixture(t: TestContext, objectsFile?: string, linksFile?: string, announcementsFile?: string, eventClock?: () => number) {
+async function fixture(t: TestContext, objectsFile?: string, linksFile?: string, announcementsFile?: string, eventClock?: () => number, lostClock?: () => number) {
   const server = createServer((_request, response) => response.end('ok'));
-  const dispose = attachOffice(server, undefined, { objectsFile, linksFile, announcementsFile, eventClock });
+  const dispose = attachOffice(server, undefined, { objectsFile, linksFile, announcementsFile, eventClock, lostClock });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const clients: WebSocket[] = [];
@@ -886,4 +887,38 @@ test('solo rhythm play and independent cabinets share only changed tables, inclu
   const full = await late.next('arcade-state'); assert.equal(full.tables.length, 8);
   assert.equal(full.tables.find((table) => table.game === 'clap')!.members[0].score, 30); assert.equal(full.tables.find((table) => table.game === 'star')!.members.length, 1);
   a.ws.close(); await b.next('arcade-state', (s) => s.tables.some((table) => table.game === 'clap' && table.members.length === 0));
+});
+
+test('lost items have one shared three-kind registry across floors, furniture edits, late joins and period rollover', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'waiwai-lost-items-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  let now = LOST_ITEMS_EPOCH + 7 * LOST_ITEM_PERIOD_MS + 10_000;
+  const { connect } = await fixture(t, join(dir, 'objects.json'), join(dir, 'links.json'), join(dir, 'announcements.json'), undefined, () => now);
+  const a = await connect(), b = await connect();
+  const first = await a.next('lost-items'), second = await b.next('lost-items');
+  assert.deepEqual(first, second); assert.equal(first.items.length, 3);
+  assert.equal(new Set(first.items.map((i) => i.kind)).size, 3); assert.equal(new Set(first.items.map((i) => i.roomId)).size, 3);
+  assert.equal(parseClientMessage(JSON.stringify({ type: 'lost-items', items: Array(100).fill(first.items[0]) })), undefined);
+  const item = first.items[0];
+  a.send({ type: 'change-room', roomId: item.roomId, requestId: 1 }); await a.next('player', (m) => m.player.id === a.welcome.id && m.reason === 'room');
+  b.send({ type: 'change-room', roomId: 'office', requestId: 1 }); await b.next('player', (m) => m.player.id === b.welcome.id && m.reason === 'room');
+  assert.equal(a.seen.filter((m) => m.type === 'lost-items').length, 1); // Travel uses the same building registry.
+  const editId = randomUUID(); a.send({ type: 'object-place', kind: 'mug', x: item.x, y: item.y, rotation: 0, editId });
+  assert.equal((await a.next('object-result', (m) => m.editId === editId)).error, undefined);
+  const relocated = await a.next('lost-items', (m) => m.items.some((i) => i.id === item.id && (i.x !== item.x || i.y !== item.y)));
+  assert.deepEqual((await b.next('lost-items')).items, relocated.items); assert.equal(relocated.items.length, 3);
+  assert.equal(relocated.items.filter((i) => i.kind === item.kind).length, 1);
+  assert.equal(relocated.items.find((i) => i.id === item.id)!.roomId, item.roomId);
+  const late = await connect(); assert.deepEqual((await late.next('lost-items')).items, relocated.items);
+  now = first.expiresAt + 1;
+  // An arrival exactly at rollover must also refresh existing clients, rather
+  // than consuming the new period only for the newcomer.
+  const boundary = await connect(); const nextPeriod = await boundary.next('lost-items');
+  assert.ok(nextPeriod.expiresAt > first.expiresAt); assert.equal(nextPeriod.items.length, 3);
+  assert.deepEqual((await a.next('lost-items', (m) => m.expiresAt === nextPeriod.expiresAt)).items, nextPeriod.items);
+  assert.deepEqual((await b.next('lost-items', (m) => m.expiresAt === nextPeriod.expiresAt)).items, nextPeriod.items);
+  assert.ok(!nextPeriod.items.some((i) => relocated.items.some((old) => old.kind === i.kind)));
+  now += LOST_ITEM_PERIOD_MS;
+  const scheduled = await a.next('lost-items', (m) => m.serverNow === now);
+  assert.equal(scheduled.items.length, 3); assert.equal(new Set(scheduled.items.map((i) => i.kind)).size, 3);
 });
