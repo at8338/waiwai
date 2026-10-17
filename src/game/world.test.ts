@@ -54,3 +54,18 @@ test('a held direction stops at an obstruction; reset cancels an unfinished stri
   assert.equal(areaAt({ x: 15, y: 5 }), 'ミーティングルーム');
   assert.equal(areaAt({ x: 25, y: 5 }), 'ラウンジ');
 });
+
+test('network updates interpolate one step without restarting on a profile update', () => {
+  const walker = new Walker();
+  const start = walker.position();
+  walker.receive({ x: SPAWN.x + 1, y: SPAWN.y }, 'right');
+  walker.update(STEP_MS / 2);
+  assert.deepEqual(walker.position(), { x: start.x + 8, y: start.y });
+  walker.receive({ x: SPAWN.x + 1, y: SPAWN.y }, 'right');
+  walker.update(STEP_MS / 2);
+  assert.deepEqual(walker.position(), { x: start.x + 16, y: start.y });
+  assert.equal(walker.moving, false);
+  walker.receive({ x: 5, y: 5 }, 'down', true);
+  assert.deepEqual(walker.position(), { x: 88, y: 88 });
+  assert.equal(walker.moving, false);
+});

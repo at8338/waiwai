@@ -94,3 +94,15 @@ dialog p { font-size: 12px; line-height: 1.9; color: #77816b; }
   .touch-controls { display: grid; width: 146px; grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 39px); gap: 6px; margin: 24px auto 0; }.touch-controls button { border: 1px solid #bfccb3; border-bottom: 3px solid #a4b698; border-radius: 5px; background: #e8eddb; color: #58774e; font: 19px monospace; touch-action: none; user-select: none; }.touch-controls button.pressed { background: #c4d1ad; border-bottom-width: 1px; }.touch-controls [data-direction='up'] { grid-column: 2; }.touch-controls [data-direction='left'] { grid-row: 2; }.touch-controls > span { grid-column: 2; grid-row: 2; display: grid; place-items: center; color: #afbb98; }.touch-controls [data-direction='right'] { grid-column: 3; grid-row: 2; }.touch-controls [data-direction='down'] { grid-column: 2; grid-row: 3; }.map-legend { justify-content: center; gap: 14px; margin-top: 22px; }.map-legend .scope-note { justify-content: center; }.page-footer { padding: 16px 20px; }.page-footer > span:last-child { display: none; }
 }
 @media (pointer: coarse) and (min-width: 761px) { .touch-controls { display: flex; gap: 10px; justify-content: center; margin-top: 20px; }.touch-controls button { padding: 12px 18px; touch-action: none; }.touch-controls > span { display: none; } }
+.participants-section { border-top: 1px solid var(--border); padding-top: 21px; margin-top: 25px; min-width: 0; }
+.participants-section .section-label { margin-bottom: 9px; }
+.participant-count { font-size: 10px; color: #6b8260; margin: 0 0 12px; }
+#participants { list-style: none; padding: 0; margin: 0; max-height: 190px; overflow-y: auto; }
+#participants li { border-bottom: 1px solid #e7e7dc; padding: 9px 0; }
+#participants strong { display: block; font-size: 10px; font-weight: 500; overflow-wrap: anywhere; }
+#participants li > span { display: block; margin-top: 4px; font-size: 8px; color: #8d9784; }
+.connection-message { color: #7b8a6f; font-size: 10px; margin: 19px 0 0; line-height: 1.8; }
+[data-connection='reconnecting'] .connection-message { color: #a77140; }
+[data-connection='reconnecting'] .local-badge i, [data-connection='connecting'] .local-badge i { background: #c69e61; }
+button:disabled { cursor: default; opacity: .5; }
+@media (max-width: 760px) { .participants-section { grid-column: 1 / -1; margin-top: 0; }#participants { display: flex; flex-wrap: wrap; gap: 5px 20px; }#participants li { min-width: 120px; }.connection-message { text-align: center; } }
