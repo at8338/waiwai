@@ -30,21 +30,21 @@ export function tableauStage(event: DailyEpisode, frame = 0): EventStage {
   const stage: EventStage = { floor: [], scenery: [], effects: [], damage: [], inspectAreas: [], hero: { x: 344, y: 184, scale: event.theme === 'comic' ? .75 : 0 }, caption: STAGING[layout] };
   let layer: StagePixel[] = stage.floor;
   const p = (color: number, x: number, y: number, w: number, h: number, alpha = 1) => {
-    const left = Math.max(0, Math.round(x)), top = Math.max(0, Math.round(y)), right = Math.min(480, Math.round(x + w)), bottom = Math.min(320, Math.round(y + h));
+    const left = Math.max(0, Math.round(x * 2) / 2), top = Math.max(0, Math.round(y * 2) / 2), right = Math.min(480, Math.round((x + w) * 2) / 2), bottom = Math.min(320, Math.round((y + h) * 2) / 2);
     if (right > left && bottom > top) layer.push({ color, x: left, y: top, w: right - left, h: bottom - top, alpha });
   };
   const line = (c: number, x: number, y: number, xx: number, yy: number, a = 1, width = 2) => {
-    const n = Math.max(1, Math.ceil(Math.max(Math.abs(xx - x), Math.abs(yy - y)) / 3));
+    const n = Math.max(1, Math.ceil(Math.max(Math.abs(xx - x), Math.abs(yy - y)) / Math.max(.5, width / 2)));
     for (let i = 0; i <= n; i++) p(c, x + (xx - x) * i / n, y + (yy - y) * i / n, width, width, a);
   };
   const oval = (c: number, x: number, y: number, w: number, h: number, a = 1) => {
-    for (let dy = -h / 2; dy < h / 2; dy += 3) { const dx = Math.sqrt(Math.max(0, 1 - ((dy + 1.5) / (h / 2)) ** 2)) * w / 2; p(c, x - dx, y + dy, dx * 2, 3, a); }
+    for (let dy = -h / 2; dy < h / 2; dy += .5) { const dx = Math.sqrt(Math.max(0, 1 - ((dy + .25) / (h / 2)) ** 2)) * w / 2; p(c, x - dx, y + dy, dx * 2, .5, a); }
   };
   const ink = 0x394653, cream = 0xf0e9d5, wood = 0xb49770, green = 0x77976e, blue = 0x87bbcf, pink = 0xc98b9c, gold = 0xd8b56e;
   const spots: { x: number; y: number; size: number; rotation?: number; alpha?: number; prop?: number }[] = [];
   const spot = (x: number, y: number, size = 24, rotation = 0, alpha = 1, prop?: number) => spots.push({ x, y, size, rotation, alpha, prop });
   const many = (n: number, place: (i: number) => void) => { for (let i = 0; i < n; i++) place(i); };
-  const table = (x: number, y: number, w: number, h: number) => { p(wood, x, y, w, h); p(cream, x + 3, y + 3, w - 6, h - 6); p(ink, x + 5, y + h, 4, 12); p(ink, x + w - 9, y + h, 4, 12); };
+  const table = (x: number, y: number, w: number, h: number) => { p(wood, x, y, w, h); p(cream, x + 3, y + 3, w - 6, h - 6); p(ink, x + 5, y + h, 4, 12); p(ink, x + w - 9, y + h, 4, 12); p(0xfff4da, x + 3, y + 3, w - 6, .5); p(0x8c7358, x + 3, y + h - .5, w - 6, .5); };
   const ellipseLine = (c: number, x: number, y: number, w: number, h: number) => { many(90, i => { const a = i / 90 * Math.PI * 2; p(c, x + Math.cos(a) * w / 2, y + Math.sin(a) * h / 2, 3, 3); }); };
   const frames = () => many(6, i => { const x = 45 + i % 3 * 142, y = 39 + Math.floor(i / 3) * 90; p(wood, x, y, 76, 65); p(cream, x + 4, y + 4, 68, 57); spot(x + 18, y + 12, 40); });
 
@@ -159,10 +159,12 @@ export function tableauStage(event: DailyEpisode, frame = 0): EventStage {
   }
   spots.forEach(({ x, y, size, rotation = 0, alpha = 1, prop }, i) => {
     const kind = props[prop ?? (subjectStages.has(layout) ? 0 : i % props.length)], scale = size / 8;
-    for (const pixel of eventPropPixels(kind)) {
-      const xx = (pixel.x - 3.5) * scale, yy = (pixel.y - 3.5) * scale;
-      p(layout === 'monochrome' ? (pixel.color === 0xf3eedc ? cream : ink) : layout === 'shadow' ? ink : pixel.color,
-        x + size / 2 + Math.cos(rotation) * xx - Math.sin(rotation) * yy, y + size / 2 + Math.sin(rotation) * xx + Math.cos(rotation) * yy, scale, scale, alpha);
+    const source = eventPropPixels(kind);
+    const pixels = rotation ? source.flatMap(pixel => Array.from({ length: Math.round(pixel.w * 4) }, (_, j) => ({ ...pixel, x: pixel.x + j / 4, w: .25 }))) : source;
+    for (const pixel of pixels) {
+      const xx = (pixel.x - 4) * scale, yy = (pixel.y - 4) * scale;
+      p(layout === 'monochrome' ? ([0xfff7df,0xe8dcc1,0xb8d9d5].includes(pixel.color) ? cream : ink) : layout === 'shadow' ? ink : pixel.color,
+        x + size / 2 + Math.cos(rotation) * xx - Math.sin(rotation) * yy, y + size / 2 + Math.sin(rotation) * xx + Math.cos(rotation) * yy, pixel.w * scale, pixel.h * scale, alpha);
     }
     stage.inspectAreas!.push({ kind: 'rect', x: Math.max(0, x), y: Math.max(0, y), w: Math.min(size + 4, 480 - x), h: Math.min(size + 4, 320 - y) });
   });

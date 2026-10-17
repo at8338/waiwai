@@ -1,3 +1,5 @@
+import { EVENT_PROP_LABELS } from '../src/game/event-prop-labels.ts';
+import { ART_WIDTH, ART_HEIGHT, configureArtCamera } from '../src/game/art-resolution.ts';
 import Phaser from 'phaser';
 import { DAILY_EPISODES, EVENT_THEMES, episodeById } from '../src/game/daily-event-catalog.ts';
 import { drawEventPreview } from '../src/game/daily-event-art.ts';
@@ -9,6 +11,8 @@ import { RoomLighting } from '../src/game/RoomLighting.ts';
 import { drawOffice } from '../src/game/art.ts';
 import { ROOMS } from '../src/game/rooms.ts';
 import type { RoomId } from '../src/game/rooms.ts';
+const specialCast: Record<string,string> = { meteor:'隕石・クレーター・瓦礫', thief:'泥棒・開いた金庫・書類・足跡', flood:'破裂した配管・流水・浮いた天板', aquarium:'水槽・泳ぐ魚', santa:'サンタクロース・そり・プレゼント', ghost:'捕獲隊員・捕獲装置・おばけ', waldo:'ウォーリー・人混み・赤い服', delorean:'デロリアン・ガルウィングドア・炎のタイヤ跡', terminator:'ターミネーター・マシンガン・弾痕・薬莢', momotaro:'桃太郎・大きな桃・のぼり旗', kaguya:'かぐや姫・竹林・髪飾り', alice:'アリス・巨大なティーカップ', oz:'ドロシー・竜巻・ルビーの靴', magic:'魔法使い・水晶の杖・魔法陣', festival:'屋台・ちょうちん・はっぴ・うちわ' };
+const episodeCast = (episode: (typeof DAILY_EPISODES)[number]) => episode.scene.special ? specialCast[episode.scene.special] : episode.scene.props.map(p=>EVENT_PROP_LABELS[p]).join('・');
 const episodeSelect = document.querySelector<HTMLSelectElement>('#episodes')!, roomSelect = document.querySelector<HTMLSelectElement>('#rooms')!;
 const themeSelect = document.querySelector<HTMLSelectElement>('#themes')!;
 const search = document.querySelector<HTMLInputElement>('#search')!;
@@ -25,6 +29,7 @@ class Preview extends Phaser.Scene {
   private furniture: Phaser.GameObjects.GameObject[] = [];
   private observer?: IntersectionObserver;
   create(): void {
+    configureArtCamera(this);
     this.view = new DailyEventsView(this, () => { document.querySelector('#notice')!.textContent = episodeById(episodeSelect.value)!.discovery; });
     this.sky = new SkyWindowView(document.querySelector<HTMLCanvasElement>('#sky-window')!);
     this.lighting = new RoomLighting(this);
@@ -54,7 +59,7 @@ class Preview extends Phaser.Scene {
     for (const item of this.furniture) item.destroy(); this.furniture = drawOffice(this, room); this.view!.setDecorations(this.furniture);
     const state = { event: { ...dailyEventAt(Date.now()), episodeId: episode.id, roomId: room }, serverNow: Date.now() };
     this.view!.setRoom(room); this.view!.setObjects([]); this.view!.receive(state); this.sky!.setRoom(room); this.sky!.setDailyEvent(state); this.lighting!.setRoom(room);
-    document.querySelector('#title')!.textContent = episode.title; document.querySelector('#theme')!.textContent = EVENT_THEMES[episode.theme]; document.querySelector('#story')!.textContent = `${eventStageDescription(episode)}\n\n${episode.discovery}`;
+    document.querySelector('#title')!.textContent = episode.title; document.querySelector('#theme')!.textContent = EVENT_THEMES[episode.theme]; document.querySelector('#story')!.textContent = `${eventStageDescription(episode)}\n\n${episode.discovery}\n\n登場する小道具：${episodeCast(episode)}`;
     document.querySelector('#notice')!.textContent = episode.theme === 'kaiju' && room === 'ops' ? 'この部屋には窓がないので、窓の外の来客は見えません。実際の抽選では管制室は対象外です。' : '来客にクリックすると、この事件の事情が分かります。';
     drawEventPreview(document.querySelector<HTMLCanvasElement>('#illustration')!, episode, room);
     document.querySelector('#episode-progress')!.textContent = `${DAILY_EPISODES.indexOf(episode) + 1} / 365`;
@@ -66,13 +71,16 @@ class Preview extends Phaser.Scene {
     const episodes = DAILY_EPISODES.filter(matches);
     document.querySelector('#gallery-count')!.textContent = `${episodes.length}件を表示 / 全365件`;
     this.observer = new IntersectionObserver(entries => {
-      for (const entry of entries) if (entry.isIntersecting) {
-        const canvas = entry.target as HTMLCanvasElement; drawEventPreview(canvas, episodeById(canvas.dataset.episode!)!, roomSelect.value as RoomId); this.observer!.unobserve(canvas);
+      for (const entry of entries) {
+        const canvas = entry.target as HTMLCanvasElement;
+        if (entry.isIntersecting) drawEventPreview(canvas, episodeById(canvas.dataset.episode!)!, roomSelect.value as RoomId, 384);
+        // Keep only visible/nearby thumbnails allocated, even after viewing all 365.
+        else { canvas.width = 3; canvas.height = 2; }
       }
     }, { rootMargin: '300px' });
     for (const episode of episodes) {
       const button = document.createElement('button'); button.type = 'button'; button.className = 'gallery-card'; button.dataset.episode = episode.id; button.setAttribute('aria-pressed', String(episode.id === episodeSelect.value));
-      const canvas = document.createElement('canvas'); canvas.width = 192; canvas.height = 128; canvas.dataset.episode = episode.id; canvas.setAttribute('aria-hidden', 'true');
+      const canvas = document.createElement('canvas'); canvas.width = 3; canvas.height = 2; canvas.dataset.episode = episode.id; canvas.setAttribute('aria-hidden', 'true');
       const text = document.createElement('span'); text.textContent = `${DAILY_EPISODES.indexOf(episode) + 1} / 365 · ${episode.title}`;
       const description = document.createElement('small'); description.textContent = episode.discovery;
       button.append(canvas, text, description); grid.append(button); this.observer.observe(canvas);
@@ -86,4 +94,4 @@ class Preview extends Phaser.Scene {
     this.view?.update(now, reduced); this.sky?.update(preview, reduced); this.lighting?.update(preview);
   }
 }
-new Phaser.Game({ type: Phaser.AUTO, parent: 'game', width: 480, height: 320, pixelArt: true, roundPixels: true, scene: Preview, audio: { noAudio: true }, banner: false });
+new Phaser.Game({ type: Phaser.AUTO, parent: 'game', width: ART_WIDTH, height: ART_HEIGHT, pixelArt: true, roundPixels: true, scene: Preview, audio: { noAudio: true }, banner: false });
