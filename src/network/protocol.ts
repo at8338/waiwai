@@ -35,7 +35,7 @@ import { isReactionKind } from '../game/reactions.ts';
 import type { ReactionKind } from '../game/reactions.ts';
 
 export type Profile = { name: string; outfit: number; appearance?: Appearance; buddy?: BuddyKind | null; slack?: SlackIdentity | null };
-export type Player = Profile & { id: string; slot: number; roomId: RoomId; x: number; y: number; facing: Direction; slackVerified?: boolean; buddyPosition?: BuddyPosition; riding?: Riding };
+export type Player = Profile & { id: string; slot: number; roomId: RoomId; x: number; y: number; facing: Direction; slackVerified?: boolean; buddyPosition?: BuddyPosition; riding?: Riding; resting?: boolean };
 // Profiles travel only on join/edit; movement is coalesced into one frame per 50ms.
 // Small numeric slot maps to a UUID in the welcome/join profile. Bits 0–1 are
 // direction; bit 2 means snap/reset. UUIDs and identities stay out of frames.
@@ -53,6 +53,7 @@ export type ClientMessage =
   | (VehicleAction & { actionId: string })
   | LinkEdit
   | { type: 'reaction'; kind: ReactionKind }
+  | { type: 'rest'; resting: boolean }
   | { type: 'warp-to'; targetId: string; requestId: number }
   | { type: 'change-room'; roomId: RoomId; requestId: number }
   | { type: 'object-place'; kind: ObjectKind; x: number; y: number; rotation: number; editId: string }
@@ -89,6 +90,7 @@ export type ServerMessage =
   | VoiceSnapshot
   | VoiceSignal
   | { type: 'reaction'; playerId: string; roomId: RoomId; kind: ReactionKind }
+  | { type: 'rest-result'; error?: string }
   | { type: 'object-links'; roomId: RoomId; favorites: Favorite[]; bindings: LinkBinding[] }
   | { type: 'link-result'; editId: string; error?: string; favoriteId?: string }
   | { type: 'directory'; people: Person[]; warning?: string }
@@ -97,7 +99,7 @@ export type ServerMessage =
   | { type: 'objects'; roomId: RoomId; objects: RoomObject[] }
   | { type: 'object-result'; editId: string; error?: string }
   | { type: 'positions'; positions: Position[] }
-  | { type: 'player'; player: Player; reason: 'join' | 'profile' | 'move' | 'dash' | 'reset' | 'room' | 'warp' | 'spell' | 'vehicle' | 'vending'; requestId?: number }
+  | { type: 'player'; player: Player; reason: 'join' | 'profile' | 'move' | 'dash' | 'reset' | 'room' | 'warp' | 'spell' | 'vehicle' | 'vending' | 'rest'; requestId?: number }
   | { type: 'left'; id: string };
 
 export const directions = ['up', 'down', 'left', 'right'] as const;
@@ -123,6 +125,7 @@ export function parseClientMessage(raw: string): ClientMessage | undefined {
     if (data.type === 'vehicle-pickup' && isVehicleId(data.unitId)) return { type: 'vehicle-pickup', unitId: data.unitId, actionId: data.actionId };
   }
   if (data.type === 'reaction' && isReactionKind(data.kind)) return { type: 'reaction', kind: data.kind };
+  if (data.type === 'rest' && typeof data.resting === 'boolean') return { type: 'rest', resting: data.resting };
   if (data.type === 'voice-state' && typeof data.listening === 'boolean' && typeof data.microphone === 'boolean') {
     return { type: 'voice-state', listening: data.listening, microphone: data.listening && data.microphone };
   }

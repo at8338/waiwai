@@ -608,6 +608,42 @@ test('reactions share only with the current room, use the authenticated connecti
   assert.equal(b.seen.filter((m) => m.type === 'reaction').length, 1);
 });
 
+test('lying persists until an explicit stand request, survives profile and room changes, and reaches peers and late arrivals', async (t) => {
+  const { connect } = await fixture(t); const a = await connect(), b = await connect();
+  a.send({ type: 'rest', resting: true, playerId: b.welcome.id });
+  const lie = await a.next('player', m => m.reason === 'rest'); await a.next('rest-result');
+  assert.equal(lie.player.id, a.welcome.id); assert.equal(lie.player.resting, true);
+  assert.deepEqual((await b.next('player', m => m.reason === 'rest')).player, lie.player);
+  const newcomer = await connect();
+  assert.equal(newcomer.welcome.players.find(p => p.id === a.welcome.id)!.resting, true);
+  assert.equal(newcomer.welcome.players.find(p => p.id === b.welcome.id)!.resting, undefined);
+  await new Promise(resolve => setTimeout(resolve, REACTION_COOLDOWN_MS + 30));
+  for (const [index, type] of ['move', 'dash'].entries()) {
+    a.send({ type, direction: 'right', requestId: index + 1 });
+    const still = (await a.next('player', m => m.requestId === index + 1 && m.reason === type)).player;
+    assert.deepEqual([still.x, still.y, still.facing, still.resting], [lie.player.x, lie.player.y, lie.player.facing, true]);
+  }
+  a.send({ type: 'reaction', kind: 'jump' });
+  a.send({ type: 'profile', name: 'ごろん', outfit: 0, resting: false });
+  assert.equal((await a.next('player', m => m.reason === 'profile')).player.resting, true);
+  assert.equal(b.seen.filter(m => m.type === 'reaction' && m.playerId === a.welcome.id).length, 0);
+  a.send({ type: 'change-room', roomId: 'cafe', requestId: 3 });
+  assert.equal((await a.next('player', m => m.reason === 'room' && m.player.id === a.welcome.id)).player.resting, true);
+  a.send({ type: 'rest', resting: true }); await a.next('rest-result'); // Idempotent, not a toggle on the server.
+  assert.equal((await a.next('player', m => m.reason === 'rest')).player.resting, true);
+  a.send({ type: 'rest', resting: false }); await a.next('rest-result');
+  const stand = (await a.next('player', m => m.reason === 'rest')).player;
+  assert.equal(stand.resting, false);
+  const direction = directions.find(direction => {
+    const delta = { up: [0,-1], down:[0,1], left:[-1,0], right:[1,0] }[direction];
+    return canWalk(stand.x + delta[0], stand.y + delta[1], stand.roomId);
+  })!;
+  await new Promise(resolve => setTimeout(resolve, STEP_MS + 10));
+  a.send({ type: 'move', direction, requestId: 4 });
+  const moved = (await a.next('player', m => m.requestId === 4 && m.reason === 'move')).player;
+  assert.notDeepEqual([moved.x, moved.y], [stand.x, stand.y]); assert.equal(moved.resting, false);
+});
+
 test('buddies share authoritative trail positions and pets stay scoped to the current room', async (t) => {
   const { connect } = await fixture(t); const a = await connect(), b = await connect();
   const initial = a.welcome.players[0];

@@ -13,6 +13,25 @@ test('only built-in reactions are accepted and clients cannot choose another act
   }
 });
 
+test('rest is an explicit boolean state, independent of timed reactions and controlled only by its owner', () => {
+  for (const resting of [true, false]) assert.deepEqual(parseClientMessage(JSON.stringify({ type: 'rest', resting, playerId: 'someone-else', duration: 1, x: 999 })), { type: 'rest', resting });
+  for (const resting of [undefined, null, 1, 0, 'true', [], {}]) assert.equal(parseClientMessage(JSON.stringify({ type: 'rest', resting })), undefined);
+  assert.equal(isReactionKind('lie'), false);
+});
+
+test('lying down is a still horizontal pose that preserves appearance and fits its wider texture', () => {
+  for (let body = 0; body < 3; body++) for (let height = 0; height < 3; height++) for (let hair = 0; hair < 5; hair++) for (let accessory = 0; accessory < 4; accessory++) for (let heldItem = 0; heldItem < 4; heldItem++) {
+    const appearance = { ...DEFAULT_APPEARANCE, body, height, hair, accessory, heldItem };
+    const pixels = avatarPixels(appearance, 'down', 0, 'lie');
+    for (const direction of ['up', 'down', 'left', 'right']) for (let frame = 0; frame < 3; frame++) assert.deepEqual(avatarPixels(appearance, direction, frame, 'lie'), pixels);
+    assert.ok(pixels.every(p => p.x >= 0 && p.y >= 0 && p.w > 0 && p.h > 0 && p.x + p.w <= 32 && p.y + p.h <= 28));
+    const width = Math.max(...pixels.map(p => p.x + p.w)) - Math.min(...pixels.map(p => p.x));
+    const heightPixels = Math.max(...pixels.map(p => p.y + p.h)) - Math.min(...pixels.map(p => p.y));
+    assert.ok(width > heightPixels);
+    assert.notDeepEqual(pixels, avatarPixels(appearance));
+  }
+});
+
 test('motions finish without lingering transforms; jumping raises the sprite and keeps a smaller shadow on the floor', () => {
   for (const kind of REACTION_KINDS) {
     const { duration } = REACTIONS[kind];

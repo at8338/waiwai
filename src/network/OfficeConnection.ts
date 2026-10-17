@@ -56,6 +56,7 @@ export type ConnectionHandlers = {
   objectLinks?: (snapshot: Extract<ServerMessage, { type: 'object-links' }>) => void;
   linkResult?: (result: Extract<ServerMessage, { type: 'link-result' }>) => void;
   reaction?: (message: Extract<ServerMessage, { type: 'reaction' }>) => void;
+  restResult?: (error?: string) => void;
 };
 
 export class OfficeConnection {
@@ -103,7 +104,7 @@ export class OfficeConnection {
         this.handlers.state('online');
         this.send({ type: 'profile', ...this.profile });
       } else if (message.type === 'player') {
-        if (message.player.id === this.id && message.reason === 'spell') {
+        if (message.player.id === this.id && (message.reason === 'spell' || message.reason === 'rest')) {
           this.pending = undefined; this.warpRequest = undefined; window.clearTimeout(this.watchdog); this.nextRequestAt = performance.now() + movementStep(message.player.riding?.kind);
         }
         if (message.player.id === this.id && message.requestId !== undefined) {
@@ -117,7 +118,7 @@ export class OfficeConnection {
         this.players.set(message.player.id, message.player);
         this.slots.set(message.player.slot, message.player.id);
         if (message.player.id === this.id && message.reason === 'vending') this.profile = { ...this.profile, appearance: message.player.appearance };
-        this.handlers.player(message.player, message.reason === 'reset' || message.reason === 'join' || message.reason === 'room' || message.reason === 'warp' || message.reason === 'spell', message.reason);
+        this.handlers.player(message.player, message.reason === 'reset' || message.reason === 'join' || message.reason === 'room' || message.reason === 'warp' || message.reason === 'spell' || message.reason === 'rest', message.reason);
         if (message.player.id === this.id && message.reason === 'warp' && message.requestId === this.warpRequest) {
           this.warpRequest = undefined;
           this.handlers.travelComplete?.();
@@ -160,6 +161,7 @@ export class OfficeConnection {
       else if (message.type === 'vehicle-result') this.handlers.vehicleResult?.(message.actionId, message.error);
       else if (message.type === 'pets') this.handlers.pets?.(message.roomId, message.pets);
       else if (message.type === 'reaction') this.handlers.reaction?.(message);
+      else if (message.type === 'rest-result') this.handlers.restResult?.(message.error);
       else if (message.type === 'directory') this.handlers.directory?.(message.people, message.warning);
       else if (message.type === 'travel-error') {
         if (message.requestId !== this.warpRequest) return;
@@ -223,6 +225,10 @@ export class OfficeConnection {
   react(kind: ReactionKind): boolean {
     if (!this.online || this.socket?.readyState !== WebSocket.OPEN) return false;
     this.send({ type: 'reaction', kind }); return true;
+  }
+  rest(resting: boolean): boolean {
+    if (!this.online || this.socket?.readyState !== WebSocket.OPEN) return false;
+    this.send({ type: 'rest', resting }); return true;
   }
 
   arcade(action: ArcadeAction): boolean { if (!this.online) return false; this.send(action); return true; }

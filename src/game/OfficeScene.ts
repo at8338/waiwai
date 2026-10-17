@@ -122,6 +122,7 @@ export class OfficeScene extends Phaser.Scene {
   private reactions = new Map<string, { kind: ReactionKind; startedAt: number }>();
   private nextReactionAt = 0;
   private reactionBlocked = true;
+  private restPending = false;
   private reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   constructor(slack: SlackIdentity | null = null, loginRequired = false) { super('office'); this.slack = slack; this.loginRequired = loginRequired; }
@@ -226,7 +227,7 @@ export class OfficeScene extends Phaser.Scene {
       this.game.canvas.focus({ preventScroll: true });
     }, { signal: this.inputController.signal });
     document.addEventListener('walk-step', ((event: CustomEvent<Direction>) => {
-      if (!this.walker.moving) this.connection?.move(event.detail);
+      if (!this.walker.moving && !this.isResting() && !this.restPending) this.connection?.move(event.detail);
     }) as EventListener, { signal: this.inputController.signal });
 
     if (!this.loginRequired) this.connection = new OfficeConnection({
@@ -264,6 +265,10 @@ export class OfficeScene extends Phaser.Scene {
       vehicleResult: (id, error) => this.vehicleUI?.result(id, error),
       pets: (roomId, pets) => this.companions?.pets(roomId, pets),
       player: (player, snap, reason) => this.receivePlayer(player, snap, reason),
+      restResult: (error) => {
+        this.restPending = false; this.updateReactionTools();
+        document.querySelector('#reaction-status')!.textContent = error ?? (this.isResting() ? '寝転び中 ·「起き上がる」ボタンか5キーでもどります。' : '起き上がりました。');
+      },
       reaction: (message) => {
         if (message.roomId !== this.roomId || this.players.get(message.playerId)?.roomId !== this.roomId) return;
         this.reactions.set(message.playerId, { kind: message.kind, startedAt: performance.now() });
@@ -331,7 +336,7 @@ export class OfficeScene extends Phaser.Scene {
     this.voice?.setConnected(this.connected);
     this.linksUI?.setReady(this.connected && this.objectsReady);
     if (!this.connected) {
-      this.reactions.clear(); this.nextReactionAt = 0;
+      this.reactions.clear(); this.nextReactionAt = 0; this.restPending = false;
       this.controls.clear();
       this.clearPeers();
       this.players.clear();
@@ -355,7 +360,7 @@ export class OfficeScene extends Phaser.Scene {
     this.directoryUI?.setConnection(this.connected, this.localId);
     this.updateObjectTools();
     this.updateReactionTools();
-    if (this.connected) document.querySelector('#reaction-status')!.textContent = 'ボタンやマップ操作中の1〜4キーで、気持ちを伝えよう。歩くと動作が終わります。';
+    if (this.connected) document.querySelector('#reaction-status')!.textContent = 'ボタンやマップ操作中の1〜4キーでリアクション。5キーで寝転ぶ／起き上がる。';
   }
 
   private renderVoice(state: VoiceUI): void {
@@ -390,7 +395,10 @@ export class OfficeScene extends Phaser.Scene {
     const previous = this.players.get(player.id);
     if (previous && (snap || previous.x !== player.x || previous.y !== player.y || previous.roomId !== player.roomId)) this.reactions.delete(player.id);
     this.players.set(player.id, player);
+    if (player.resting) this.reactions.delete(player.id);
     if (player.id === this.localId) {
+      if (reason === 'rest') { this.controls.clear(); this.restPending = false; }
+      this.updateReactionTools();
       if (reason === 'spell') {
         this.controls.clear(); this.setEditMode('none');
         for (const dialog of document.querySelectorAll<HTMLDialogElement>('dialog[open]')) dialog.close();
@@ -495,7 +503,8 @@ export class OfficeScene extends Phaser.Scene {
       item.children[2].textContent = player.slackVerified ? 'Slackログイン済み' : player.slack ? 'Slack手動設定' : 'Slack未設定';
       const reaction = this.reactions.get(player.id);
       item.dataset.reaction = reaction?.kind ?? '';
-      item.children[3].textContent = reaction ? `${REACTIONS[reaction.kind].icon} ${REACTIONS[reaction.kind].label}` : '';
+      item.dataset.resting = String(!!player.resting);
+      item.children[3].textContent = player.resting ? '寝転び中' : reaction ? `${REACTIONS[reaction.kind].icon} ${REACTIONS[reaction.kind].label}` : '';
     }
     document.querySelectorAll('[data-player-count]').forEach((element) => {
       const text = this.connected ? `${this.players.size}人が滞在中` : '接続を待っています';
@@ -629,11 +638,13 @@ export class OfficeScene extends Phaser.Scene {
 
   private setupReactions(): void {
     const signal = this.inputController.signal;
+    document.querySelector('#toggle-rest')!.addEventListener('click', () => this.toggleRest(), { signal });
     for (const button of document.querySelectorAll<HTMLButtonElement>('[data-reaction]')) button.addEventListener('click', () => {
       this.playReaction(button.dataset.reaction as ReactionKind);
     }, { signal });
     this.game.canvas.addEventListener('keydown', (event) => {
       if (event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (event.code === 'Digit5') { event.preventDefault(); this.toggleRest(); return; }
       if (event.code === 'KeyF' || event.code === 'KeyB') { event.preventDefault(); this.spellsUI?.quick(event.code === 'KeyF' ? 'fire' : 'blizzard'); return; }
       if (event.code === 'KeyE' && this.editMode === 'none') { event.preventDefault(); this.vehicleUI?.quickAction(); return; }
       const index = ['Digit1', 'Digit2', 'Digit3', 'Digit4'].indexOf(event.code);
@@ -644,7 +655,7 @@ export class OfficeScene extends Phaser.Scene {
     this.updateReactionTools();
   }
   private playReaction(kind: ReactionKind): void {
-    if (!this.connected || performance.now() < this.nextReactionAt) return;
+    if (!this.connected || this.isResting() || this.restPending || performance.now() < this.nextReactionAt) return;
     this.controls.clear(); this.setEditMode('none');
     if (!this.connection?.react(kind)) return;
     this.nextReactionAt = performance.now() + REACTION_COOLDOWN_MS;
@@ -652,9 +663,22 @@ export class OfficeScene extends Phaser.Scene {
     this.updateReactionTools(); this.game.canvas.focus({ preventScroll: true });
   }
   private updateReactionTools(): void {
-    this.reactionBlocked = !this.connected || performance.now() < this.nextReactionAt;
+    const resting = this.isResting();
+    this.reactionBlocked = !this.connected || resting || this.restPending || performance.now() < this.nextReactionAt;
     for (const button of document.querySelectorAll<HTMLButtonElement>('[data-reaction]')) button.disabled = this.reactionBlocked;
+    const button = document.querySelector<HTMLButtonElement>('#toggle-rest')!;
+    button.disabled = !this.connected || this.restPending;
+    button.setAttribute('aria-pressed', String(resting));
+    button.querySelector('[data-rest-label]')!.textContent = resting ? '起き上がる' : '寝転ぶ';
     if (!this.connected) document.querySelector('#reaction-status')!.textContent = 'オフィスへの接続後にリアクションできます。';
+  }
+  private isResting(): boolean { return !!this.players.get(this.localId ?? '')?.resting; }
+  private toggleRest(): void {
+    if (!this.connected || this.restPending) return;
+    this.controls.clear(); this.setEditMode('none');
+    if (!this.connection?.rest(!this.isResting())) return;
+    this.restPending = true; this.updateReactionTools();
+    this.game.canvas.focus({ preventScroll: true });
   }
 
   private owner(): string {
@@ -746,17 +770,18 @@ export class OfficeScene extends Phaser.Scene {
     const motion = reaction ? reactionMotion(reaction.kind, performance.now() - reaction.startedAt, this.reducedMotion) : undefined;
     if (reaction && !motion) { this.reactions.delete(id!); this.participantsDirty = true; }
     const riding = id ? this.players.get(id)?.riding : undefined;
-    const seat = this.connected && this.objectsReady ? restingSeat(this.seats, walker.tile, walker.moving, !!riding, !!motion) : undefined;
+    const resting = !!(id && this.players.get(id)?.resting);
+    const seat = this.connected && this.objectsReady && !resting ? restingSeat(this.seats, walker.tile, walker.moving, !!riding, !!motion) : undefined;
     if (view.seatId !== seat?.id) { view.seatId = seat?.id; this.participantsDirty = true; }
     if (seat) { x = seat.anchor.x; y = seat.anchor.y; }
-    const walk = walkingMotion(appearance.walkStyle, time, walker.facing, walker.moving && !motion && !riding && !seat, this.reducedMotion);
+    const walk = walkingMotion(appearance.walkStyle, time, walker.facing, walker.moving && !motion && !riding && !seat && !resting, this.reducedMotion);
     const lift = (motion?.lift ?? walk.lift) + (riding?.kind === 'bike' ? 4 : 0);
     const frame = riding && walker.moving && !motion ? 1 + Math.floor(time / 95) % 2 : walk.frame;
     view.sprite.setPosition(Math.round(x + walk.offsetX), Math.round(y + 6 - lift)).setRotation(motion?.tilt ?? walk.tilt).setScale(walk.scaleX, motion?.scaleY ?? walk.scaleY)
-      .setTexture(avatarTexture(this, appearance, motion ? 'down' : seat?.facing ?? walker.facing, frame, motion?.pose ?? (seat ? 'sit' : 'stand'))).setDepth(seat?.depth ?? y + 7);
+      .setTexture(avatarTexture(this, appearance, motion ? 'down' : seat?.facing ?? walker.facing, frame, resting ? 'lie' : motion?.pose ?? (seat ? 'sit' : 'stand'))).setDepth(seat?.depth ?? y + 7);
     view.vehicle.setVisible(!!riding);
     if (riding) view.vehicle.setTexture(vehicleTexture(this, riding.kind, walker.facing, frame)).setPosition(Math.round(x), Math.round(y + 10 - (motion?.lift ?? 0))).setDepth(y + 6.5);
-    view.shadow.setPosition(Math.round(x), Math.round(y) + 5).setScale(motion?.shadow ?? walk.shadow, 1).setDepth(y + 6);
+    view.shadow.setPosition(Math.round(x), Math.round(y) + (resting ? -4 : 5)).setScale(resting ? 2.2 : motion?.shadow ?? walk.shadow, resting ? 1.8 : 1).setDepth(y + 6);
     view.label.setText(name).setPosition(Math.round(x), Math.round(y - 20 - lift)).setDepth(ROWS * TILE + 20);
     view.reactionLabel.setVisible(!!motion);
     if (motion && reaction) view.reactionLabel.setText(REACTIONS[reaction.kind].text)
@@ -773,10 +798,11 @@ export class OfficeScene extends Phaser.Scene {
       this.game.canvas.dataset.walkFrame = String(walk.frame);
       this.game.canvas.dataset.walkLift = String(walk.lift);
       this.game.canvas.dataset.localReaction = motion && reaction ? reaction.kind : '';
+      this.game.canvas.dataset.localPose = resting ? 'lie' : motion?.pose ?? (seat ? 'sit' : 'stand');
       this.game.canvas.dataset.seatId = seat?.id ?? '';
       this.game.canvas.dataset.seatFacing = seat?.facing ?? '';
       const status = document.querySelector('#seating-status')!;
-      const text = seat ? `${seat.name}に着席中 · 移動すると立ち上がります。` : '椅子・机・ソファの正面で止まると、自動で座ります。';
+      const text = resting ? '床に寝転び中 ·「起き上がる」ボタンか5キーでもどります。' : seat ? `${seat.name}に着席中 · 移動すると立ち上がります。` : '椅子・机・ソファの正面で止まると、自動で座ります。';
       if (status.textContent !== text) status.textContent = text;
     }
   }
@@ -786,7 +812,7 @@ export class OfficeScene extends Phaser.Scene {
     this.lostItems?.update(now); this.dailyView?.update(now, this.reducedMotion);
     this.lighting?.update(now); this.cockpitView?.update(now, this.reducedMotion);
     this.skyWindow?.update(now, this.reducedMotion);
-    if (this.reactionBlocked !== (!this.connected || performance.now() < this.nextReactionAt)) this.updateReactionTools();
+    if (this.reactionBlocked !== (!this.connected || this.isResting() || this.restPending || performance.now() < this.nextReactionAt)) this.updateReactionTools();
     if (this.participantsDirty && time - this.lastParticipantsAt >= 100) {
       this.participantsDirty = false;
       this.lastParticipantsAt = time;
@@ -795,7 +821,8 @@ export class OfficeScene extends Phaser.Scene {
     this.companions?.update(time, delta, this.reducedMotion);
     this.spellsView?.update(this.reducedMotion); this.combatUI?.update(this.reducedMotion);
     this.walker.update(delta);
-    if (this.editMode === 'none' && !this.walker.moving && this.connection?.readyToMove) {
+    if (this.isResting() || this.restPending) this.controls.clear();
+    if (this.editMode === 'none' && !this.isResting() && !this.restPending && !this.walker.moving && this.connection?.readyToMove) {
       const dash = this.controls.takeDash(), direction = dash ?? this.controls.direction();
       if (direction) { if (this.localId) this.reactions.delete(this.localId); if (dash) this.connection.dash(direction); else this.connection.move(direction); }
     }

@@ -263,7 +263,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     const vehicleResults = new Map<string, string | undefined>();
     let lastVending: string | undefined;
     const contact = () => {
-      if (!arena.active(player.id) && fleet.touch(player)) { pending.delete(player.id); broadcast({ type: 'player', player, reason: 'vehicle' }); sendFleet(); }
+      if (!player.resting && !arena.active(player.id) && fleet.touch(player)) { pending.delete(player.id); broadcast({ type: 'player', player, reason: 'vehicle' }); sendFleet(); }
       const machine = vendingInReach(player);
       if (machine && machine !== lastVending && player.appearance?.heldItem !== 2) {
         player.appearance = { ...(player.appearance ?? DEFAULT_APPEARANCE), heldItem: 2 };
@@ -399,6 +399,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
         return;
       }
       if (message.type === 'vehicle-take' || message.type === 'vehicle-return' || message.type === 'vehicle-drop' || message.type === 'vehicle-pickup') {
+        if (player.resting) { send(ws, { type: 'vehicle-result', actionId: message.actionId, error: '起き上がってから、乗りものを使ってください。' }); return; }
         if (arena.active(player.id)) { send(ws, { type: 'vehicle-result', actionId: message.actionId, error: '対戦中は乗りものを使えません。' }); return; }
         if (vehicleResults.has(message.actionId)) {
           const error = vehicleResults.get(message.actionId); send(ws, { type: 'vehicle-result', actionId: message.actionId, ...(error ? { error } : {}) }); return;
@@ -414,7 +415,19 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
         send(ws, { type: 'vehicle-result', actionId: message.actionId, ...(error ? { error } : {}) });
         return;
       }
+      if (message.type === 'rest') {
+        if (message.resting && player.riding) { send(ws, { type: 'rest-result', error: '乗りものから降りてから、寝転んでください。' }); return; }
+        const changed = !!player.resting !== message.resting;
+        player.resting = message.resting;
+        // A full state update supersedes any queued step. Rest has no timer and
+        // only this explicit action changes it; late arrivals get it in welcome.
+        pending.delete(player.id);
+        if (changed) broadcast({ type: 'player', player, reason: 'rest' });
+        else send(ws, { type: 'player', player, reason: 'rest' });
+        send(ws, { type: 'rest-result' }); return;
+      }
       if (message.type === 'reaction') {
+        if (player.resting) return;
         if (now - lastReaction < REACTION_COOLDOWN_MS) return;
         lastReaction = now;
         // Deliver the actor's last step first so a coalesced movement frame
@@ -543,6 +556,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
         resetBuddy(player, collisionObjects(player.roomId));
         lastMove = now;
       } else {
+        if (player.resting) { send(ws, { type: 'player', player, reason: message.type, requestId: message.requestId }); return; }
         player.facing = message.direction;
         const [dx, dy] = vectors[message.direction];
         if (now >= (movementBlocks.get(player.id) ?? 0) && now - lastMove >= movementStep(player.riding?.kind) && (message.type !== 'dash' || now - lastDash >= DASH_COOLDOWN_MS)) {
