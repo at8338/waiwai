@@ -157,6 +157,7 @@ export class OfficeScene extends Phaser.Scene {
       this.controls.clear(); this.setEditMode('none'); return true;
     });
     this.dailyView = new DailyEventsView(this, () => { if (this.editMode === 'none') this.dailyUI?.inspect(); });
+    this.dailyView.setDecorations(this.mapViews);
     this.cockpitUI = new CockpitUI(this.inputController.signal, (action, id) => this.connection?.robot(action, id) ?? false, (room) => this.connection?.changeRoom(room), () => {
       if (document.querySelector('dialog[open]')) return false; this.controls.clear(); this.setEditMode('none'); return true;
     });
@@ -585,6 +586,7 @@ export class OfficeScene extends Phaser.Scene {
     for (const view of [...this.mapViews, ...this.objectViews]) view.destroy();
     this.objectViews = [];
     this.mapViews = drawOffice(this, id, () => { if (this.editMode === 'none') this.dailyUI?.openCalendar(); }, (game) => { if (this.editMode === 'none') this.arcadeUI?.open(game); }, (item) => this.openBoard(item));
+    this.dailyView?.setDecorations(this.mapViews);
     const room = getRoom(id);
     this.game.canvas.setAttribute('aria-label', `${room.name}。矢印キーまたはWASDで移動。Tabキーでマップから移動できます。`);
     document.querySelectorAll('[data-room-name]').forEach((node) => { node.textContent = room.name; });
@@ -687,6 +689,7 @@ export class OfficeScene extends Phaser.Scene {
   private drawObjects(): void {
     for (const view of this.objectViews) view.destroy();
     this.objectViews = this.objects.map((o) => drawRoomObject(this, o));
+    this.dailyView?.setDecorations([...this.mapViews, ...this.objectViews]);
   }
   private previewObject(pointer: Phaser.Input.Pointer): void {
     this.ghost?.destroy(); this.ghost = undefined;

@@ -2,6 +2,7 @@ import { DAILY_EPISODES, episodeById, EVENT_THEMES } from './daily-event-catalog
 import { birthdayOnDay } from './birthdays.ts';
 import type { BirthdaySnapshot } from './birthdays.ts';
 import { drawEventPreview } from './daily-event-art.ts';
+import { eventStageDescription } from './daily-event-stage.ts';
 import { eventHistory } from './daily-events.ts';
 import type { DailyEventSnapshot, DailyEvent } from './daily-events.ts';
 import { getRoom } from './rooms.ts';
@@ -77,7 +78,7 @@ export class DailyEventsUI {
     const button = el<HTMLButtonElement>('daily-event-go'); button.disabled = !this.connected || this.now() >= event.endsAt;
     button.textContent = this.room === event.roomId ? '事件を調べる' : '現場を見に行く ↗';
     el('daily-event-panel').dataset.eventId = event.episodeId; el('daily-event-panel').dataset.eventRoom = event.roomId;
-    el('daily-event-found').textContent = this.snapshot?.preview ? '⚙ テスト中' : this.found.has(event.day) ? '✓ 発見済み' : '今日、どこかで小さな事件。';
+    el('daily-event-found').textContent = this.snapshot?.preview ? '⚙ テスト中' : this.found.has(event.day) ? '✓ 発見済み' : '今日も、どこかの部屋で事件が。';
   }
   inspect(): void {
     const event = this.snapshot?.event;
@@ -102,9 +103,9 @@ export class DailyEventsUI {
   }
   private fillDetail(event: DailyEvent, prefix: string): void {
     const episode = episodeById(event.episodeId)!;
-    el(`${prefix}-title`).textContent = episode.title; el(`${prefix}-story`).textContent = episode.discovery;
+    el(`${prefix}-title`).textContent = episode.title; el(`${prefix}-story`).textContent = `${eventStageDescription(episode)}\n\n${episode.discovery}`;
     el(`${prefix}-meta`).textContent = `${event.day} · ${getRoom(event.roomId).name} · ${EVENT_THEMES[episode.theme]}`;
-    drawEventPreview(el<HTMLCanvasElement>(`${prefix}-art`), episode);
+    drawEventPreview(el<HTMLCanvasElement>(`${prefix}-art`), episode, event.roomId);
   }
   private renderJournal(): void {
     const appeared = new Set(this.history.map((e) => e.episodeId));

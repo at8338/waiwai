@@ -26,7 +26,7 @@ test('365 authored incidents have unique stable ids, titles, discoveries and bou
     for (const height of [56, 80, 144]) for (const width of [256, 480]) for (const frame of [0, 1, 2]) for (const p of outsideEventPixels(episode, width, height, frame))
       assert.ok(p.x >= 0 && p.y >= 0 && p.x + p.w <= width && p.y + p.h <= height, `${episode.id} outside: ${JSON.stringify(p)}`);
   }
-  assert.ok(silhouettes.size >= 300); // Themes share a silhouette; props distinguish the episodes.
+  assert.ok(silhouettes.size >= 100); // Reusable prop icons; the full authored stages are checked separately.
 });
 test('server-independent daily draws switch at JST midnight and cover each deck exactly once including leap day', () => {
   for (const cycle of [-1, 0, 1, 2]) {

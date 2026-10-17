@@ -1,12 +1,13 @@
 import Phaser from 'phaser';
-import { eventSpot } from './daily-events.ts';
 import type { DailyEventSnapshot } from './daily-events.ts';
 import { episodeById } from './daily-event-catalog.ts';
 import { eventPixels } from './daily-event-art.ts';
-import { walkableWithObjects } from './objects.ts';
+import { roomEventStage, damageContains } from './daily-event-stage.ts';
+import type { DamageShape } from './daily-event-stage.ts';
+import type { StagePixel } from './daily-event-stage.ts';
 import type { RoomObject } from './objects.ts';
 import type { RoomId } from './rooms.ts';
-import { TILE } from './world.ts';
+type MaskedView = Phaser.GameObjects.GameObject & Phaser.GameObjects.Components.Mask;
 export class DailyEventsView {
   private room: RoomId = 'office';
   private objects: readonly RoomObject[] = [];
@@ -14,44 +15,68 @@ export class DailyEventsView {
   private offset = 0;
   private ready = false;
   private key = '';
-  private spot?: { x: number; y: number };
+  private staticKey = '';
+  private active = false;
+  private decorations: MaskedView[] = [];
+  private damageZones: DamageShape[] = [];
+  private inspectAreas: DamageShape[] = [];
   private art: Phaser.GameObjects.Graphics;
   private floor: Phaser.GameObjects.Graphics;
+  private scenery: Phaser.GameObjects.Graphics;
+  private effects: Phaser.GameObjects.Graphics;
+  private damageShape: Phaser.GameObjects.Graphics;
+  private damageMask: Phaser.Display.Masks.GeometryMask;
   private label: Phaser.GameObjects.Text;
   constructor(private scene: Phaser.Scene, inspect: () => void) {
-    this.floor = scene.add.graphics().setDepth(-75);
-    this.art = scene.add.graphics().setScale(2 / 3);
+    this.floor = scene.add.graphics().setDepth(-74);
+    this.scenery = scene.add.graphics().setDepth(210);
+    this.scenery.setInteractive(new Phaser.Geom.Rectangle(0, 0, 480, 270), (_area: unknown, x: number, y: number) => [...this.damageZones, ...this.inspectAreas].some(shape => damageContains(shape, x, y))).on('pointerup', inspect);
+    this.effects = scene.add.graphics().setDepth(330);
+    this.art = scene.add.graphics();
     this.art.setInteractive(new Phaser.Geom.Rectangle(0, 0, 48, 48), Phaser.Geom.Rectangle.Contains).on('pointerup', inspect);
-    this.label = scene.add.text(0, 0, '✦ 今日の事件', { fontFamily: 'sans-serif', fontSize: '8px', color: '#54452d', backgroundColor: '#f6d88f', padding: { x: 3, y: 2 } }).setOrigin(0.5, 1).setResolution(2);
+    this.damageShape = scene.make.graphics({ x: 0, y: 0 });
+    this.damageMask = this.damageShape.createGeometryMask(); this.damageMask.invertAlpha = true;
+    this.label = scene.add.text(240, 280, '✦ 今日の事件 · クリックで調べる', { fontFamily: 'sans-serif', fontSize: '8px', color: '#fff1ce', backgroundColor: '#694f47', padding: { x: 5, y: 3 } }).setOrigin(.5, 1).setResolution(2).setDepth(331).setInteractive({ useHandCursor: true }).on('pointerup', inspect);
     this.hide();
   }
-  setRoom(room: RoomId): void { this.room = room; this.objects = []; this.ready = false; this.key = ''; this.hide(); }
-  setObjects(objects: readonly RoomObject[]): void { this.objects = objects; this.ready = true; this.key = ''; this.reposition(); }
-  receive(state: DailyEventSnapshot): void { this.state = state; this.offset = state.serverNow - Date.now(); this.key = ''; this.reposition(); }
-  private reposition(): void { this.spot = this.state && this.ready ? eventSpot(this.state.event, this.objects) : undefined; }
-  private hide(): void { this.art.setVisible(false); this.label.setVisible(false); this.floor.clear(); }
+  setDecorations(views: Phaser.GameObjects.GameObject[]): void {
+    this.clearMasks(); this.decorations = views.filter(view => typeof (view as MaskedView).setMask === 'function') as MaskedView[];
+    this.staticKey = ''; this.key = '';
+  }
+  setRoom(room: RoomId): void { this.hide(); this.room = room; this.objects = []; this.ready = false; this.key = ''; this.staticKey = ''; }
+  setObjects(objects: readonly RoomObject[]): void { this.objects = objects; this.ready = true; this.key = ''; this.staticKey = ''; }
+  receive(state: DailyEventSnapshot): void { this.state = state; this.offset = state.serverNow - Date.now(); this.key = ''; this.staticKey = ''; }
+  private clearMasks(): void { for (const view of this.decorations) if (view.scene && view.mask === this.damageMask) view.clearMask(); }
+  private hide(): void {
+    this.art.setVisible(false); this.label.setVisible(false); this.floor.clear(); this.scenery.clear(); this.effects.clear();
+    this.damageZones = []; this.inspectAreas = [];
+    if (this.active) this.clearMasks(); this.active = false; this.staticKey = ''; this.key = '';
+  }
+  private draw(graphics: Phaser.GameObjects.Graphics, pixels: StagePixel[]): void {
+    graphics.clear(); for (const p of pixels) graphics.fillStyle(p.color, p.alpha).fillRect(p.x, p.y, p.w, p.h);
+  }
   update(now: number, reducedMotion: boolean): void {
     const event = this.state?.event, serverNow = now + this.offset;
     if (!event || !this.ready || event.roomId !== this.room || serverNow >= event.endsAt) { this.hide(); this.scene.game.canvas.dataset.dailyIncident = ''; return; }
-    const key = `${event.day}:${event.episodeId}:${reducedMotion ? 0 : Math.floor(serverNow / 700)}`; if (key === this.key) return;
-    this.key = key;
-    const spot = this.spot, episode = episodeById(event.episodeId)!;
-    if (!spot) { this.hide(); return; } // The banner remains inspectable even in a densely furnished room.
-    const x = (spot.x + 0.5) * TILE, y = (spot.y + 0.5) * TILE;
-    this.art.clear().setVisible(true).setPosition(x - 16, y - 24).setDepth(y + 7);
-    for (const p of eventPixels(episode, Math.floor(serverNow / 700))) this.art.fillStyle(p.color).fillRect(p.x, p.y, p.w, p.h);
-    this.label.setVisible(true).setPosition(x, y - 27).setDepth(y + 8);
-    this.floor.clear();
-    if (episode.theme === 'flood') {
-      for (let ty = 1; ty < 19; ty++) for (let tx = 1; tx < 29; tx++) if (walkableWithObjects(tx, ty, this.room, this.objects)) {
-        this.floor.fillStyle(0x4fa8bf, 0.24).fillRect(tx * TILE, ty * TILE, TILE, TILE);
-        if ((tx * 3 + ty + episode.variant) % 4 === 0) this.floor.fillStyle(0xe2f2e8, 0.6).fillRect(tx * TILE + 2, ty * TILE + 4 + (reducedMotion ? 0 : Math.floor(serverNow / 700) % 3), 9, 1);
+    const frame = reducedMotion ? -1 : Math.floor(serverNow / 700), key = `${event.day}:${event.episodeId}:${frame}`;
+    if (key === this.key) return; this.key = key;
+    const episode = episodeById(event.episodeId)!, stage = roomEventStage(episode, this.room, this.objects, frame);
+    const staticKey = `${this.room}:${event.day}:${event.episodeId}`;
+    if (this.staticKey !== staticKey) {
+      this.staticKey = staticKey; this.active = true; this.damageZones = stage.damage; this.inspectAreas = stage.inspectAreas ?? []; this.damageShape.clear().fillStyle(0xffffff);
+      for (const shape of stage.damage) {
+        if (shape.kind === 'ellipse') this.damageShape.fillEllipse(shape.x, shape.y, shape.w, shape.h);
+        else this.damageShape.fillRect(shape.x, shape.y, shape.w, shape.h);
       }
-    } else {
-      this.floor.fillStyle(episode.theme === 'meteor' ? 0x5b5859 : 0x967d58, 0.25).fillEllipse(x, y + 5, episode.theme === 'meteor' ? 46 : 32, 11);
-      this.floor.lineStyle(1, 0xf7dc99, 0.8).strokeEllipse(x, y + 5, 41, 16);
+      this.clearMasks();
+      if (stage.damage.length) for (const view of this.decorations) if (view.scene) view.setMask(this.damageMask);
+      this.draw(this.floor, stage.floor); this.draw(this.scenery, stage.scenery);
+      this.art.input!.hitArea = new Phaser.Geom.Rectangle(stage.hero.x, stage.hero.y, 48 * stage.hero.scale, 48 * stage.hero.scale);
     }
-    this.scene.game.canvas.dataset.dailyIncident = JSON.stringify({ id: event.episodeId, roomId: this.room, x: spot.x, y: spot.y });
+    this.art.clear().setVisible(stage.hero.scale > 0).setDepth(stage.hero.y + 43 * stage.hero.scale);
+    for (const p of eventPixels(episode, Math.max(0, frame))) this.art.fillStyle(p.color).fillRect(stage.hero.x + p.x * stage.hero.scale, stage.hero.y + p.y * stage.hero.scale, p.w * stage.hero.scale, p.h * stage.hero.scale);
+    this.draw(this.effects, stage.effects); this.label.setVisible(true);
+    this.scene.game.canvas.dataset.dailyIncident = JSON.stringify({ id: event.episodeId, roomId: this.room, x: Math.floor((stage.hero.x + 24 * stage.hero.scale) / 16), y: Math.floor((stage.hero.y + 24 * stage.hero.scale) / 16), scale: stage.hero.scale, damage: stage.damage, roomWide: true });
   }
-  destroy(): void { this.art.destroy(); this.label.destroy(); this.floor.destroy(); }
+  destroy(): void { this.clearMasks(); this.damageMask.destroy(); this.damageShape.destroy(); this.art.destroy(); this.label.destroy(); this.floor.destroy(); this.scenery.destroy(); this.effects.destroy(); }
 }
