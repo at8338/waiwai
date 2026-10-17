@@ -1,10 +1,12 @@
+import { VehicleFleet } from './vehicles.ts';
+import { movementStep } from '../src/game/transport.ts';
 import { RoomPets, resetBuddy, advanceBuddy } from './companions.ts';
 import { PET_STEP_MS } from '../src/game/buddies.ts';
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, Server } from 'node:http';
 import type { Duplex } from 'node:stream';
 import WebSocket, { WebSocketServer } from 'ws';
-import { COLS, ROWS, STEP_MS } from '../src/game/world.ts';
+import { COLS, ROWS } from '../src/game/world.ts';
 import { MAX_PLAYERS, POSITION_FRAME_MS, directions, parseClientMessage } from '../src/network/protocol.ts';
 import type { Player, Position, ServerMessage } from '../src/network/protocol.ts';
 import { VoiceRoom, readIceProvider } from './voice.ts';
@@ -45,6 +47,8 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
   };
   const voice = new VoiceRoom(players, send, readIceProvider());
   const directory = (): Extract<ServerMessage, { type: 'directory' }> => ({ type: 'directory', people: directoryPeople(members.list(), players.values()), ...(directoryWarning ? { warning: directoryWarning } : {}) });
+  const fleet = new VehicleFleet();
+  const sendFleet = (ws?: WebSocket) => { const message: ServerMessage = { type: 'vehicles', units: fleet.list() }; if (ws) send(ws, message); else broadcast(message); };
   const pending = new Map<string, Position>();
   const frame = setInterval(() => {
     if (pending.size) {
@@ -106,6 +110,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     sendPets(ws, player.roomId);
     send(ws, directory());
     sendLinks(ws, player.roomId);
+    sendFleet(ws);
     let lastMove = -Infinity;
     let windowStart = Date.now();
     let messages = 0;
@@ -114,6 +119,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     let lastWarp = -Infinity;
     let lastLinkEdit = -Infinity;
     let lastReaction = -Infinity;
+    let lastVehicle = -Infinity;
     ws.on('pong', () => alive.add(ws));
     ws.on('error', () => ws.terminate());
     ws.on('message', (data, isBinary) => {
@@ -124,6 +130,14 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
       const message = parseClientMessage(data.toString());
       if (message?.type === 'voice-signal' ? ++signals > 120 : ++messages > 40) { ws.close(1008, 'Too many messages'); return; }
       if (!message) return;
+      if (message.type === 'vehicle-take' || message.type === 'vehicle-return') {
+        if (now - lastVehicle < 350) { send(ws, { type: 'vehicle-result', actionId: message.actionId, error: '少し待ってから、もう一度操作してください。' }); return; }
+        lastVehicle = now;
+        const error = message.type === 'vehicle-take' ? fleet.take(player, message.kind) : fleet.return(player);
+        if (!error) { pending.delete(player.id); broadcast({ type: 'player', player, reason: 'vehicle' }); sendFleet(); }
+        send(ws, { type: 'vehicle-result', actionId: message.actionId, ...(error ? { error } : {}) });
+        return;
+      }
       if (message.type === 'reaction') {
         if (now - lastReaction < REACTION_COOLDOWN_MS) return;
         lastReaction = now;
@@ -241,7 +255,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
       } else {
         player.facing = message.direction;
         const [dx, dy] = vectors[message.direction];
-        if (now - lastMove >= STEP_MS && walkableWithObjects(player.x + dx, player.y + dy, player.roomId, roomObjects(player.roomId))) {
+        if (now - lastMove >= movementStep(player.riding?.kind) && walkableWithObjects(player.x + dx, player.y + dy, player.roomId, roomObjects(player.roomId))) {
           const previous = { x: player.x, y: player.y };
           player.x += dx;
           player.y += dy;
@@ -261,7 +275,9 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
       }
     });
     ws.on('close', () => {
+      const hadVehicle = !!player.riding; fleet.release(player);
       players.delete(ws);
+      if (hadVehicle) sendFleet();
       directoryDirty = true;
       identities.delete(ws);
       alive.delete(ws);

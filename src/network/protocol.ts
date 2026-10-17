@@ -1,3 +1,5 @@
+import { isVehicleKind } from '../game/transport.ts';
+import type { Riding, VehicleKind, VehicleUnit } from '../game/transport.ts';
 import { isBuddyKind } from '../game/buddies.ts';
 import type { BuddyKind, BuddyPosition, RoomPet } from '../game/buddies.ts';
 import { parseAppearance } from '../game/avatar.ts';
@@ -18,7 +20,7 @@ import { isReactionKind } from '../game/reactions.ts';
 import type { ReactionKind } from '../game/reactions.ts';
 
 export type Profile = { name: string; outfit: number; appearance?: Appearance; buddy?: BuddyKind | null; slack?: SlackIdentity | null };
-export type Player = Profile & { id: string; slot: number; roomId: RoomId; x: number; y: number; facing: Direction; slackVerified?: boolean; buddyPosition?: BuddyPosition };
+export type Player = Profile & { id: string; slot: number; roomId: RoomId; x: number; y: number; facing: Direction; slackVerified?: boolean; buddyPosition?: BuddyPosition; riding?: Riding };
 // Profiles travel only on join/edit; movement is coalesced into one frame per 50ms.
 // Small numeric slot maps to a UUID in the welcome/join profile. Bits 0–1 are
 // direction; bit 2 means snap/reset. UUIDs and identities stay out of frames.
@@ -26,6 +28,8 @@ export type Position = [slot: number, x: number, y: number, flags: number, buddy
 export const MAX_PLAYERS = 150;
 export const POSITION_FRAME_MS = 50;
 export type ClientMessage =
+  | { type: 'vehicle-take'; kind: VehicleKind; actionId: string }
+  | { type: 'vehicle-return'; actionId: string }
   | LinkEdit
   | { type: 'reaction'; kind: ReactionKind }
   | { type: 'warp-to'; targetId: string; requestId: number }
@@ -39,6 +43,8 @@ export type ClientMessage =
   | { type: 'move'; direction: Direction; requestId: number }
   | { type: 'reset'; requestId: number };
 export type ServerMessage =
+  | { type: 'vehicles'; units: VehicleUnit[] }
+  | { type: 'vehicle-result'; actionId: string; error?: string }
   | { type: 'pets'; roomId: RoomId; pets: RoomPet[] }
   | VoiceSnapshot
   | VoiceSignal
@@ -51,7 +57,7 @@ export type ServerMessage =
   | { type: 'objects'; roomId: RoomId; objects: RoomObject[] }
   | { type: 'object-result'; editId: string; error?: string }
   | { type: 'positions'; positions: Position[] }
-  | { type: 'player'; player: Player; reason: 'join' | 'profile' | 'move' | 'reset' | 'room' | 'warp'; requestId?: number }
+  | { type: 'player'; player: Player; reason: 'join' | 'profile' | 'move' | 'reset' | 'room' | 'warp' | 'vehicle'; requestId?: number }
   | { type: 'left'; id: string };
 
 export const directions = ['up', 'down', 'left', 'right'] as const;
@@ -64,6 +70,10 @@ export function parseClientMessage(raw: string): ClientMessage | undefined {
   try { value = JSON.parse(raw); } catch { return; }
   if (!value || typeof value !== 'object') return;
   const data = value as Record<string, unknown>;
+  if (typeof data.actionId === 'string' && /^[a-f0-9-]{36}$/.test(data.actionId)) {
+    if (data.type === 'vehicle-take' && isVehicleKind(data.kind)) return { type: 'vehicle-take', kind: data.kind, actionId: data.actionId };
+    if (data.type === 'vehicle-return') return { type: 'vehicle-return', actionId: data.actionId };
+  }
   if (data.type === 'reaction' && isReactionKind(data.kind)) return { type: 'reaction', kind: data.kind };
   if (data.type === 'voice-state' && typeof data.listening === 'boolean' && typeof data.microphone === 'boolean') {
     return { type: 'voice-state', listening: data.listening, microphone: data.listening && data.microphone };

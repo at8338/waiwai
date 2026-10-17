@@ -2,7 +2,8 @@ import type { RoomPet } from '../game/buddies.ts';
 import type { RoomId } from '../game/rooms.ts';
 import type { RoomObject } from '../game/objects.ts';
 import type { Direction } from '../game/world.ts';
-import { STEP_MS } from '../game/world.ts';
+import { movementStep } from '../game/transport.ts';
+import type { VehicleKind, VehicleUnit } from '../game/transport.ts';
 import { directions } from './protocol.ts';
 import type { ClientMessage, Player, Profile, ServerMessage } from './protocol.ts';
 import type { VoiceSignal, VoiceSnapshot, VoicePayload, VoiceState } from '../audio/protocol.ts';
@@ -18,6 +19,8 @@ export type ConnectionHandlers = {
   left: (id: string) => void;
   voice: (snapshot: VoiceSnapshot) => void;
   voiceSignal: (signal: VoiceSignal) => void;
+  vehicles?: (units: VehicleUnit[]) => void;
+  vehicleResult?: (actionId: string, error?: string) => void;
   pets?: (roomId: RoomId, pets: RoomPet[]) => void;
   objects?: (roomId: RoomId, objects: RoomObject[]) => void;
   objectResult?: (editId: string, error?: string) => void;
@@ -105,6 +108,8 @@ export class OfficeConnection {
         if (player) this.slots.delete(player.slot);
         this.players.delete(message.id); this.handlers.left(message.id);
       }
+      else if (message.type === 'vehicles') this.handlers.vehicles?.(message.units);
+      else if (message.type === 'vehicle-result') this.handlers.vehicleResult?.(message.actionId, message.error);
       else if (message.type === 'pets') this.handlers.pets?.(message.roomId, message.pets);
       else if (message.type === 'reaction') this.handlers.reaction?.(message);
       else if (message.type === 'directory') this.handlers.directory?.(message.people, message.warning);
@@ -171,6 +176,11 @@ export class OfficeConnection {
     this.send({ type: 'reaction', kind }); return true;
   }
 
+  vehicle(kind: VehicleKind | null, actionId: string): boolean {
+    if (!this.online) return false;
+    this.send(kind ? { type: 'vehicle-take', kind, actionId } : { type: 'vehicle-return', actionId }); return true;
+  }
+
   reset(): void {
     if (this.online) this.request({ type: 'reset', requestId: ++this.sequence });
   }
@@ -179,7 +189,7 @@ export class OfficeConnection {
     if (this.warpRequest !== undefined) this.handlers.travelError?.('別の移動操作に切り替えました。');
     this.warpRequest = message.type === 'warp-to' ? message.requestId : undefined;
     this.pending = message.requestId;
-    this.nextRequestAt = performance.now() + STEP_MS;
+    this.nextRequestAt = performance.now() + movementStep(this.players.get(this.id ?? '')?.riding?.kind);
     window.clearTimeout(this.watchdog);
     this.watchdog = window.setTimeout(() => this.socket?.close(), 5000);
     this.send(message);

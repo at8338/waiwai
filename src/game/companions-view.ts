@@ -1,3 +1,4 @@
+import { movementStep } from './transport.ts';
 import Phaser from 'phaser';
 import { BUDDIES, buddyPixels, BUDDY_WIDTH, BUDDY_HEIGHT, PET_STEP_MS } from './buddies.ts';
 import type { BuddyKind, BuddyPosition, RoomPet } from './buddies.ts';
@@ -18,7 +19,7 @@ export class CompanionsView {
   remove(id: string): void { const view = this.views.get(id); view?.sprite.destroy(); view?.shadow.destroy(); this.views.delete(id); }
   player(player: Player, snap: boolean): void {
     if (player.roomId !== this.room || !player.buddy || !player.buddyPosition) { this.remove(player.id); return; }
-    this.receive(player.id, player.buddy, player.buddyPosition, `${player.name}さんのバディ`, snap, false);
+    this.receive(player.id, player.buddy, player.buddyPosition, `${player.name}さんのバディ`, snap, false, movementStep(player.riding?.kind));
   }
   pets(room: RoomId, pets: RoomPet[]): void {
     if (room !== this.room) return;
@@ -27,15 +28,16 @@ export class CompanionsView {
     for (const pet of pets) this.receive(pet.id, pet.kind, pet, `${getRoom(room).name}で暮らす${pet.kind === 'dog' ? '犬' : '猫'}`, false, true);
     this.scene.game.canvas.dataset.roomPets = JSON.stringify(pets);
   }
-  private receive(id: string, kind: BuddyKind, position: BuddyPosition, owner: string, snap: boolean, pet: boolean): void {
+  private receive(id: string, kind: BuddyKind, position: BuddyPosition, owner: string, snap: boolean, pet: boolean, stepMs?: number): void {
     let view = this.views.get(id);
     if (!view) {
       const sprite = this.scene.add.image(0, 0, this.texture(kind, position.facing, 0)).setOrigin(0.5, 1).setInteractive({ useHandCursor: true });
-      view = { sprite, shadow: this.scene.add.ellipse(0, 0, 10, 4, 0x384a3d, 0.16), walker: new Walker(pet ? PET_STEP_MS : undefined), kind, owner };
+      view = { sprite, shadow: this.scene.add.ellipse(0, 0, 10, 4, 0x384a3d, 0.16), walker: new Walker(pet ? PET_STEP_MS : stepMs), kind, owner };
       const created = view;
       sprite.on('pointerup', () => this.click(created.kind, created.owner));
       this.views.set(id, view); snap = true;
     }
+    if (stepMs) view.walker.setStepMs(stepMs);
     view.kind = kind; view.owner = owner; view.walker.receive(position, position.facing, snap);
   }
   private texture(kind: BuddyKind, direction: BuddyPosition['facing'], frame: number): string {
