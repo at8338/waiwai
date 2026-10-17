@@ -158,6 +158,11 @@ export class OfficeScene extends Phaser.Scene {
   private receivePlayer(player: Player, snap: boolean): void {
     this.players.set(player.id, player);
     if (player.id === this.localId) {
+      if (player.slackVerified) {
+        this.playerName = player.name;
+        this.slack = player.slack ?? null;
+        document.querySelector('#profile-name')!.textContent = player.name;
+      }
       this.walker.receive(player, player.facing, snap);
     } else {
       let peer = this.peers.get(player.id);
@@ -218,7 +223,7 @@ export class OfficeScene extends Phaser.Scene {
       name.textContent = player.name + (player.id === this.localId ? '（あなた）' : '');
       if (player.id !== this.localId) name.setAttribute('aria-label', `${player.name}さんのSlack DMを開く`);
       item.children[1].textContent = areaAt(player);
-      item.children[2].textContent = player.slack ? 'Slack設定済み' : 'Slack未設定';
+      item.children[2].textContent = player.slackVerified ? 'Slackログイン済み' : player.slack ? 'Slack手動設定' : 'Slack未設定';
     }
     document.querySelectorAll('[data-player-count]').forEach((element) => {
       const text = this.connected ? `${this.players.size}人が滞在中` : '接続を待っています';

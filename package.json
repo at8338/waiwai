@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22.18.0" },
+  "engines": {
+    "node": ">=22.18.0"
+  },
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "check": "tsc --noEmit",
@@ -12,7 +14,11 @@
     "preview": "node server/index.ts",
     "start": "node server/index.ts"
   },
-  "dependencies": { "phaser": "^3.90.0", "ws": "^8.18.3" },
+  "dependencies": {
+    "openid-client": "^6.8.8",
+    "phaser": "^3.90.0",
+    "ws": "^8.18.3"
+  },
   "devDependencies": {
     "@types/node": "^24.10.0",
     "@types/ws": "^8.18.1",

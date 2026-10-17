@@ -2,9 +2,22 @@ import './style.css';
 import { startOffice } from './game/OfficeScene.ts';
 import { parseSlackIdentity, readSlackSettings, SLACK_STORAGE_KEY } from './slack/dm.ts';
 import type { SlackIdentity } from './slack/dm.ts';
+import type { AuthStatus } from './slack/auth.ts';
+
+let auth: AuthStatus = { configured: false, loginUrl: null, user: null };
+let authUnavailable = false;
+try {
+  const response = await fetch('/api/auth/session', { credentials: 'same-origin', signal: AbortSignal.timeout(5000), cache: 'no-store' });
+  if (!response.ok) throw new Error('Session unavailable');
+  auth = await response.json() as AuthStatus;
+} catch { authUnavailable = true; }
 
 let initialSlack: SlackIdentity | null = null;
 try { initialSlack = readSlackSettings(window.sessionStorage.getItem(SLACK_STORAGE_KEY)); } catch { /* Settings remain available in memory. */ }
+if (auth.user) {
+  initialSlack = auth.user.slack;
+  try { window.sessionStorage.removeItem(SLACK_STORAGE_KEY); } catch { /* No browser persistence is needed for authenticated profiles. */ }
+}
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML = `
@@ -39,6 +52,14 @@ app.innerHTML = `
       <div class="version">WAIWAI <span>はじまりのバージョン / 0.1</span></div>
     </aside>
     <section class="office-view" aria-labelledby="map-title">
+      <section class="slack-login" aria-labelledby="slack-login-title">
+        <h2 class="section-label" id="slack-login-title">Slackでログイン</h2>
+        <p id="slack-login-status" role="status"></p>
+        <a id="slack-login-link" class="slack-login-button" hidden><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="#36c5f0" d="M5 14a2 2 0 1 1-2-2h2zm1 0a2 2 0 0 1 4 0v6a2 2 0 0 1-4 0z"/><path fill="#2eb67d" d="M10 5a2 2 0 1 1 2-2v2zm0 1a2 2 0 0 1 0 4H4a2 2 0 0 1 0-4z"/><path fill="#ecb22e" d="M19 10a2 2 0 1 1 2 2h-2zm-1 0a2 2 0 0 1-4 0V4a2 2 0 0 1 4 0z"/><path fill="#e01e5a" d="M14 19a2 2 0 1 1-2 2v-2zm0-1a2 2 0 0 1 0-4h6a2 2 0 0 1 0 4z"/></svg>Sign in with Slack</a>
+        <button type="button" id="slack-logout" hidden>ログアウト</button>
+        <button type="button" id="slack-auth-retry" hidden>ログイン状態を再確認</button>
+        <p id="slack-login-help">ログインすると、名前とSlack IDが自動で設定されます。</p>
+      </section>
       <div class="map-heading"><div><span class="eyebrow">LET’S TAKE A LITTLE WALK</span><h2 id="map-title">小さなオフィスへ、ようこそ。</h2></div><button type="button" class="help-button" id="help-button" aria-label="操作方法を表示">?</button></div>
       <div class="game-frame">
         <div class="game-topline"><span><i></i> <span data-current-area>エントランス</span></span><span>ひだまりオフィス <b>1F</b></span></div>
@@ -64,12 +85,53 @@ app.innerHTML = `
 
 const parent = document.querySelector<HTMLElement>('#game')!;
 const { game, scene } = startOffice(parent, initialSlack);
+const nameInput = document.querySelector<HTMLInputElement>('#display-name')!;
+const loginStatus = document.querySelector<HTMLElement>('#slack-login-status')!;
+const loginLink = document.querySelector<HTMLAnchorElement>('#slack-login-link')!;
+const logout = document.querySelector<HTMLButtonElement>('#slack-logout')!;
+const retry = document.querySelector<HTMLButtonElement>('#slack-auth-retry')!;
+loginStatus.textContent = authUnavailable ? 'ログイン状態を確認できませんでした。再確認してください。'
+  : auth.user ? `${auth.user.name}さんでログイン中`
+  : auth.configured ? 'ゲストとして入室しています。' : 'Slackログインは準備中です。管理者の連携設定後に利用できます。';
+if (!authUnavailable && auth.loginUrl) { loginLink.href = auth.loginUrl; loginLink.hidden = !!auth.user; }
+logout.hidden = !auth.user;
+retry.hidden = !authUnavailable;
+retry.addEventListener('click', () => window.location.reload());
+if (auth.user) {
+  document.querySelector('#slack-login-help')!.textContent = '名前とSlack IDはSlackのプロフィールを使用しています。';
+  nameInput.value = auth.user.name;
+  nameInput.readOnly = true;
+  scene.setName(auth.user.name);
+  document.querySelector('#profile-name')!.textContent = auth.user.name;
+  document.querySelector('#name-hint')!.textContent = 'Slackの名前を自動設定しています。';
+}
+const callbackStatus = new URL(window.location.href).searchParams.get('login');
+if (callbackStatus === 'failed' || callbackStatus === 'expired') {
+  loginStatus.textContent = callbackStatus === 'expired' ? 'ログインの有効時間が切れました。もう一度お試しください。' : 'Slackログインを完了できませんでした。キャンセルした場合も、もう一度試せます。';
+  const cleanUrl = new URL(window.location.href); cleanUrl.searchParams.delete('login');
+  window.history.replaceState(null, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
+}
+logout.addEventListener('click', async () => {
+  logout.disabled = true;
+  try {
+    const response = await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin', signal: AbortSignal.timeout(5000) });
+    if (!response.ok) throw new Error('Logout failed');
+    window.location.reload();
+  } catch { loginStatus.textContent = 'ログアウトできませんでした。もう一度お試しください。'; logout.disabled = false; }
+});
 const slackTeam = document.querySelector<HTMLInputElement>('#slack-team-id')!;
 const slackUser = document.querySelector<HTMLInputElement>('#slack-user-id')!;
 const slackStatus = document.querySelector<HTMLElement>('#slack-settings-status')!;
 slackTeam.value = initialSlack?.teamId ?? '';
 slackUser.value = initialSlack?.userId ?? '';
+if (auth.user || authUnavailable) {
+  slackTeam.readOnly = true; slackUser.readOnly = true;
+  document.querySelector<HTMLElement>('.slack-settings-buttons')!.hidden = true;
+  document.querySelector('#slack-settings-help')!.textContent = auth.user ? 'Slackログインから自動設定され、接続中の参加者に共有されます。' : 'ログイン状態の再確認後に設定できます。';
+  slackStatus.textContent = auth.user ? 'Slackログイン済みです。手動設定は不要です。' : 'ログイン状態を確認できていません。';
+}
 const saveSlack = (identity: SlackIdentity | null) => {
+  if (auth.user || authUnavailable) return;
   scene.setSlack(identity);
   let stored = true;
   try {
