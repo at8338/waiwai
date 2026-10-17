@@ -1,0 +1,10 @@
+subscription_id = "00000000-0000-0000-0000-000000000000"
+location = "japaneast"
+project_name = "waiwai"
+instance_number = 1
+vm_size = "Standard_B2als_v2"
+vnet_cidr = "10.83.0.0/16"
+admin_cidr = "203.0.113.10/32" # Replace with company VPN/operator public IPv4 CIDR.
+ssh_public_key = "ssh-ed25519 REPLACE_WITH_PUBLIC_KEY"
+acme_email = "ops@example.com"
+tags = { owner = "office-team", cost_center = "REPLACE_WITH_COMPANY_VALUE" }

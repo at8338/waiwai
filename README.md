@@ -323,3 +323,7 @@ Vite + TypeScript + Phaser 3に、Node.js + `ws` の同期サーバーを加え�
 ## Azure / Terraform
 
 固定URL、HTTPS、音声中継、Slack入室制限を含む構成と、このMacのツール設定は[Azure公開手順](docs/azure.md)を参照してください。
+
+## Azure IaC（dev）
+
+アプリと同じリポジトリの `infra/` でTerraformを管理します。現在はdevのみで、命名・タグの共通化とリソース種別ごとのファイル分割を行っています。[IaC入口](infra/README.md)、[設計書](docs/infrastructure/azure-design.md)、[命名規則](docs/infrastructure/naming.md)、[構築手順](docs/azure.md)を参照してください。認証不要の検証は `npm run infra:check`。CIは検証のみでAzureへapplyしません。
