@@ -4,7 +4,8 @@ import { attachOffice } from './server/office.ts';
 import { readAuthConfig, SlackAuth } from './server/auth.ts';
 
 export default defineConfig(({ mode }) => {
-  const config = readAuthConfig({ ...loadEnv(mode, process.cwd(), ''), ...process.env });
+  const env = { ...loadEnv(mode, process.cwd(), ''), ...process.env };
+  const config = readAuthConfig(env);
   return {
     server: { allowedHosts: config ? [new URL(config.redirectUri).hostname] : [] },
     plugins: [{
@@ -16,7 +17,7 @@ export default defineConfig(({ mode }) => {
             .catch(() => { response.writeHead(500).end('Authentication unavailable'); });
         });
         if (server.httpServer) {
-          const close = attachOffice(server.httpServer as Server, auth);
+          const close = attachOffice(server.httpServer as Server, auth, { objectsFile: env.WAIWAI_DATA_FILE ?? '.local/office-objects.json' });
           server.httpServer.once('close', () => { close(); auth.close(); });
         }
       },

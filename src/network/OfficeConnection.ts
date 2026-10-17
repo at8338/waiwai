@@ -1,3 +1,5 @@
+import type { RoomId } from '../game/rooms.ts';
+import type { RoomObject } from '../game/objects.ts';
 import type { Direction } from '../game/world.ts';
 import { STEP_MS } from '../game/world.ts';
 import { directions } from './protocol.ts';
@@ -12,6 +14,8 @@ export type ConnectionHandlers = {
   left: (id: string) => void;
   voice: (snapshot: VoiceSnapshot) => void;
   voiceSignal: (signal: VoiceSignal) => void;
+  objects?: (roomId: RoomId, objects: RoomObject[]) => void;
+  objectResult?: (editId: string, error?: string) => void;
 };
 
 export class OfficeConnection {
@@ -68,7 +72,7 @@ export class OfficeConnection {
         }
         this.players.set(message.player.id, message.player);
         this.slots.set(message.player.slot, message.player.id);
-        this.handlers.player(message.player, message.reason === 'reset' || message.reason === 'join');
+        this.handlers.player(message.player, message.reason === 'reset' || message.reason === 'join' || message.reason === 'room');
       } else if (message.type === 'positions') {
         for (const [slot, x, y, flags] of message.positions) {
           const id = this.slots.get(slot);
@@ -85,6 +89,8 @@ export class OfficeConnection {
         if (player) this.slots.delete(player.slot);
         this.players.delete(message.id); this.handlers.left(message.id);
       }
+      else if (message.type === 'objects') this.handlers.objects?.(message.roomId, message.objects);
+      else if (message.type === 'object-result') this.handlers.objectResult?.(message.editId, message.error);
       else if (message.type === 'voice') this.handlers.voice(message);
       else if (message.type === 'voice-signal') this.handlers.voiceSignal(message);
     };
@@ -118,6 +124,12 @@ export class OfficeConnection {
     if (!this.readyToMove) return;
     this.request({ type: 'move', direction, requestId: ++this.sequence });
   }
+
+  changeRoom(roomId: RoomId): void {
+    if (this.online) this.request({ type: 'change-room', roomId, requestId: ++this.sequence });
+  }
+
+  editObject(message: Extract<ClientMessage, { editId: string }>): void { if (this.online) this.send(message); }
 
   reset(): void {
     if (this.online) this.request({ type: 'reset', requestId: ++this.sequence });

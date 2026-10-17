@@ -11,7 +11,7 @@ function roomAt(points: Array<{ x: number; y: number }>) {
   const snapshots = new Map<WebSocket, VoiceSnapshot>();
   const sockets = points.map((point, i) => {
     const ws = {} as WebSocket;
-    players.set(ws, { id: `member-${String(i).padStart(2, '0')}`, slot: i + 1, name: '声', outfit: 0, facing: 'down', ...point });
+    players.set(ws, { id: `member-${String(i).padStart(2, '0')}`, slot: i + 1, roomId: 'office', name: '声', outfit: 0, facing: 'down', ...point });
     return ws;
   });
   const room = new VoiceRoom(players, (ws, message: ServerMessage) => {

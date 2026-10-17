@@ -1,3 +1,6 @@
+import { setupAvatarEditor } from './game/avatar-editor.ts';
+import { ROOMS } from './game/rooms.ts';
+import { OBJECT_CATALOG, OBJECT_KINDS } from './game/objects.ts';
 import './style.css';
 import { startOffice } from './game/OfficeScene.ts';
 import { parseSlackIdentity, readSlackSettings, SLACK_STORAGE_KEY } from './slack/dm.ts';
@@ -29,13 +32,14 @@ app.innerHTML = `
   <main class="workspace">
     <aside class="sidebar" aria-label="オフィス情報とアバター設定">
       <div class="office-heading"><span class="eyebrow">YOUR LITTLE OFFICE</span><h1>ひだまり<br>オフィス<span class="sun" aria-hidden="true">✳</span></h1><p>今日も、ここから。</p></div>
-      <div class="room-card"><span class="room-icon" aria-hidden="true">▦</span><div><strong>ひだまりオフィス</strong><span>1F / <span data-player-count>接続を待っています</span></span></div><span class="room-dot" aria-hidden="true"></span></div>
+      <div class="room-card"><span class="room-icon" aria-hidden="true">▦</span><div><strong data-room-name>ひだまりオフィス</strong><span>全フロア / <span data-player-count>接続を待っています</span></span></div><span class="room-dot" aria-hidden="true"></span></div>
       <section class="profile-section" aria-labelledby="profile-heading">
         <h2 id="profile-heading" class="section-label">あなたのアバター</h2>
-        <div class="profile-top"><div class="avatar-preview" aria-hidden="true"><div class="pixel-person"></div></div><div><strong id="profile-name">あなた</strong><span class="profile-presence"><i></i> <span id="profile-presence">接続を待っています</span></span></div></div>
+        <div class="profile-top"><div class="avatar-preview" aria-hidden="true"><canvas id="avatar-preview" width="20" height="28" aria-label="アバターのプレビュー"></canvas></div><div><strong id="profile-name">あなた</strong><span class="profile-presence"><i></i> <span id="profile-presence">接続を待っています</span></span></div></div>
         <label for="display-name">なまえ</label><input id="display-name" type="text" maxlength="12" placeholder="あなた" autocomplete="off" aria-describedby="name-hint" />
         <span class="field-hint" id="name-hint">12文字まで。いつでも変更できます。</span>
         <fieldset class="color-picker"><legend>ふくの色</legend><button type="button" class="swatch green" data-outfit="0" aria-label="みどりの服" aria-pressed="true"></button><button type="button" class="swatch orange" data-outfit="1" aria-label="オレンジの服" aria-pressed="false"></button><button type="button" class="swatch blue" data-outfit="2" aria-label="あおの服" aria-pressed="false"></button></fieldset>
+        <button type="button" id="avatar-edit" class="avatar-edit">見た目を変える</button>
       </section>
       <section class="slack-settings" aria-labelledby="slack-settings-title">
         <h2 class="section-label" id="slack-settings-title">あなたのSlack</h2>
@@ -47,7 +51,7 @@ app.innerHTML = `
           <p id="slack-settings-status" role="status">Slackアプリで相手のDMを開けます。</p>
         </form>
       </section>
-      <section class="participants-section" aria-labelledby="participants-title"><h2 class="section-label" id="participants-title">いま、このオフィスに</h2><p class="participant-count" data-player-count aria-live="polite">接続を待っています</p><ul id="participants" aria-label="参加者一覧"></ul></section>
+      <section class="participants-section" aria-labelledby="participants-title"><h2 class="section-label" id="participants-title">この部屋にいる人</h2><p class="participant-count" data-room-count aria-live="polite">接続を待っています</p><ul id="participants" aria-label="参加者一覧"></ul></section>
       <div class="sidebar-note"><span aria-hidden="true">✦</span><p>まずは、のんびり歩いてみよう。<br>お気に入りの席が見つかるかも。</p></div>
       <div class="version">WAIWAI <span>はじまりのバージョン / 0.1</span></div>
     </aside>
@@ -61,12 +65,19 @@ app.innerHTML = `
         <p id="slack-login-help">ログインすると、名前とSlack IDが自動で設定されます。</p>
       </section>
       <div class="map-heading"><div><span class="eyebrow">LET’S TAKE A LITTLE WALK</span><h2 id="map-title">小さなオフィスへ、ようこそ。</h2></div><button type="button" class="help-button" id="help-button" aria-label="操作方法を表示">?</button></div>
+      <section class="room-switcher" aria-label="フロア移動"><div><span class="eyebrow">11 ROOMS TO EXPLORE</span><strong data-room-name>ひだまりオフィス</strong><p id="room-description"></p></div><button type="button" id="room-picker-open">部屋を移動 <span aria-hidden="true">↗</span></button></section>
       <div class="game-frame">
-        <div class="game-topline"><span><i></i> <span data-current-area>エントランス</span></span><span>ひだまりオフィス <b>1F</b></span></div>
+        <div class="game-topline"><span><i></i> <span data-current-area>エントランス</span></span><span><span data-room-name>ひだまりオフィス</span> <b id="room-number">01</b></span></div>
         <div class="map-surround"><div id="game" aria-describedby="map-instructions"><p class="loading">オフィスを準備しています…</p></div></div>
         <div class="game-bottomline"><span class="location"><span aria-hidden="true">⌖</span> <span data-current-area>エントランス</span></span><span>歩いて、お気に入りの場所へ。</span></div>
       </div>
       <div class="under-map"><p id="map-instructions"><span class="keycaps"><kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd></span><span>または <strong>W A S D</strong> で移動 <span class="instruction-extra">· マップをクリックして操作</span></span></p><button type="button" class="reset-button" id="reset-position"><span aria-hidden="true">↩</span> 入口にもどる</button></div>
+      <section id="object-tools" class="object-tools" aria-labelledby="object-title">
+        <div class="object-heading"><h2 id="object-title">小物で、じぶんたちの部屋に。</h2><span id="object-count">0 / 60</span></div>
+        <div class="object-actions"><label for="object-kind">置くもの<select id="object-kind">${OBJECT_KINDS.map((kind) => `<option value="${kind}">${OBJECT_CATALOG[kind].icon} ${OBJECT_CATALOG[kind].name}</option>`).join('')}</select></label>
+        <button type="button" data-object-mode="place" aria-pressed="false" disabled>置く</button><button type="button" data-object-mode="move" aria-pressed="false" disabled>動かす</button><button type="button" data-object-mode="remove" aria-pressed="false" disabled>片づける</button><button type="button" id="object-rotate" disabled>回転 0°</button><button type="button" data-object-mode="none" aria-pressed="true">おわる</button></div>
+        <p id="object-status" role="status">小物を選び、「置く」を押してマップをクリック。配置はみんなに共有されます。</p>
+      </section>
       <p class="slack-map-hint">相手のアバター・名前をクリックすると、設定されたSlackのDMを開きます。</p>
       <section id="slack-target" class="slack-target" aria-labelledby="slack-target-name" hidden><h2 id="slack-target-name"></h2><p id="slack-target-message" role="status"></p><code id="slack-target-ids"></code><a id="slack-dm-link" hidden>SlackアプリでDMを開く</a></section>
       <div class="touch-controls" aria-label="移動ボタン"><button type="button" data-direction="up" aria-label="上へ移動">↑</button><button type="button" data-direction="left" aria-label="左へ移動">←</button><span aria-hidden="true">✦</span><button type="button" data-direction="right" aria-label="右へ移動">→</button><button type="button" data-direction="down" aria-label="下へ移動">↓</button></div>
@@ -80,11 +91,14 @@ app.innerHTML = `
     </section>
   </main>
   <footer class="page-footer"><span>離れていても、おなじ場所に。</span><span>MADE FOR LITTLE ENCOUNTERS <span aria-hidden="true">✦</span></span></footer>
+  <dialog id="avatar-dialog" class="avatar-dialog" aria-labelledby="avatar-title"><form id="avatar-form"><span class="eyebrow">MAKE YOUR OWN CHARACTER</span><h2 id="avatar-title">あなたらしい姿に。</h2><div class="avatar-editor-layout"><div class="avatar-draft-backdrop"><canvas id="avatar-draft" width="20" height="28" aria-label="変更中のアバター"></canvas><p>性別や体型にかかわらず<br>すべての服と髪型を選べます。</p></div><div id="avatar-fields"></div></div><div class="dialog-actions"><button type="button" id="avatar-cancel">キャンセル</button><button type="submit">この見た目にする</button></div></form></dialog>
+  <dialog id="room-dialog" class="room-dialog" aria-labelledby="room-dialog-title"><span class="eyebrow">FIND YOUR NEXT PLACE</span><h2 id="room-dialog-title">どの部屋へ行こう？</h2><p>部屋を変えると、移動先の近くの人と音声がつながります。</p><div class="room-grid">${ROOMS.map((room, i) => `<button type="button" data-room="${room.id}" style="--card-accent:#${room.rug.toString(16)}"><span class="room-card-number">${String(i + 1).padStart(2, '0')} / ${room.icon}</span><strong>${room.name}</strong><span>${room.description}</span><small data-room-occupancy="${room.id}">0人</small></button>`).join('')}</div><form method="dialog"><button class="dialog-close">いまの部屋にもどる</button></form></dialog>
   <dialog id="help-dialog" aria-labelledby="help-title"><span class="eyebrow">HOW TO WALK</span><h2 id="help-title">オフィスを歩いてみよう</h2><p>マップをクリックするか、Tabキーでマップにフォーカスしてから、<strong>矢印キー / WASD</strong> を押すと移動します。</p><p>スマートフォンやタブレットでは、マップ下の方向ボタンを使えます。</p><p>壁や家具のあるマスは通れません。部屋の入口を探してみてください。</p><p>「入口にもどる」で最初の場所に戻れます。Tabキーでマップの操作を抜けられます。</p><form method="dialog"><button class="dialog-close">わかった、歩いてみる</button></form></dialog>
 `;
 
 const parent = document.querySelector<HTMLElement>('#game')!;
 const { game, scene } = startOffice(parent, initialSlack, authUnavailable || (!!auth.required && !auth.user));
+setupAvatarEditor(scene);
 const nameInput = document.querySelector<HTMLInputElement>('#display-name')!;
 const loginStatus = document.querySelector<HTMLElement>('#slack-login-status')!;
 const loginLink = document.querySelector<HTMLAnchorElement>('#slack-login-link')!;
@@ -164,18 +178,10 @@ document.querySelector<HTMLInputElement>('#display-name')!.addEventListener('inp
   document.querySelector('#profile-name')!.textContent = name.trim() || 'あなた';
 });
 
-document.querySelectorAll<HTMLButtonElement>('[data-outfit]').forEach((button) => {
-  button.addEventListener('click', () => {
-    const color = Number(button.dataset.outfit);
-    scene.setOutfit(color);
-    document.querySelectorAll('[data-outfit]').forEach((swatch) => swatch.setAttribute('aria-pressed', String(swatch === button)));
-    const colors = ['#668d77', '#c17b5e', '#698aab'];
-    document.querySelector<HTMLElement>('.pixel-person')!.style.setProperty('--shirt', colors[color]);
-  });
-});
-
 const dialog = document.querySelector<HTMLDialogElement>('#help-dialog')!;
 document.querySelector('#help-button')!.addEventListener('click', () => dialog.showModal());
 dialog.addEventListener('close', () => game.canvas.focus({ preventScroll: true }));
+
+document.querySelectorAll<HTMLDialogElement>('#avatar-dialog, #room-dialog').forEach((item) => item.addEventListener('close', () => game.canvas.focus({ preventScroll: true })));
 
 if (import.meta.hot) import.meta.hot.dispose(() => game.destroy(true));

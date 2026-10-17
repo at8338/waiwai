@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { createAvatarTextures, drawOffice } from './art.ts';
+import { avatarTexture, createAvatarTextures, drawOffice, drawRoomObject } from './art.ts';
 import { Controls } from './controls.ts';
 import { Walker, areaAt, COLS, ROWS, TILE } from './world.ts';
 import type { Direction } from './world.ts';
@@ -10,6 +10,12 @@ import { ProximityVoice } from '../audio/ProximityVoice.ts';
 import type { VoiceUI } from '../audio/ProximityVoice.ts';
 import { activateSlackDM, slackDMUrl } from '../slack/dm.ts';
 import type { SlackIdentity } from '../slack/dm.ts';
+import { DEFAULT_APPEARANCE, parseAppearance } from './avatar.ts';
+import type { Appearance } from './avatar.ts';
+import { ROOMS, getRoom } from './rooms.ts';
+import type { RoomId } from './rooms.ts';
+import { MAX_ROOM_OBJECTS, OBJECT_CATALOG, placementProblem } from './objects.ts';
+import type { ObjectKind, RoomObject } from './objects.ts';
 
 type AvatarView = {
   sprite: Phaser.GameObjects.Image;
@@ -38,13 +44,26 @@ export class OfficeScene extends Phaser.Scene {
   private participantsDirty = false;
   private lastParticipantsAt = 0;
   private loginRequired: boolean;
+  private appearance: Appearance = { ...DEFAULT_APPEARANCE };
+  private roomId: RoomId = 'office';
+  private mapViews: Phaser.GameObjects.GameObject[] = [];
+  private objects: RoomObject[] = [];
+  private objectViews: Phaser.GameObjects.Graphics[] = [];
+  private objectsReady = false;
+  private editMode: 'none' | 'place' | 'move' | 'remove' = 'none';
+  private objectKind: ObjectKind = 'plant';
+  private objectRotation = 0;
+  private selectedObject?: string;
+  private pendingEdit?: string;
+  private ghost?: Phaser.GameObjects.Graphics;
+  private atDoor = false;
 
   constructor(slack: SlackIdentity | null = null, loginRequired = false) { super('office'); this.slack = slack; this.loginRequired = loginRequired; }
 
   private makeAvatar(local: boolean): AvatarView {
     const shadow = this.add.graphics();
     shadow.fillStyle(0x6e684b, 0.3).fillRect(-6, -1, 12, 3);
-    const sprite = this.add.image(0, 0, 'avatar-0-down-0').setOrigin(0.5, 1);
+    const sprite = this.add.image(0, 0, avatarTexture(this, this.appearance, 'down', 0)).setOrigin(0.5, 1);
     const label = this.add.text(0, 0, '', {
       fontFamily: 'sans-serif', fontSize: '8px', color: '#fff9e6',
       backgroundColor: local ? '#355b49' : '#786346', padding: { x: 3, y: 2 },
@@ -53,10 +72,11 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   create(): void {
-    drawOffice(this);
+    this.mapViews = drawOffice(this, this.roomId);
     createAvatarTextures(this);
     this.avatar = this.makeAvatar(true);
     this.controls.attach(this.game.canvas);
+    this.setupRoomTools();
     document.querySelector('#participants')?.addEventListener('click', (event) => {
       const target = (event.target as Element).closest<HTMLButtonElement>('[data-dm-player]');
       if (target) this.openSlackDM(target.dataset.dmPlayer!);
@@ -86,10 +106,23 @@ export class OfficeScene extends Phaser.Scene {
         this.clearPeers();
         this.players.clear();
         this.localId = id;
+        this.showRoom(players.find((p) => p.id === id)?.roomId ?? 'office');
         for (const player of players) this.receivePlayer(player, true);
       },
       player: (player, snap) => this.receivePlayer(player, snap),
       left: (id) => this.removePlayer(id),
+      objects: (roomId, objects) => {
+        if (roomId !== this.roomId) return;
+        this.objects = objects; this.objectsReady = true; this.drawObjects(); this.updateObjectTools();
+      },
+      objectResult: (editId, error) => {
+        if (editId !== this.pendingEdit) return;
+        this.pendingEdit = undefined;
+        this.objectStatus(error ?? '小物を保存しました。');
+        if (!error) this.selectedObject = undefined;
+        this.ghost?.destroy(); this.ghost = undefined;
+        this.updateObjectTools();
+      },
       voice: (snapshot) => this.voice?.accept(snapshot),
       voiceSignal: (signal) => this.voice?.signal(signal),
     });
@@ -119,6 +152,8 @@ export class OfficeScene extends Phaser.Scene {
       this.clearPeers();
       this.players.clear();
       this.localId = undefined;
+      this.objectsReady = false;
+      this.setEditMode('none');
       if (this.selectedPlayer) this.renderSlackTarget();
     }
     const messages = {
@@ -132,6 +167,7 @@ export class OfficeScene extends Phaser.Scene {
     document.querySelector('#profile-presence')!.textContent = this.connected ? 'オフィスにいます' : '接続を待っています';
     (document.querySelector('#reset-position') as HTMLButtonElement).disabled = !this.connected;
     this.renderParticipants();
+    this.updateObjectTools();
   }
 
   private renderVoice(state: VoiceUI): void {
@@ -165,20 +201,25 @@ export class OfficeScene extends Phaser.Scene {
   private receivePlayer(player: Player, snap: boolean): void {
     this.players.set(player.id, player);
     if (player.id === this.localId) {
+      if (player.roomId !== this.roomId) this.showRoom(player.roomId);
       if (player.slackVerified) {
         this.playerName = player.name;
         this.slack = player.slack ?? null;
         document.querySelector('#profile-name')!.textContent = player.name;
       }
       this.walker.receive(player, player.facing, snap);
+    } else if (player.roomId !== this.roomId) {
+      const peer = this.peers.get(player.id);
+      if (peer) this.destroyView(peer.view);
+      this.peers.delete(player.id);
     } else {
       let peer = this.peers.get(player.id);
       if (!peer) {
         peer = { player, walker: new Walker(), view: this.makeAvatar(false) };
         peer.view.sprite.setInteractive({ useHandCursor: true })
-          .on('pointerup', () => this.openSlackDM(player.id));
+          .on('pointerup', () => { if (this.editMode === 'none') this.openSlackDM(player.id); });
         peer.view.label.setInteractive({ useHandCursor: true })
-          .on('pointerup', () => this.openSlackDM(player.id));
+          .on('pointerup', () => { if (this.editMode === 'none') this.openSlackDM(player.id); });
         this.peers.set(player.id, peer);
         snap = true;
       }
@@ -204,8 +245,9 @@ export class OfficeScene extends Phaser.Scene {
     const list = document.querySelector('#participants')!;
     // Preserve keyboard focus while positions, names, or Slack settings change.
     const existing = new Map([...list.children].map((element) => [(element as HTMLElement).dataset.playerId, element as HTMLElement]));
-    for (const [id, item] of existing) if (!id || !this.players.has(id)) item.remove();
+    for (const [id, item] of existing) if (!id || this.players.get(id)?.roomId !== this.roomId) item.remove();
     for (const player of this.players.values()) {
+      if (player.roomId !== this.roomId) continue;
       let item = existing.get(player.id);
       if (!item) {
         item = document.createElement('li');
@@ -225,6 +267,7 @@ export class OfficeScene extends Phaser.Scene {
       item.dataset.tileX = String(player.x);
       item.dataset.tileY = String(player.y);
       item.dataset.outfit = String(player.outfit);
+      item.dataset.roomId = player.roomId;
       item.dataset.speaking = String(this.speaking.has(player.id));
       const name = item.children[0];
       name.textContent = player.name + (player.id === this.localId ? '（あなた）' : '');
@@ -236,6 +279,13 @@ export class OfficeScene extends Phaser.Scene {
       const text = this.connected ? `${this.players.size}人が滞在中` : '接続を待っています';
       if (element.textContent !== text) element.textContent = text;
     });
+    const localCount = [...this.players.values()].filter((p) => p.roomId === this.roomId).length;
+    document.querySelectorAll('[data-room-count]').forEach((node) => { node.textContent = `${localCount}人がこの部屋にいます`; });
+    for (const room of ROOMS) {
+      const count = [...this.players.values()].filter((p) => p.roomId === room.id).length;
+      const label = document.querySelector(`[data-room-occupancy="${room.id}"]`);
+      if (label) label.textContent = `${count}人${room.id === this.roomId ? ' · いまここ' : ''}`;
+    }
   }
 
   setName(name: string): void {
@@ -244,14 +294,15 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   setOutfit(color: number): void {
-    this.outfit = color;
-    this.sendProfile();
+    this.setAppearance({ ...this.appearance, color });
   }
+
+  setAppearance(appearance: Appearance): void { this.appearance = { ...appearance }; this.outfit = Math.min(appearance.color, 2); this.sendProfile(); }
 
   setSlack(slack: SlackIdentity | null): void { this.slack = slack; this.sendProfile(); }
 
   private sendProfile(): void {
-    this.connection?.setProfile({ name: this.playerName, outfit: this.outfit, slack: this.slack });
+    this.connection?.setProfile({ name: this.playerName, outfit: this.outfit, appearance: this.appearance, slack: this.slack });
   }
 
   private openSlackDM(id: string): void {
@@ -269,7 +320,8 @@ export class OfficeScene extends Phaser.Scene {
   private renderSlackTarget(): void {
     const card = document.querySelector<HTMLElement>('#slack-target')!;
     card.hidden = false;
-    const player = this.selectedPlayer ? this.players.get(this.selectedPlayer) : undefined;
+    const selected = this.selectedPlayer ? this.players.get(this.selectedPlayer) : undefined;
+    const player = selected?.roomId === this.roomId ? selected : undefined;
     const link = document.querySelector<HTMLAnchorElement>('#slack-dm-link')!;
     const url = player && this.connected ? slackDMUrl(player.slack) : undefined;
     document.querySelector('#slack-target-name')!.textContent = player ? `${player.name}さんのSlack DM` : '相手はオフィスにいません';
@@ -283,11 +335,132 @@ export class OfficeScene extends Phaser.Scene {
     else { link.removeAttribute('href'); link.hidden = true; }
   }
 
-  private drawAvatar(view: AvatarView, walker: Walker, outfit: number, name: string, time: number): void {
+  private openRoomPicker(): void {
+    this.controls.clear();
+    const dialog = document.querySelector<HTMLDialogElement>('#room-dialog')!;
+    if (!dialog.open) dialog.showModal();
+  }
+
+  private showRoom(id: RoomId): void {
+    this.roomId = id;
+    this.atDoor = false;
+    this.lastArea = '';
+    this.clearPeers();
+    this.setEditMode('none');
+    this.objects = []; this.objectsReady = false; this.pendingEdit = undefined;
+    for (const view of [...this.mapViews, ...this.objectViews]) view.destroy();
+    this.objectViews = [];
+    this.mapViews = drawOffice(this, id);
+    const room = getRoom(id);
+    this.game.canvas.setAttribute('aria-label', `${room.name}。矢印キーまたはWASDで移動。Tabキーでマップから移動できます。`);
+    document.querySelectorAll('[data-room-name]').forEach((node) => { node.textContent = room.name; });
+    document.querySelector('#room-description')!.textContent = room.description;
+    document.querySelector('#map-title')!.textContent = `${room.name}へ、ようこそ。`;
+    document.querySelector('#room-number')!.textContent = String(ROOMS.indexOf(room) + 1).padStart(2, '0');
+    document.querySelector('.map-legend')!.textContent = `${room.description} 近づいて会話、クリックしてSlackへ。`;
+    for (const button of document.querySelectorAll<HTMLButtonElement>('[data-room]')) button.disabled = button.dataset.room === id;
+    // Other-room roster entries are kept for occupancy, but avatars stay local.
+    for (const player of this.players.values()) if (player.id !== this.localId && player.roomId === id) this.receivePlayer(player, true);
+    if (this.selectedPlayer) this.renderSlackTarget();
+    this.updateObjectTools();
+  }
+
+  private setupRoomTools(): void {
+    const signal = this.inputController.signal;
+    document.querySelector('#room-picker-open')!.addEventListener('click', () => this.openRoomPicker(), { signal });
+    for (const button of document.querySelectorAll<HTMLButtonElement>('[data-room]')) button.addEventListener('click', () => {
+      if (!this.connected) return;
+      this.controls.clear();
+      this.connection?.changeRoom(button.dataset.room as RoomId);
+      document.querySelector<HTMLDialogElement>('#room-dialog')!.close();
+    }, { signal });
+    for (const button of document.querySelectorAll<HTMLButtonElement>('[data-object-mode]')) button.addEventListener('click', () => {
+      this.setEditMode(button.dataset.objectMode as typeof this.editMode);
+    }, { signal });
+    document.querySelector<HTMLSelectElement>('#object-kind')!.addEventListener('change', (event) => {
+      this.objectKind = (event.target as HTMLSelectElement).value as ObjectKind;
+      this.setEditMode('place');
+    }, { signal });
+    document.querySelector('#object-rotate')!.addEventListener('click', () => { this.objectRotation = (this.objectRotation + 1) % 4; this.updateObjectTools(); }, { signal });
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') this.setEditMode('none'); }, { signal });
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => this.previewObject(pointer));
+    this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => this.editAt(pointer));
+  }
+
+  private owner(): string {
+    const player = this.localId ? this.players.get(this.localId) : undefined;
+    return player?.slackVerified && player.slack ? `slack:${player.slack.teamId}:${player.slack.userId}` : `guest:${this.localId}`;
+  }
+  private objectStatus(message: string): void { document.querySelector('#object-status')!.textContent = message; }
+  private updateObjectTools(): void {
+    for (const button of document.querySelectorAll<HTMLButtonElement>('[data-object-mode]')) {
+      button.setAttribute('aria-pressed', String(button.dataset.objectMode === this.editMode));
+      button.disabled = button.dataset.objectMode !== 'none' && (!this.connected || !this.objectsReady || !!this.pendingEdit);
+    }
+    const rotate = document.querySelector<HTMLButtonElement>('#object-rotate')!;
+    rotate.textContent = `回転 ${this.objectRotation * 90}°`;
+    rotate.disabled = this.editMode === 'none' || this.editMode === 'remove' || !!this.pendingEdit;
+    document.querySelector('#object-count')!.textContent = `${this.objects.length} / ${MAX_ROOM_OBJECTS}`;
+    this.game.canvas.style.cursor = this.editMode === 'none' ? 'default' : 'crosshair';
+  }
+  private setEditMode(mode: typeof this.editMode): void {
+    this.editMode = mode;
+    this.selectedObject = undefined;
+    this.ghost?.destroy(); this.ghost = undefined;
+    this.controls.clear();
+    const hints = { none: '小物を選び、「置く」を押してマップをクリック。配置はみんなに共有されます。',
+      place: '空いているマスをクリックすると置けます。「回転」で向きを変更。Escでおわります。',
+      move: '自分が置いた小物をクリックし、移動先のマスをクリックしてください。', remove: '片づけたい自分の小物をクリックしてください。' };
+    this.objectStatus(hints[mode]); this.updateObjectTools();
+  }
+  private drawObjects(): void {
+    for (const view of this.objectViews) view.destroy();
+    this.objectViews = this.objects.map((o) => drawRoomObject(this, o));
+  }
+  private previewObject(pointer: Phaser.Input.Pointer): void {
+    this.ghost?.destroy(); this.ghost = undefined;
+    if (!this.objectsReady || this.pendingEdit || (this.editMode !== 'place' && !(this.editMode === 'move' && this.selectedObject))) return;
+    const selected = this.objects.find((o) => o.id === this.selectedObject);
+    const object: RoomObject = { id: selected?.id ?? 'preview', owner: this.owner(), roomId: this.roomId,
+      kind: selected?.kind ?? this.objectKind, x: Math.floor(pointer.x / TILE), y: Math.floor(pointer.y / TILE), rotation: this.objectRotation };
+    const error = placementProblem(object, this.objects, [...this.players.values()]);
+    this.ghost = drawRoomObject(this, object).setAlpha(error ? 0.25 : 0.65).setDepth(2000);
+    this.ghost.lineStyle(1, error ? 0xb96551 : 0xfff3bc).strokeRect(-8, -8, TILE, TILE);
+  }
+  private editAt(pointer: Phaser.Input.Pointer): void {
+    const x = Math.floor(pointer.x / TILE), y = Math.floor(pointer.y / TILE);
+    if (this.editMode === 'none') {
+      const door = getRoom(this.roomId).door;
+      if (x === door.x && y === door.y) this.openRoomPicker();
+      return;
+    }
+    if (!this.connected || !this.objectsReady || this.pendingEdit) return;
+    const target = this.objects.find((o) => o.x === x && o.y === y);
+    const editId = crypto.randomUUID();
+    if (this.editMode === 'remove' || (this.editMode === 'move' && !this.selectedObject)) {
+      if (!target || target.owner !== this.owner()) { this.objectStatus('自分が置いた小物を選んでください。'); return; }
+      if (this.editMode === 'move') {
+        this.selectedObject = target.id; this.objectRotation = target.rotation; this.updateObjectTools();
+        this.objectStatus(`${OBJECT_CATALOG[target.kind].name}の移動先をクリック。「回転」で向きを変えられます。`); return;
+      }
+      this.connection?.editObject({ type: 'object-remove', id: target.id, editId });
+    } else {
+      const selected = this.objects.find((o) => o.id === this.selectedObject);
+      const candidate: RoomObject = { id: selected?.id ?? 'preview', owner: this.owner(), roomId: this.roomId, kind: selected?.kind ?? this.objectKind, x, y, rotation: this.objectRotation };
+      const error = placementProblem(candidate, this.objects, [...this.players.values()]);
+      if (error) { this.objectStatus(error); return; }
+      if (selected) this.connection?.editObject({ type: 'object-move', id: selected.id, x, y, rotation: this.objectRotation, editId });
+      else this.connection?.editObject({ type: 'object-place', kind: this.objectKind, x, y, rotation: this.objectRotation, editId });
+    }
+    this.pendingEdit = editId; this.ghost?.destroy(); this.ghost = undefined;
+    this.objectStatus('小物を保存しています…'); this.updateObjectTools();
+  }
+
+  private drawAvatar(view: AvatarView, walker: Walker, appearance: Appearance, name: string, time: number): void {
     const { x, y } = walker.position();
     const frame = walker.moving ? 1 + Math.floor(time / 95) % 2 : 0;
     view.sprite.setPosition(Math.round(x), Math.round(y) + 6)
-      .setTexture(`avatar-${outfit}-${walker.facing}-${frame}`).setDepth(y + 7);
+      .setTexture(avatarTexture(this, appearance, walker.facing, frame)).setDepth(y + 7);
     view.shadow.setPosition(Math.round(x), Math.round(y) + 5).setDepth(y + 6);
     view.label.setText(name).setPosition(Math.round(x), Math.round(y) - 20).setDepth(ROWS * TILE + 20);
   }
@@ -299,21 +472,27 @@ export class OfficeScene extends Phaser.Scene {
       this.renderParticipants();
     }
     this.walker.update(delta);
-    if (!this.walker.moving && this.connection?.readyToMove) {
+    if (this.editMode === 'none' && !this.walker.moving && this.connection?.readyToMove) {
       const direction = this.controls.direction();
       if (direction) this.connection.move(direction);
     }
-    this.drawAvatar(this.avatar, this.walker, this.outfit, this.playerName, time);
+    this.drawAvatar(this.avatar, this.walker, this.appearance, this.playerName, time);
     this.avatar.sprite.setAlpha(this.connected ? 1 : 0.45);
     for (const peer of this.peers.values()) {
       peer.walker.update(delta);
-      this.drawAvatar(peer.view, peer.walker, peer.player.outfit, peer.player.name + (this.speaking.has(peer.player.id) ? ' ♪' : ''), time);
+      this.drawAvatar(peer.view, peer.walker, parseAppearance(peer.player.appearance, peer.player.outfit)!, peer.player.name + (this.speaking.has(peer.player.id) ? ' ♪' : ''), time);
     }
-    const area = areaAt(this.walker.tile);
+    const area = areaAt({ ...this.walker.tile, roomId: this.roomId });
     if (area !== this.lastArea) {
       this.lastArea = area;
       document.querySelectorAll('[data-current-area]').forEach((element) => { element.textContent = area; });
     }
+    const door = getRoom(this.roomId).door;
+    const atDoor = this.walker.tile.x === door.x && this.walker.tile.y === door.y;
+    if (atDoor && !this.atDoor && this.connected && this.editMode === 'none') this.openRoomPicker();
+    this.atDoor = atDoor;
+    this.game.canvas.dataset.roomId = this.roomId;
+    this.game.canvas.dataset.roomObjects = String(this.objects.length);
     this.game.canvas.dataset.tileX = String(this.walker.tile.x);
     this.game.canvas.dataset.tileY = String(this.walker.tile.y);
     this.game.canvas.dataset.connectedPlayers = String(this.players.size);

@@ -1,4 +1,11 @@
 import { test } from 'node:test';
+import { randomUUID } from 'node:crypto';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { DEFAULT_APPEARANCE } from '../src/game/avatar.ts';
+import { getRoom } from '../src/game/rooms.ts';
+import { ObjectStore } from './objects.ts';
 import type { TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -10,9 +17,9 @@ import { MAX_PLAYERS, directions, parseClientMessage } from '../src/network/prot
 import { MAX_VOICE_MEMBERS, MAX_VOICE_PEERS } from '../src/audio/proximity.ts';
 import { STEP_MS, canWalk } from '../src/game/world.ts';
 
-async function fixture(t: TestContext) {
+async function fixture(t: TestContext, objectsFile?: string) {
   const server = createServer((_request, response) => response.end('ok'));
-  const dispose = attachOffice(server);
+  const dispose = attachOffice(server, undefined, { objectsFile });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const clients: WebSocket[] = [];
@@ -251,4 +258,70 @@ test('150 clients join, compact frames coalesce moves and the 151st is refused',
   clients.at(-1)!.ws.close();
   await a.next('left');
   assert.equal((await connect()).welcome.players.length, MAX_PLAYERS);
+});
+
+
+test('appearance synchronizes and invalid edits cannot alter profile or room', async (t) => {
+  const { connect } = await fixture(t); const a = await connect(); const b = await connect();
+  const appearance = { ...DEFAULT_APPEARANCE, gender: 2, body: 2, height: 2, skin: 5, hair: 2, hairColor: 4, clothing: 1, color: 5, accessory: 1 };
+  a.send({ type: 'profile', name: '着替え', outfit: 2, appearance, roomId: 'sky' });
+  const changed = await b.next('player', (m) => m.reason === 'profile');
+  assert.deepEqual(changed.player.appearance, appearance); assert.equal(changed.player.roomId, 'office');
+  const c = await connect(); assert.deepEqual(c.welcome.players.find((p) => p.id === a.welcome.id)?.appearance, appearance);
+  a.send({ type: 'profile', name: '不正', outfit: 0, appearance: { ...appearance, body: 99 } });
+  a.send({ type: 'move', direction: 'right', requestId: 1 });
+  assert.equal((await a.next('player', (m) => m.requestId === 1)).player.name, '着替え');
+});
+
+test('room transitions are authoritative, stop old voice grants and reconnect only inside the same room', async (t) => {
+  const { connect } = await fixture(t); const a = await connect(); const b = await connect();
+  a.send({ type: 'voice-state', listening: true, microphone: false });
+  b.send({ type: 'voice-state', listening: true, microphone: false });
+  const oldGrant = await a.next('voice', (m) => m.peers.length === 1);
+  await b.next('voice', (m) => m.peers.length === 1);
+  a.send({ type: 'change-room', roomId: 'cafe', requestId: 1 });
+  const moved = await a.next('player', (m) => m.reason === 'room');
+  assert.equal(moved.player.roomId, 'cafe'); assert.deepEqual({ x: moved.player.x, y: moved.player.y }, getRoom('cafe').spawn);
+  assert.equal((await b.next('player', (m) => m.reason === 'room')).player.roomId, 'cafe');
+  await a.next('objects', (m) => m.roomId === 'cafe');
+  await a.next('voice', (m) => m.peers.length === 0); await b.next('voice', (m) => m.peers.length === 0);
+  b.send({ type: 'change-room', roomId: 'cafe', requestId: 2 });
+  const newGrant = await a.next('voice', (m) => m.peers.length === 1);
+  assert.notEqual(newGrant.peers[0].session, oldGrant.peers[0].session);
+  a.send({ type: 'reset', requestId: 3 });
+  assert.equal((await a.next('player', (m) => m.requestId === 3)).player.roomId, 'cafe');
+});
+
+test('shared objects are room scoped, owner editable, solid and persistent', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'waiwai-room-edit-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = join(dir, 'objects.json');
+  const { connect } = await fixture(t, file); const a = await connect(); const b = await connect();
+  a.send({ type: 'change-room', roomId: 'cafe', requestId: 1 });
+  await a.next('objects', (m) => m.roomId === 'cafe');
+  const editId = randomUUID();
+  a.send({ type: 'object-place', kind: 'plant', x: 16, y: 16, rotation: 0, editId });
+  assert.equal((await a.next('object-result')).error, undefined);
+  const saved = (await a.next('objects', (m) => m.objects.length === 1)).objects[0];
+  assert.equal(new ObjectStore(file).list()[0].id, saved.id);
+  assert.ok(!b.seen.some((m) => m.type === 'objects' && m.roomId === 'cafe'));
+  b.send({ type: 'change-room', roomId: 'cafe', requestId: 2 });
+  assert.equal((await b.next('objects', (m) => m.roomId === 'cafe')).objects[0].id, saved.id);
+  b.send({ type: 'object-remove', id: saved.id, editId: randomUUID() });
+  assert.match((await b.next('object-result')).error!, /自分が置いた/);
+  await new Promise((resolve) => setTimeout(resolve, STEP_MS + 5));
+  a.send({ type: 'move', direction: 'right', requestId: 2 }); await a.next('player', (m) => m.requestId === 2);
+  await new Promise((resolve) => setTimeout(resolve, STEP_MS + 5));
+  a.send({ type: 'move', direction: 'up', requestId: 3 });
+  const blocked = await a.next('player', (m) => m.requestId === 3);
+  assert.deepEqual([blocked.player.x, blocked.player.y], [16, 17]);
+  await new Promise((resolve) => setTimeout(resolve, 360));
+  a.send({ type: 'object-move', id: saved.id, x: 17, y: 16, rotation: 1, editId: randomUUID() });
+  assert.equal((await a.next('object-result')).error, undefined);
+  assert.equal((await b.next('objects', (m) => m.objects[0]?.x === 17)).objects[0].rotation, 1);
+  await new Promise((resolve) => setTimeout(resolve, 360));
+  a.send({ type: 'object-remove', id: saved.id, editId: randomUUID() });
+  assert.equal((await a.next('object-result')).error, undefined);
+  assert.equal((await b.next('objects', (m) => m.roomId === 'cafe' && m.objects.length === 0)).objects.length, 0);
+  assert.equal(new ObjectStore(file).list().length, 0);
 });
