@@ -12,7 +12,7 @@ const LEGACY_POKEMON = {
   mew: { name: 'ミュウ', icon: '✦', description: '長いしっぽをゆらして、ふわり。出会えた日はちょっと特別。', weight: 0.5, rarity: 'とてもめずらしい', floating: true },
 } as const;
 export type PokemonKind = keyof typeof POKEMON_CATALOG;
-export type PokemonData = { id: number; name: string; icon: string; description: string; weight: number; rarity: string; floating: boolean };
+export type PokemonData = { id: number | null; spriteIndex: number; heightDm: number; mapSize: number; name: string; icon: string; description: string; weight: number; rarity: string; floating: boolean };
 export const POKEMON = Object.fromEntries(Object.entries(POKEMON_CATALOG).map(([kind, entry]) => [kind, { ...entry, ...(Object.hasOwn(LEGACY_POKEMON, kind) ? LEGACY_POKEMON[kind as keyof typeof LEGACY_POKEMON] : {}) }])) as Record<PokemonKind, PokemonData>;
 export const POKEMON_KINDS = Object.keys(POKEMON) as PokemonKind[];
 export const MAX_DAILY_POKEMON = 7;
@@ -20,5 +20,6 @@ export const isPokemonKind = (kind: unknown): kind is PokemonKind => typeof kind
 export const pokemonQuery = (value: string): string => value.normalize('NFKC').toLocaleLowerCase('ja').replace(/[\u30a1-\u30f6]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60)).trim();
 export function pokemonMatches(kind: PokemonKind, query: string, revealName = true): boolean {
   const q = pokemonQuery(query), entry = POKEMON[kind];
-  return !q || (revealName && pokemonQuery(entry.name).includes(q)) || String(entry.id).padStart(3, '0').includes(q);
+  return !q || (revealName && pokemonQuery(entry.name).includes(q)) || (entry.id !== null && String(entry.id).padStart(3, '0').includes(q));
 }
+export const pokemonNumber = (kind: PokemonKind): string => POKEMON[kind].id === null ? 'No.未公表' : `No.${String(POKEMON[kind].id).padStart(3, '0')}`;
