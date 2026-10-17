@@ -8,6 +8,11 @@ import WebSocket from 'ws';
 import * as oidc from 'openid-client';
 import { readAuthConfig, SlackAuth, slackConfiguration } from './auth.ts';
 import { attachOffice } from './office.ts';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { ServerMessage } from '../src/network/protocol.ts';
+import { MemberStore } from './members.ts';
 
 const config = { clientId: 'client123', clientSecret: 'test-secret', redirectUri: 'https://office.example/auth/slack/callback' };
 const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -27,7 +32,7 @@ test('Slack configuration is optional but requires a complete server-side HTTPS 
   assert.throws(() => readAuthConfig({ SLACK_CLIENT_ID: 'id' }));
 });
 
-async function fixture(t: TestContext, enabled = true, policy: { required?: boolean; teamId?: string } = {}) {
+async function fixture(t: TestContext, enabled = true, policy: { required?: boolean; teamId?: string } = {}, membersFile?: string) {
   let time = Date.now();
   let overrides: Record<string, unknown> = {};
   let wrongSignature = false;
@@ -56,7 +61,7 @@ async function fixture(t: TestContext, enabled = true, policy: { required?: bool
   const server = createServer((request, response) => {
     void auth.handle(request, response).then((handled) => { if (!handled) response.writeHead(404).end(); });
   });
-  const dispose = attachOffice(server, auth);
+  const dispose = attachOffice(server, auth, { membersFile });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const sockets: WebSocket[] = [];
@@ -95,12 +100,26 @@ async function fixture(t: TestContext, enabled = true, policy: { required?: bool
     assert.equal(result.headers.get('location'), '/');
     return result.headers.getSetCookie().find((value) => value.startsWith('waiwai_session='))!.split(';')[0];
   };
-  const connect = (cookie: string) => new Promise<{ ws: WebSocket; welcome: { id: string; players: Array<Record<string, unknown>> } }>((resolve, reject) => {
+  const connect = async (cookie: string) => {
     const ws = new WebSocket(origin.replace('http:', 'ws:') + '/office', { origin: 'https://office.example', headers: { Host: 'office.example', Cookie: cookie } });
     sockets.push(ws);
-    ws.once('error', reject);
-    ws.once('message', (message) => resolve({ ws, welcome: JSON.parse(String(message)) }));
-  });
+    const inbox: ServerMessage[] = [], waiters = new Set<() => void>();
+    ws.on('message', (raw) => { inbox.push(JSON.parse(String(raw))); for (const notify of [...waiters]) notify(); });
+    const next = <T extends ServerMessage['type']>(type: T, predicate: (m: Extract<ServerMessage, { type: T }>) => boolean = () => true) =>
+      new Promise<Extract<ServerMessage, { type: T }>>((resolve, reject) => {
+        const check = () => {
+          const index = inbox.findIndex((m) => m.type === type && predicate(m as Extract<ServerMessage, { type: T }>));
+          if (index < 0) return;
+          clearTimeout(timer); waiters.delete(check); resolve(inbox.splice(index, 1)[0] as Extract<ServerMessage, { type: T }>);
+        };
+        const timer = setTimeout(() => { waiters.delete(check); reject(new Error(`Timed out waiting for ${type}`)); }, 2000);
+        waiters.add(check); check();
+      });
+    const welcome = await new Promise<Extract<ServerMessage, { type: 'welcome' }>>((resolve, reject) => {
+      ws.once('error', reject); void next('welcome').then(resolve, reject);
+    });
+    return { ws, welcome, next };
+  };
   return { request, begin, callback, login, connect, change: (claims: Record<string, unknown>, badSignature = false) => { overrides = claims; wrongSignature = badSignature; },
     advance: (ms: number) => { time += ms; }, tokenCalls: () => tokenCalls };
 }
@@ -191,12 +210,8 @@ test('authenticated WebSocket profiles cannot change Slack identity; logout revo
   const a = await f.connect(session); const b = await f.connect(session);
   const self = a.welcome.players.find((player) => player.id === a.welcome.id)!;
   assert.equal(self.name, 'はな Slack'); assert.equal(self.slackVerified, true);
-  const changed = new Promise<Record<string, unknown>>((resolve) => a.ws.once('message', (raw) => resolve(JSON.parse(String(raw)))));
-  // Drain the join message before requesting the profile change.
   a.ws.send(JSON.stringify({ type: 'profile', name: '偽装', outfit: 2, slack: { teamId: 'TOTHER', userId: 'UOTHER' } }));
-  let update = await changed;
-  if (update.reason === 'join') update = await new Promise((resolve) => a.ws.once('message', (raw) => resolve(JSON.parse(String(raw)))));
-  const player = update.player as Record<string, unknown>;
+  const player = (await a.next('player', (m) => m.reason === 'profile')).player;
   assert.equal(player.name, 'はな Slack'); assert.deepEqual(player.slack, self.slack); assert.equal(player.outfit, 2);
   assert.equal((await f.request('/auth/logout', { method: 'GET', headers: { Cookie: session } })).status, 405);
   assert.equal((await f.request('/auth/logout', { method: 'POST', headers: { Cookie: session, Origin: 'https://evil.example' } })).status, 403);
@@ -227,4 +242,33 @@ test('production requires Slack authentication and rejects another workspace', a
   assert.equal(welcome.players[0].slackVerified, true);
   assert.throws(() => readAuthConfig({ REQUIRE_SLACK_LOGIN: 'true' }));
   assert.throws(() => readAuthConfig({ SLACK_TEAM_ID: 'bad' }));
+});
+
+test('verified directory membership survives logout and server restart, merges tabs and rejects guest impersonation', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'waiwai-auth-members-')); t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = join(dir, 'members.json'), f = await fixture(t, true, {}, file);
+  const watcher = await f.connect(''); const session = await f.login();
+  const a = await f.connect(session), b = await f.connect(session);
+  b.ws.send(JSON.stringify({ type: 'change-room', roomId: 'cafe', requestId: 1 }));
+  const online = await watcher.next('directory', (m) => m.people.some((p) => p.verified && p.roomId === 'cafe'));
+  assert.equal(online.people.filter((p) => p.verified).length, 1);
+  const id = online.people.find((p) => p.verified)!.id;
+  assert.equal(online.people.find((p) => p.id === id)!.playerId, b.welcome.id);
+  watcher.ws.send(JSON.stringify({ type: 'profile', name: 'なりすまし', outfit: 0, slack: { teamId: 'T012ABCDEF', userId: 'U012ABCDEF' }, slackVerified: true }));
+  const guest = await watcher.next('directory', (m) => m.people.some((p) => p.name === 'なりすまし'));
+  assert.equal(guest.people.find((p) => p.name === 'なりすまし')!.verified, false);
+  assert.equal(guest.people.filter((p) => p.verified).length, 1);
+  b.ws.close();
+  const remaining = await watcher.next('directory', (m) => m.people.some((p) => p.id === id && p.playerId === a.welcome.id));
+  assert.equal(remaining.people.find((p) => p.id === id)!.online, true);
+  const revoked = new Promise<number>((resolve) => a.ws.once('close', resolve));
+  await f.request('/auth/logout', { method: 'POST', headers: { Cookie: session, Origin: 'https://office.example' } });
+  assert.equal(await revoked, 4001);
+  const offline = await watcher.next('directory', (m) => m.people.some((p) => p.id === id && !p.online));
+  assert.equal(offline.people.find((p) => p.id === id)!.playerId, undefined);
+  assert.equal(new MemberStore(file).list().length, 1);
+  const restarted = await fixture(t, false, {}, file), observer = await restarted.connect('');
+  const restored = await observer.next('directory');
+  assert.equal(restored.people.find((p) => p.id === id)!.online, false);
+  assert.equal(restored.people.find((p) => p.id === id)!.name, 'はな Slack');
 });

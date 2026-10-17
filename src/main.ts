@@ -65,7 +65,8 @@ app.innerHTML = `
         <p id="slack-login-help">ログインすると、名前とSlack IDが自動で設定されます。</p>
       </section>
       <div class="map-heading"><div><span class="eyebrow">LET’S TAKE A LITTLE WALK</span><h2 id="map-title">小さなオフィスへ、ようこそ。</h2></div><button type="button" class="help-button" id="help-button" aria-label="操作方法を表示">?</button></div>
-      <section class="room-switcher" aria-label="フロア移動"><div><span class="eyebrow">11 ROOMS TO EXPLORE</span><strong data-room-name>ひだまりオフィス</strong><p id="room-description"></p></div><button type="button" id="room-picker-open">部屋を移動 <span aria-hidden="true">↗</span></button></section>
+      <section class="room-switcher" aria-label="フロア移動"><div><span class="eyebrow">11 ROOMS TO EXPLORE</span><strong data-room-name>ひだまりオフィス</strong><p id="room-description"></p></div><div class="room-switcher-actions"><button type="button" id="people-open">人を探す</button><button type="button" id="room-picker-open">部屋を移動 <span aria-hidden="true">↗</span></button></div></section>
+      <p id="people-travel-status" role="status"></p>
       <div class="game-frame">
         <div class="game-topline"><span><i></i> <span data-current-area>エントランス</span></span><span><span data-room-name>ひだまりオフィス</span> <b id="room-number">01</b></span></div>
         <div class="map-surround"><div id="game" aria-describedby="map-instructions"><p class="loading">オフィスを準備しています…</p></div></div>
@@ -91,6 +92,14 @@ app.innerHTML = `
     </section>
   </main>
   <footer class="page-footer"><span>離れていても、おなじ場所に。</span><span>MADE FOR LITTLE ENCOUNTERS <span aria-hidden="true">✦</span></span></footer>
+  <dialog id="people-dialog" class="people-dialog" aria-labelledby="people-title">
+    <span class="eyebrow">FIND YOUR PEOPLE</span><h2 id="people-title">あの人に、会いに行こう。</h2>
+    <p class="people-help">Waiwaiへの入室状態を表示します。一度入室したSlackメンバーと、接続中のゲストを探せます。</p>
+    <div class="people-search"><label for="people-query">名前・SlackメンバーID<input id="people-query" type="search" maxlength="80" placeholder="名前で検索" autocomplete="off" /></label><label for="people-filter">表示<select id="people-filter"><option value="all">すべて</option><option value="online">オンライン</option><option value="offline">オフライン</option></select></label></div>
+    <p id="people-result-count" role="status"></p><p id="people-warning" role="status"></p>
+    <ul id="people-results" aria-label="メンバー検索結果"></ul><p id="people-empty"></p>
+    <p id="people-status" role="status">接続を確認しています。</p><button type="button" id="people-close" class="dialog-close">閉じる</button>
+  </dialog>
   <dialog id="avatar-dialog" class="avatar-dialog" aria-labelledby="avatar-title"><form id="avatar-form"><span class="eyebrow">MAKE YOUR OWN CHARACTER</span><h2 id="avatar-title">あなたらしい姿に。</h2><div class="avatar-editor-layout"><div class="avatar-draft-backdrop"><canvas id="avatar-draft" width="20" height="28" aria-label="変更中のアバター"></canvas><p>性別や体型にかかわらず<br>すべての服と髪型を選べます。</p></div><div id="avatar-fields"></div></div><div class="dialog-actions"><button type="button" id="avatar-cancel">キャンセル</button><button type="submit">この見た目にする</button></div></form></dialog>
   <dialog id="room-dialog" class="room-dialog" aria-labelledby="room-dialog-title"><span class="eyebrow">FIND YOUR NEXT PLACE</span><h2 id="room-dialog-title">どの部屋へ行こう？</h2><p>部屋を変えると、移動先の近くの人と音声がつながります。</p><div class="room-grid">${ROOMS.map((room, i) => `<button type="button" data-room="${room.id}" style="--card-accent:#${room.rug.toString(16)}"><span class="room-card-number">${String(i + 1).padStart(2, '0')} / ${room.icon}</span><strong>${room.name}</strong><span>${room.description}</span><small data-room-occupancy="${room.id}">0人</small></button>`).join('')}</div><form method="dialog"><button class="dialog-close">いまの部屋にもどる</button></form></dialog>
   <dialog id="help-dialog" aria-labelledby="help-title"><span class="eyebrow">HOW TO WALK</span><h2 id="help-title">オフィスを歩いてみよう</h2><p>マップをクリックするか、Tabキーでマップにフォーカスしてから、<strong>矢印キー / WASD</strong> を押すと移動します。</p><p>スマートフォンやタブレットでは、マップ下の方向ボタンを使えます。</p><p>壁や家具のあるマスは通れません。部屋の入口を探してみてください。</p><p>「入口にもどる」で最初の場所に戻れます。Tabキーでマップの操作を抜けられます。</p><form method="dialog"><button class="dialog-close">わかった、歩いてみる</button></form></dialog>

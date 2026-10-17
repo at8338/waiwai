@@ -12,13 +12,19 @@ import { getRoom } from '../src/game/rooms.ts';
 import type { RoomId } from '../src/game/rooms.ts';
 import { placementProblem, walkableWithObjects } from '../src/game/objects.ts';
 import { ObjectStore } from './objects.ts';
+import { MemberStore } from './members.ts';
+import { directoryPeople } from '../src/game/directory.ts';
+import { adjacentTile } from './warp.ts';
 
 class EditError extends Error {}
 
-export function attachOffice(server: Server, auth?: SlackAuth, options: { objectsFile?: string } = {}): () => void {
+export function attachOffice(server: Server, auth?: SlackAuth, options: { objectsFile?: string; membersFile?: string } = {}): () => void {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 });
   const players = new Map<WebSocket, Player>();
   const store = new ObjectStore(options.objectsFile);
+  const members = new MemberStore(options.membersFile);
+  let directoryDirty = false;
+  let directoryWarning: string | undefined;
   const alive = new Set<WebSocket>();
   const vectors = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
   const sendRaw = (ws: WebSocket, serialized: string) => {
@@ -32,6 +38,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     for (const ws of players.keys()) if (ws !== except) sendRaw(ws, serialized);
   };
   const voice = new VoiceRoom(players, send, readIceProvider());
+  const directory = (): Extract<ServerMessage, { type: 'directory' }> => ({ type: 'directory', people: directoryPeople(members.list(), players.values()), ...(directoryWarning ? { warning: directoryWarning } : {}) });
   const pending = new Map<string, Position>();
   const frame = setInterval(() => {
     if (pending.size) {
@@ -39,6 +46,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
       pending.clear();
     }
     voice.refreshIfDirty();
+    if (directoryDirty) { directoryDirty = false; broadcast(directory()); }
   }, POSITION_FRAME_MS);
   frame.unref();
   const roomObjects = (roomId: RoomId) => store.list().filter((o) => o.roomId === roomId);
@@ -67,15 +75,23 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     const player: Player = { id: randomUUID(), slot: ++nextSlot, name: identity?.user.name ?? 'ゲスト', outfit: 0, appearance: { ...DEFAULT_APPEARANCE }, roomId: 'office',
       slack: identity?.user.slack ?? null, slackVerified: !!identity, ...spawn(), facing: 'down' };
     players.set(ws, player);
+    directoryDirty = true;
+    if (identity) void members.remember(identity.user).then(() => {
+      directoryWarning = undefined; directoryDirty = true;
+    }).catch(() => {
+      directoryWarning = 'メンバー情報を保存できませんでした。再接続後に表示が残らない場合があります。'; directoryDirty = true;
+    });
     alive.add(ws);
     send(ws, { type: 'welcome', id: player.id, players: [...players.values()] });
     broadcast({ type: 'player', player, reason: 'join' }, ws);
     sendObjects(ws, player.roomId);
+    send(ws, directory());
     let lastMove = -Infinity;
     let windowStart = Date.now();
     let messages = 0;
     let signals = 0;
     let lastEdit = -Infinity;
+    let lastWarp = -Infinity;
     ws.on('pong', () => alive.add(ws));
     ws.on('error', () => ws.terminate());
     ws.on('message', (data, isBinary) => {
@@ -88,6 +104,24 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
       if (!message) return;
       if (message.type === 'voice-state') { voice.state(ws, message); return; }
       if (message.type === 'voice-signal') { voice.signal(ws, message); return; }
+      if (message.type === 'warp-to') {
+        const fail = (error: string) => send(ws, { type: 'travel-error', requestId: message.requestId, error });
+        if (now - lastWarp < 1000) { fail('少し待ってから、もう一度ワープしてください。'); return; }
+        lastWarp = now;
+        const target = [...players.values()].find((p) => p.id === message.targetId);
+        if (!target) { fail('その人は現在オフラインです。'); return; }
+        if (target.id === player.id) { fail('自分の隣へはワープできません。'); return; }
+        const destination = adjacentTile(target, player.id, players.values(), roomObjects(target.roomId));
+        if (!destination) { fail('相手の隣に空いているマスがありません。少し待ってから試してください。'); return; }
+        Object.assign(player, destination, { roomId: target.roomId, facing: 'down' });
+        pending.delete(player.id);
+        broadcast({ type: 'player', player, reason: 'warp', requestId: message.requestId });
+        sendObjects(ws, player.roomId);
+        directoryDirty = true;
+        voice.refresh();
+        lastMove = now;
+        return;
+      }
       if (message.type === 'object-place' || message.type === 'object-move' || message.type === 'object-remove') {
         if (now - lastEdit < 350) { send(ws, { type: 'object-result', editId: message.editId, error: '少し待ってから、もう一度操作してください。' }); return; }
         lastEdit = now;
@@ -122,6 +156,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
         pending.delete(player.id);
         broadcast({ type: 'player', player, reason: 'room', requestId: message.requestId });
         sendObjects(ws, player.roomId);
+        directoryDirty = true;
         voice.refresh();
         lastMove = now;
         return;
@@ -137,7 +172,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
           lastMove = now;
         }
       }
-      if (message.type === 'profile') broadcast({ type: 'player', player, reason: 'profile' });
+      if (message.type === 'profile') { broadcast({ type: 'player', player, reason: 'profile' }); directoryDirty = true; }
       else {
         // Immediate authoritative acknowledgment keeps local movement responsive.
         send(ws, { type: 'player', player, reason: message.type, requestId: message.requestId });
@@ -148,6 +183,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     });
     ws.on('close', () => {
       players.delete(ws);
+      directoryDirty = true;
       identities.delete(ws);
       alive.delete(ws);
       pending.delete(player.id);

@@ -31,7 +31,7 @@ try {
   const existing = ssh('sudo test -f /etc/waiwai/app.env && sudo cat /etc/waiwai/app.env || true', { encoding: 'utf8', stdio: 'pipe' });
   secret = parseEnv(existing).TURN_SHARED_SECRET || randomBytes(48).toString('hex');
   if (!/^[a-f0-9]{96}$/.test(secret)) throw new Error('Unexpected existing TURN secret; handle rotation explicitly.');
-  const env = { HOST: '127.0.0.1', PORT: '5173', NODE_ENV: 'production', WAIWAI_DATA_FILE: '/var/lib/waiwai/office-objects.json', REQUIRE_SLACK_LOGIN: 'true', SLACK_TEAM_ID: team,
+  const env = { HOST: '127.0.0.1', PORT: '5173', NODE_ENV: 'production', WAIWAI_DATA_FILE: '/var/lib/waiwai/office-objects.json', WAIWAI_MEMBERS_FILE: '/var/lib/waiwai/office-members.json', REQUIRE_SLACK_LOGIN: 'true', SLACK_TEAM_ID: team,
     SLACK_CLIENT_ID: source.SLACK_CLIENT_ID, SLACK_CLIENT_SECRET: source.SLACK_CLIENT_SECRET,
     SLACK_REDIRECT_URI: `https://${domain}/auth/slack/callback`, TURN_SHARED_SECRET: secret,
     TURN_URLS: `turn:${domain}:3478?transport=udp,turn:${domain}:3478?transport=tcp,turns:${domain}:5349?transport=tcp` };

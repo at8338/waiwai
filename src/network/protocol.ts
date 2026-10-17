@@ -2,6 +2,7 @@ import { parseAppearance } from '../game/avatar.ts';
 import type { Appearance } from '../game/avatar.ts';
 import { isRoomId } from '../game/rooms.ts';
 import type { RoomId } from '../game/rooms.ts';
+import type { Person } from '../game/directory.ts';
 import { isObjectKind } from '../game/objects.ts';
 import type { ObjectKind, RoomObject } from '../game/objects.ts';
 import type { Direction } from '../game/world.ts';
@@ -19,6 +20,7 @@ export type Position = [slot: number, x: number, y: number, flags: number];
 export const MAX_PLAYERS = 150;
 export const POSITION_FRAME_MS = 50;
 export type ClientMessage =
+  | { type: 'warp-to'; targetId: string; requestId: number }
   | { type: 'change-room'; roomId: RoomId; requestId: number }
   | { type: 'object-place'; kind: ObjectKind; x: number; y: number; rotation: number; editId: string }
   | { type: 'object-move'; id: string; x: number; y: number; rotation: number; editId: string }
@@ -31,11 +33,13 @@ export type ClientMessage =
 export type ServerMessage =
   | VoiceSnapshot
   | VoiceSignal
+  | { type: 'directory'; people: Person[]; warning?: string }
+  | { type: 'travel-error'; requestId: number; error: string }
   | { type: 'welcome'; id: string; players: Player[] }
   | { type: 'objects'; roomId: RoomId; objects: RoomObject[] }
   | { type: 'object-result'; editId: string; error?: string }
   | { type: 'positions'; positions: Position[] }
-  | { type: 'player'; player: Player; reason: 'join' | 'profile' | 'move' | 'reset' | 'room'; requestId?: number }
+  | { type: 'player'; player: Player; reason: 'join' | 'profile' | 'move' | 'reset' | 'room' | 'warp'; requestId?: number }
   | { type: 'left'; id: string };
 
 export const directions = ['up', 'down', 'left', 'right'] as const;
@@ -58,6 +62,7 @@ export function parseClientMessage(raw: string): ClientMessage | undefined {
     return;
   }
   const validRequest = Number.isSafeInteger(data.requestId) && (data.requestId as number) > 0;
+  if (data.type === 'warp-to' && typeof data.targetId === 'string' && /^[a-f0-9-]{36}$/.test(data.targetId) && validRequest) return { type: 'warp-to', targetId: data.targetId, requestId: data.requestId as number };
   if (data.type === 'change-room' && isRoomId(data.roomId) && validRequest) return { type: 'change-room', roomId: data.roomId, requestId: data.requestId as number };
   if (typeof data.editId === 'string' && /^[a-f0-9-]{36}$/.test(data.editId)) {
     const id = typeof data.id === 'string' && /^[a-f0-9-]{36}$/.test(data.id) ? data.id : undefined;

@@ -16,6 +16,7 @@ import { ROOMS, getRoom } from './rooms.ts';
 import type { RoomId } from './rooms.ts';
 import { MAX_ROOM_OBJECTS, OBJECT_CATALOG, objectContains, objectSize, placementProblem } from './objects.ts';
 import type { ObjectKind, RoomObject } from './objects.ts';
+import { PeopleDirectory } from './people-directory.ts';
 
 type AvatarView = {
   sprite: Phaser.GameObjects.Image;
@@ -57,6 +58,7 @@ export class OfficeScene extends Phaser.Scene {
   private pendingEdit?: string;
   private ghost?: Phaser.GameObjects.Graphics;
   private atDoor = false;
+  private directoryUI?: PeopleDirectory;
 
   constructor(slack: SlackIdentity | null = null, loginRequired = false) { super('office'); this.slack = slack; this.loginRequired = loginRequired; }
 
@@ -77,6 +79,10 @@ export class OfficeScene extends Phaser.Scene {
     this.avatar = this.makeAvatar(true);
     this.controls.attach(this.game.canvas);
     this.setupRoomTools();
+    this.directoryUI = new PeopleDirectory({ signal: this.inputController.signal,
+      open: () => this.controls.clear(),
+      warp: (id) => { this.controls.clear(); this.setEditMode('none'); return this.connection?.warpTo(id) ?? false; },
+    });
     document.querySelector('#participants')?.addEventListener('click', (event) => {
       const target = (event.target as Element).closest<HTMLButtonElement>('[data-dm-player]');
       if (target) this.openSlackDM(target.dataset.dmPlayer!);
@@ -111,6 +117,9 @@ export class OfficeScene extends Phaser.Scene {
       },
       player: (player, snap) => this.receivePlayer(player, snap),
       left: (id) => this.removePlayer(id),
+      directory: (people, warning) => this.directoryUI?.setPeople(people, warning),
+      travelComplete: () => this.directoryUI?.complete(),
+      travelError: (error) => this.directoryUI?.fail(error),
       objects: (roomId, objects) => {
         if (roomId !== this.roomId) return;
         this.objects = objects; this.objectsReady = true; this.drawObjects(); this.updateObjectTools();
@@ -167,6 +176,7 @@ export class OfficeScene extends Phaser.Scene {
     document.querySelector('#profile-presence')!.textContent = this.connected ? 'オフィスにいます' : '接続を待っています';
     (document.querySelector('#reset-position') as HTMLButtonElement).disabled = !this.connected;
     this.renderParticipants();
+    this.directoryUI?.setConnection(this.connected, this.localId);
     this.updateObjectTools();
   }
 
