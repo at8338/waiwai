@@ -8,6 +8,7 @@ import { EXTRA_LOST_ITEMS } from './lost-items-catalog.ts';
 import { lostItemArt } from './lost-item-art.ts';
 import type { LostItemArt } from './lost-item-art.ts';
 import type { Pixel } from './avatar.ts';
+import { spawnHash, weightedDraw } from './spawn-random.ts';
 export const LOST_ITEM_PERIOD_MS = 30 * 60 * 1000;
 export const MAX_LOST_ITEMS = 3;
 export const LOST_ITEMS_EPOCH = Date.UTC(2026, 9, 17);
@@ -33,6 +34,14 @@ export const LOST_ITEM_CATALOG: Readonly<Record<LostItemKind, LostItemEntry>> = 
 };
 export type LostItem = { id: string; kind: LostItemKind; roomId: RoomId; x: number; y: number };
 export type LostItemsSnapshot = { items: LostItem[]; serverNow: number; expiresAt: number };
+export const lostItemWeight = (kind: LostItemKind): number => { const rank = spawnHash(`lost-rarity:${kind}`) % 20; return rank === 0 ? 1 : rank < 5 ? 3 : 8; };
+export const lostItemRarity = (kind: LostItemKind): string => lostItemWeight(kind) === 1 ? 'めずらしい' : lostItemWeight(kind) === 3 ? 'ときどき見かける' : 'よく見かける';
+export const isLostItemKind = (value: unknown): value is LostItemKind => typeof value === 'string' && Object.hasOwn(LOST_ITEM_CATALOG, value);
+export type LostItemOverride = { salt?: number; kind?: LostItemKind; roomId?: RoomId };
+export function drawLostKinds(period: number, salt = 0, forced?: LostItemKind): LostItemKind[] {
+  const draw = weightedDraw(LOST_ITEM_KINDS.filter((kind) => kind !== forced), MAX_LOST_ITEMS, `lost-v2:${period}:${salt}`, lostItemWeight);
+  return forced ? [forced, ...draw].slice(0, MAX_LOST_ITEMS) : draw;
+}
 export const lostItemPeriod = (timestamp: number): number => Math.floor((timestamp - LOST_ITEMS_EPOCH) / LOST_ITEM_PERIOD_MS);
 const mix = (value: number): number => { value = Math.imul(value ^ value >>> 16, 0x45d9f3b); value = Math.imul(value ^ value >>> 16, 0x45d9f3b); return (value ^ value >>> 16) >>> 0; };
 function shuffle<T>(values: readonly T[], seed: number): T[] {
@@ -40,14 +49,13 @@ function shuffle<T>(values: readonly T[], seed: number): T[] {
   for (let i = result.length - 1; i > 0; i--) { seed = mix(seed + i); const j = seed % (i + 1); [result[i], result[j]] = [result[j], result[i]]; }
   return result;
 }
-// The deck deals three distinct kinds per period, without replacement over 125
-// periods. Pick the rooms globally before looking at any room-local furniture.
-export function lostItemsForOffice(timestamp: number, objects: readonly RoomObject[] = []): LostItem[] {
+// Three weighted kinds without replacement, selected globally before placement.
+export function lostItemsForOffice(timestamp: number, objects: readonly RoomObject[] = [], override: LostItemOverride = {}): LostItem[] {
   if (!Number.isFinite(timestamp)) return [];
-  const period = lostItemPeriod(timestamp), ordinal = period * MAX_LOST_ITEMS;
-  const cycle = Math.floor(ordinal / LOST_ITEM_KINDS.length), start = ((ordinal % LOST_ITEM_KINDS.length) + LOST_ITEM_KINDS.length) % LOST_ITEM_KINDS.length;
-  const deck = shuffle(LOST_ITEM_KINDS, mix(cycle ^ 0x5f3759df));
-  const rooms = shuffle(ROOM_IDS, mix(period ^ 0x72b91c3));
+  const period = lostItemPeriod(timestamp), salt = override.salt ?? 0;
+  const deck = drawLostKinds(period, salt, override.kind);
+  const roomDraw = shuffle(ROOM_IDS, mix(period ^ salt ^ 0x72b91c3));
+  const rooms = override.roomId ? [override.roomId, ...roomDraw.filter((room) => room !== override.roomId)] : roomDraw;
   return rooms.slice(0, MAX_LOST_ITEMS).flatMap((roomId, index) => {
     const room = getRoom(roomId), seats = seatSpots(roomId, objects);
     const local = objects.filter((o) => o.roomId === roomId), free: { x: number; y: number; rank: number }[] = [];
@@ -57,13 +65,13 @@ export function lostItemsForOffice(timestamp: number, objects: readonly RoomObje
     }
     free.sort((a, b) => a.rank - b.rank || a.y - b.y || a.x - b.x);
     if (!free.length) return [];
-    const { x, y } = free[0], kind = deck[(start + index) % deck.length];
+    const { x, y } = free[0], kind = deck[index];
     return [{ x, y, roomId, kind, id: `lost:${period}:${kind}` }];
   });
 }
 export const lostItemsAt = (roomId: RoomId, timestamp: number, objects: readonly RoomObject[] = []): LostItem[] => lostItemsForOffice(timestamp, objects).filter((item) => item.roomId === roomId);
-export function lostItemsSnapshot(timestamp: number, objects: readonly RoomObject[] = []): LostItemsSnapshot {
-  return { serverNow: timestamp, expiresAt: LOST_ITEMS_EPOCH + (lostItemPeriod(timestamp) + 1) * LOST_ITEM_PERIOD_MS, items: lostItemsForOffice(timestamp, objects) };
+export function lostItemsSnapshot(timestamp: number, objects: readonly RoomObject[] = [], override: LostItemOverride = {}): LostItemsSnapshot {
+  return { serverNow: timestamp, expiresAt: LOST_ITEMS_EPOCH + (lostItemPeriod(timestamp) + 1) * LOST_ITEM_PERIOD_MS, items: lostItemsForOffice(timestamp, objects, override) };
 }
 export function lostItemPixels(kind: LostItemKind): Pixel[] {
   const entry = LOST_ITEM_CATALOG[kind];

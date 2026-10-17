@@ -5,7 +5,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DEFAULT_APPEARANCE } from '../src/game/avatar.ts';
-import { getRoom } from '../src/game/rooms.ts';
+import { getRoom, ROOMS } from '../src/game/rooms.ts';
 import { ObjectStore } from './objects.ts';
 import { LinkStore } from './links.ts';
 import { AnnouncementStore } from './announcements.ts';
@@ -21,9 +21,9 @@ import { MAX_VOICE_MEMBERS, MAX_VOICE_PEERS } from '../src/audio/proximity.ts';
 import { STEP_MS, canWalk } from '../src/game/world.ts';
 import { REACTION_COOLDOWN_MS } from '../src/game/reactions.ts';
 
-async function fixture(t: TestContext, objectsFile?: string, linksFile?: string, announcementsFile?: string, eventClock?: () => number, lostClock?: () => number, birthdayClock?: () => number) {
+async function fixture(t: TestContext, objectsFile?: string, linksFile?: string, announcementsFile?: string, eventClock?: () => number, lostClock?: () => number, birthdayClock?: () => number, devControls = false) {
   const server = createServer((_request, response) => response.end('ok'));
-  const dispose = attachOffice(server, undefined, { objectsFile, linksFile, announcementsFile, eventClock, lostClock, birthdayClock });
+  const dispose = attachOffice(server, undefined, { objectsFile, linksFile, announcementsFile, eventClock, lostClock, birthdayClock, devControls });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const clients: WebSocket[] = [];
@@ -63,6 +63,34 @@ async function fixture(t: TestContext, objectsFile?: string, linksFile?: string,
   };
   return { connect, origin };
 }
+
+test('developer world controls synchronize previews and spawns while ordinary servers reject mutations', async (t) => {
+  const { connect } = await fixture(t, undefined, undefined, undefined, undefined, undefined, undefined, true);
+  const a = await connect(), b = await connect();
+  assert.equal((await a.next('dev-world-state')).pokemon.length, 7);
+  await b.next('dev-world-state');
+  const incidentId = randomUUID(); a.send({ type: 'dev-world', command: 'event', episodeId: 'meteor-01', roomId: 'office', actionId: incidentId });
+  assert.equal((await a.next('dev-world-result', (m) => m.actionId === incidentId)).error, undefined);
+  assert.equal((await b.next('daily-event', (m) => !!m.preview)).event.episodeId, 'meteor-01');
+  await new Promise((resolve) => setTimeout(resolve, 260));
+  const pokemonId = randomUUID(); a.send({ type: 'dev-world', command: 'pokemon', kinds: ['mew', 'gengar'], roomId: 'office', actionId: pokemonId });
+  assert.equal((await a.next('dev-world-result', (m) => m.actionId === pokemonId)).error, undefined);
+  const pets = await b.next('pets', (m) => m.pets.some((pet) => pet.kind === 'mew'));
+  assert.deepEqual(pets.pets.filter((pet) => !['dog', 'cat', 'vacuum'].includes(pet.kind)).map((pet) => pet.kind), ['mew', 'gengar']);
+  await new Promise((resolve) => setTimeout(resolve, 260));
+  const lostId = randomUUID(); a.send({ type: 'dev-world', command: 'lost', kind: 'box', roomId: 'office', actionId: lostId });
+  assert.equal((await a.next('dev-world-result', (m) => m.actionId === lostId)).error, undefined);
+  assert.ok((await b.next('lost-items', (m) => m.items.some((item) => item.kind === 'box'))).items.some((item) => item.kind === 'box' && item.roomId === 'office'));
+  const late = await connect(); assert.equal((await late.next('dev-world-state')).pokemon.length, 2);
+  assert.equal((await late.next('daily-event')).event.episodeId, 'meteor-01');
+  await new Promise((resolve) => setTimeout(resolve, 260));
+  a.send({ type: 'dev-world', command: 'reset', actionId: randomUUID() });
+  const restored = await b.next('dev-world-state', (m) => !m.preview); assert.equal(restored.pokemon.length, 7);
+  const ordinary = await fixture(t), c = await ordinary.connect();
+  c.send({ type: 'dev-world', command: 'pokemon', kinds: [], actionId: randomUUID() });
+  assert.match((await c.next('dev-world-result')).error!, /専用/);
+  assert.equal(c.seen.some((m) => m.type === 'dev-world-state'), false);
+});
 
 test('birthday registration and one cheer are shared across rooms; guests can only edit themselves and leave no registration after exit', async (t) => {
   let now = Date.parse('2026-10-17T12:00:00+09:00');
@@ -756,15 +784,15 @@ test('all-floor broadcasts and meeting schedules synchronize across rooms, permi
 
 test('room changes never clone roaming residents and Pokemon buddies synchronize independently', async (t) => {
   const { connect } = await fixture(t), a = await connect(), b = await connect();
-  const first = await a.next('pets'); assert.deepEqual(first.pets.map((p) => p.id), ['pet:dog']);
+  const first = await a.next('pets'); assert.ok(first.pets.some((pet) => pet.id === 'pet:dog'));
   const residents = [];
-  for (const [i, room] of ['office', 'focus', 'meeting', 'cafe', 'library', 'garden', 'studio', 'arcade', 'wellness', 'workshop', 'sky', 'ops'].entries()) {
+  for (const [i, room] of ROOMS.map((room) => room.id).entries()) {
     a.send({ type: 'change-room', roomId: room, requestId: i + 1 });
     const snapshot = await a.next('pets', (m) => m.roomId === room);
-    assert.ok(snapshot.pets.length <= 1); residents.push(...snapshot.pets);
+    assert.ok(snapshot.pets.length <= 2); residents.push(...snapshot.pets);
   }
-  assert.equal(residents.length, 6); assert.equal(new Set(residents.map((p) => p.id)).size, 6);
-  assert.equal(new Set(residents.map((p) => p.kind)).size, 6);
+  assert.equal(residents.length, 10); assert.equal(new Set(residents.map((p) => p.id)).size, 10);
+  assert.equal(new Set(residents.map((p) => p.kind)).size, 10);
   assert.equal(residents.find((p) => p.kind === 'cat')?.roomId, 'library');
   assert.equal(residents.find((p) => p.kind === 'vacuum')?.roomId, 'cafe');
   a.send({ type: 'change-room', roomId: 'office', requestId: 13 });

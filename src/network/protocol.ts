@@ -1,4 +1,6 @@
 import type { LostItemsSnapshot } from '../game/lost-items.ts';
+import { parseDevWorldAction } from '../game/dev-world.ts';
+import type { DevWorldAction, DevWorldSnapshot } from '../game/dev-world.ts';
 import { parseBirthdayAction } from '../game/birthdays.ts';
 import type { BirthdayAction, BirthdaySnapshot } from '../game/birthdays.ts';
 import { parseArcadeAction } from '../game/arcade.ts';
@@ -38,6 +40,7 @@ export type Position = [slot: number, x: number, y: number, flags: number, buddy
 export const MAX_PLAYERS = 150;
 export const POSITION_FRAME_MS = 50;
 export type ClientMessage =
+  | DevWorldAction
   | BirthdayAction
   | ArcadeAction
   | { type: 'robot-action'; action: RobotAction; actionId: string }
@@ -56,6 +59,8 @@ export type ClientMessage =
   | { type: 'move'; direction: Direction; requestId: number }
   | { type: 'reset'; requestId: number };
 export type ServerMessage =
+  | ({ type: 'dev-world-state' } & DevWorldSnapshot)
+  | { type: 'dev-world-result'; actionId: string; error?: string }
   | ({ type: 'birthdays' } & BirthdaySnapshot)
   | { type: 'birthday-result'; actionId: string; error?: string }
   | ({ type: 'lost-items' } & LostItemsSnapshot)
@@ -93,6 +98,7 @@ export function parseClientMessage(raw: string): ClientMessage | undefined {
   try { value = JSON.parse(raw); } catch { return; }
   if (!value || typeof value !== 'object') return;
   const data = value as Record<string, unknown>;
+  const dev = parseDevWorldAction(data); if (dev) return dev;
   const birthday = parseBirthdayAction(data); if (birthday) return birthday;
   if (data.type === 'robot-action' && isRobotAction(data.action) && validAnnouncementId(data.actionId)) return { type: 'robot-action', action: data.action, actionId: data.actionId };
   const arcade = parseArcadeAction(data); if (arcade) return arcade;

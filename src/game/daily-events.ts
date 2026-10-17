@@ -11,7 +11,13 @@ const JST = 9 * 3_600_000;
 export const EVENT_JOURNAL_START = Date.UTC(2026, 9, 17) - JST;
 const EPOCH = EVENT_JOURNAL_START;
 export type DailyEvent = { day: string; episodeId: string; roomId: RoomId; startsAt: number; endsAt: number };
-export type DailyEventSnapshot = { event: DailyEvent; serverNow: number };
+export type DailyEventSnapshot = { event: DailyEvent; serverNow: number; preview?: boolean };
+export function previewEventAt(now: number, episodeId: string, roomId?: RoomId): DailyEvent {
+  const event = dailyEventAt(now), episode = episodeById(episodeId)!;
+  const eligible = ROOMS.filter((room) => episode.theme !== 'kaiju' || room.outlook !== 'none');
+  const room = roomId && eligible.some((entry) => entry.id === roomId) ? roomId : eligible[eventHash(`${event.day}:${episodeId}:room`) % eligible.length].id;
+  return { ...event, episodeId, roomId: room };
+}
 export function eventHash(text: string): number {
   let value = 2166136261;
   for (const c of text) value = Math.imul(value ^ c.charCodeAt(0), 16777619) >>> 0;

@@ -20,7 +20,8 @@ test('buddy follows actual previous tiles around corners; resets and unequips sa
 });
 test('each roaming resident exists once across the building and avoids walls, furniture and people', () => {
   let seed = 15;
-  const pets = new RoomPets(() => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 2 ** 32; });
+  const pets = new RoomPets(() => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 2 ** 32; }, Date.parse('2026-10-17T12:00:00+09:00'));
+  const roster = ROOMS.flatMap((room) => pets.list(room.id));
   let moved = false;
   const person = player();
   for (let step = 0; step < 100; step++) {
@@ -28,7 +29,7 @@ test('each roaming resident exists once across the building and avoids walls, fu
     pets.step([], [person]);
     for (const room of ROOMS) {
       const animals = pets.list(room.id);
-      assert.deepEqual(animals.map((p) => p.kind), ROAMING_RESIDENTS.filter((p) => p.roomId === room.id).map((p) => p.kind));
+      assert.deepEqual(animals.map((p) => p.kind), roster.filter((p) => p.roomId === room.id).map((p) => p.kind));
       for (const pet of animals) {
         assert.ok(canWalk(pet.x, pet.y, room.id));
         assert.ok(Math.abs(pet.x - room.door.x) + Math.abs(pet.y - room.door.y) > 1);
@@ -41,10 +42,10 @@ test('each roaming resident exists once across the building and avoids walls, fu
   }
   assert.ok(moved);
   const all = ROOMS.flatMap((r) => pets.list(r.id));
-  assert.equal(all.length, ROAMING_RESIDENTS.length);
+  assert.equal(all.length, ROAMING_RESIDENTS.length + 7);
   assert.equal(new Set(all.map((p) => p.id)).size, all.length);
   assert.equal(new Set(all.map((p) => p.kind)).size, all.length);
-  assert.equal(ROOMS.filter((r) => pets.list(r.id).length === 0).length, ROOMS.length - new Set(ROAMING_RESIDENTS.map((r) => r.roomId)).size);
+  assert.equal(ROOMS.filter((r) => pets.list(r.id).length === 0).length, ROOMS.length - new Set(roster.map((r) => r.roomId)).size);
   const animal = pets.list('office')[0];
   const obstacle: RoomObject = { id: 'obstacle', owner: 'test', roomId: 'office', kind: 'plant', x: animal.x, y: animal.y, rotation: 0 };
   pets.step([obstacle], []); assert.notDeepEqual([pets.list('office')[0].x, pets.list('office')[0].y], [animal.x, animal.y]);

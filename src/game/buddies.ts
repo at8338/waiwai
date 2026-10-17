@@ -1,12 +1,12 @@
 import { extraBuddyPixels } from './extra-buddy-art.ts';
+import { POKEMON } from './pokemon.ts';
+import type { PokemonKind } from './pokemon.ts';
 import type { Pixel } from './avatar.ts';
 import type { Direction, Point } from './world.ts';
 import type { RoomId } from './rooms.ts';
 
 export const BUDDIES = {
-  pikachu: { name: 'ピカチュウ', icon: '⚡', description: '長い耳と赤いほっぺ。元気にとことこついてきます。', floating: false },
-  eevee: { name: 'イーブイ', icon: '🦊', description: 'ふわふわのえりとしっぽ。散歩の行き先が気になる相棒。', floating: false },
-  snorlax: { name: 'カビゴン', icon: '💤', description: 'のんびり、ゆったり。あなたのペースで一緒に歩こう。', floating: false },
+  ...POKEMON,
   vacuum: { name: 'ロボット掃除機', icon: '🧹', description: '丸いボディで、今日も静かにオフィスを巡回中。', floating: false },
   robot: { name: 'こつこつロボ', icon: '🤖', description: '小さなアンテナで、今日もあなたのお供。', floating: false },
   dog: { name: 'しばいぬ', icon: '🐕', description: 'とことこ歩く、頼もしい相棒。', floating: false },
@@ -26,11 +26,8 @@ export const ROAMING_RESIDENTS = [
   { kind: 'dog', roomId: 'office', x: 7, y: 15 },
   { kind: 'cat', roomId: 'library', x: 23, y: 16 },
   { kind: 'vacuum', roomId: 'cafe', x: 18, y: 15 },
-  { kind: 'pikachu', roomId: 'arcade', x: 10, y: 15 },
-  { kind: 'eevee', roomId: 'garden', x: 7, y: 15 },
-  { kind: 'snorlax', roomId: 'wellness', x: 15, y: 14 },
 ] as const satisfies readonly { kind: BuddyKind; roomId: RoomId; x: number; y: number }[];
-export type RoamingKind = typeof ROAMING_RESIDENTS[number]['kind'];
+export type RoamingKind = typeof ROAMING_RESIDENTS[number]['kind'] | PokemonKind;
 export const PET_STEP_MS = 650;
 export const BUDDY_WIDTH = 20, BUDDY_HEIGHT = 22;
 
