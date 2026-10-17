@@ -13,7 +13,7 @@ test('verified members persist, rename without duplicates, and survive concurren
   await Promise.all([store.remember(hana), store.remember({ ...hana, name: 'はな 新しい名前' }), store.remember({ ...hana, slack: { ...hana.slack, userId: 'U999ABCDEF' } })]);
   const restored = new MemberStore(file).list();
   assert.equal(restored.length, 2);
-  assert.equal(restored.find((m) => m.slack.userId === hana.slack.userId)!.name, 'はな 新しい名前');
+  assert.equal(restored.find((m) => m.slack?.userId === hana.slack.userId)!.name, 'はな 新しい名前');
   const saved = await readFile(file, 'utf8');
   assert.equal(JSON.parse(saved).version, 1);
   assert.ok(!/cookie|session|token|expires|roomId/.test(saved));

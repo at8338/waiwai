@@ -26,7 +26,7 @@ try {
 let initialSlack: SlackIdentity | null = null;
 try { initialSlack = readSlackSettings(window.sessionStorage.getItem(SLACK_STORAGE_KEY)); } catch { /* Settings remain available in memory. */ }
 if (auth.user) {
-  initialSlack = auth.user.slack;
+  initialSlack = auth.user.slack ?? null;
   try { window.sessionStorage.removeItem(SLACK_STORAGE_KEY); } catch { /* No browser persistence is needed for authenticated profiles. */ }
 }
 
@@ -67,7 +67,7 @@ app.innerHTML = `
     </aside>
     <section class="office-view" aria-labelledby="map-title">
       <section class="slack-login" aria-labelledby="slack-login-title">
-        <h2 class="section-label" id="slack-login-title">Slackでログイン</h2>
+        <h2 class="section-label" id="slack-login-title">アカウントでログイン</h2>
         <p id="slack-login-status" role="status"></p>
         <a id="slack-login-link" class="slack-login-button" hidden><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="#36c5f0" d="M5 14a2 2 0 1 1-2-2h2zm1 0a2 2 0 0 1 4 0v6a2 2 0 0 1-4 0z"/><path fill="#2eb67d" d="M10 5a2 2 0 1 1 2-2v2zm0 1a2 2 0 0 1 0 4H4a2 2 0 0 1 0-4z"/><path fill="#ecb22e" d="M19 10a2 2 0 1 1 2 2h-2zm-1 0a2 2 0 0 1-4 0V4a2 2 0 0 1 4 0z"/><path fill="#e01e5a" d="M14 19a2 2 0 1 1-2 2v-2zm0-1a2 2 0 0 1 0-4h6a2 2 0 0 1 0 4z"/></svg>Sign in with Slack</a>
         <button type="button" id="slack-logout" hidden>ログアウト</button>
@@ -102,8 +102,7 @@ app.innerHTML = `
         <button type="button" data-object-mode="place" aria-pressed="false" disabled>置く</button><button type="button" data-object-mode="move" aria-pressed="false" disabled>動かす</button><button type="button" data-object-mode="remove" aria-pressed="false" disabled>片づける</button><button type="button" id="object-rotate" disabled>回転 0°</button><button type="button" data-object-mode="none" aria-pressed="true">おわる</button></div>
         <p id="object-status" role="status">家具・小物を選び、「置く」を押してマップをクリック。配置はみんなに共有されます。</p>
       </section>
-      <p class="slack-map-hint">相手のアバター・名前をクリックすると、設定されたSlackのDMを開きます。</p>
-      <section id="slack-target" class="slack-target" aria-labelledby="slack-target-name" hidden><h2 id="slack-target-name"></h2><p id="slack-target-message" role="status"></p><code id="slack-target-ids"></code><a id="slack-dm-link" hidden>SlackアプリでDMを開く</a></section>
+      <p class="slack-map-hint">相手のアバター・名前をクリックすると、Waiwai内DMを開きます。</p>
       <div class="touch-controls" aria-label="移動ボタン"><button type="button" data-direction="up" aria-label="上へ移動">↑</button><button type="button" data-direction="left" aria-label="左へ移動">←</button><span aria-hidden="true">✦</span><button type="button" data-direction="right" aria-label="右へ移動">→</button><button type="button" data-direction="down" aria-label="下へ移動">↓</button></div>
       <p id="connection-message" class="connection-message" role="status">オフィスに接続しています…</p>
       <section id="voice-controls" class="voice-controls" aria-labelledby="voice-title">
@@ -111,7 +110,7 @@ app.innerHTML = `
         <div class="voice-buttons"><button type="button" id="voice-toggle" aria-pressed="false" disabled>音声に参加</button><button type="button" id="mic-toggle" aria-pressed="false" disabled>マイクをON</button></div>
         <p class="voice-hint">同じ部屋で5マス未満の人に声が届きます。近いほど大きく聞こえます。音声に参加しただけではマイクはONになりません。</p>
       </section>
-      <div class="map-legend"><span><i class="legend-work"></i>ワークエリア</span><span><i class="legend-meet"></i>ミーティングルーム</span><span><i class="legend-lounge"></i>ラウンジ</span><span class="scope-note">近づいて会話、クリックしてSlackへ。</span></div>
+      <div class="map-legend"><span><i class="legend-work"></i>ワークエリア</span><span><i class="legend-meet"></i>ミーティングルーム</span><span><i class="legend-lounge"></i>ラウンジ</span><span class="scope-note">近づいて会話、クリックしてDMへ。</span></div>
     </section>
   </main>
   <footer class="page-footer"><span>離れていても、おなじ場所に。</span><span>MADE FOR LITTLE ENCOUNTERS <span aria-hidden="true">✦</span></span></footer>
@@ -177,19 +176,22 @@ const logout = document.querySelector<HTMLButtonElement>('#slack-logout')!;
 const retry = document.querySelector<HTMLButtonElement>('#slack-auth-retry')!;
 loginStatus.textContent = authUnavailable ? 'ログイン状態を確認できませんでした。再確認してください。'
   : auth.user ? `${auth.user.name}さんでログイン中`
-  : auth.required ? '会社のSlackアカウントでログインして入室してください。'
+  : auth.required ? '会社のアカウントでログインして入室してください。'
   : auth.configured ? 'ゲストとして入室しています。' : 'Slackログインは準備中です。管理者の連携設定後に利用できます。';
 if (!authUnavailable && auth.loginUrl) { loginLink.href = auth.loginUrl; loginLink.hidden = !!auth.user; }
+if (auth.microsoftLoginUrl && !auth.user) {
+  const microsoft = document.createElement('a'); microsoft.id = 'microsoft-login-link'; microsoft.className = 'slack-login-button'; microsoft.href = auth.microsoftLoginUrl; microsoft.textContent = 'Microsoftでログイン'; loginLink.after(microsoft);
+}
 logout.hidden = !auth.user;
 retry.hidden = !authUnavailable;
 retry.addEventListener('click', () => window.location.reload());
 if (auth.user) {
-  document.querySelector('#slack-login-help')!.textContent = '名前とSlack IDはSlackのプロフィールを使用しています。';
+  document.querySelector('#slack-login-help')!.textContent = '名前はログインしたアカウントのプロフィールを使用しています。';
   nameInput.value = auth.user.name;
   nameInput.readOnly = true;
   scene.setName(auth.user.name);
   document.querySelector('#profile-name')!.textContent = auth.user.name;
-  document.querySelector('#name-hint')!.textContent = 'Slackの名前を自動設定しています。';
+  document.querySelector('#name-hint')!.textContent = 'ログインしたアカウントの名前を使用しています。';
 }
 const callbackStatus = new URL(window.location.href).searchParams.get('login');
 if (callbackStatus === 'failed' || callbackStatus === 'expired') {
@@ -213,8 +215,8 @@ slackUser.value = initialSlack?.userId ?? '';
 if (auth.user || authUnavailable) {
   slackTeam.readOnly = true; slackUser.readOnly = true;
   document.querySelector<HTMLElement>('.slack-settings-buttons')!.hidden = true;
-  document.querySelector('#slack-settings-help')!.textContent = auth.user ? 'Slackログインから自動設定され、接続中の参加者に共有されます。' : 'ログイン状態の再確認後に設定できます。';
-  slackStatus.textContent = auth.user ? 'Slackログイン済みです。手動設定は不要です。' : 'ログイン状態を確認できていません。';
+  document.querySelector('#slack-settings-help')!.textContent = auth.user ? auth.user.slack ? 'Slackログインから自動設定され、接続中の参加者に共有されます。' : 'Slack設定は不要です。館内のチャットから連絡できます。' : 'ログイン状態の再確認後に設定できます。';
+  slackStatus.textContent = auth.user ? auth.user.slack ? 'Slackログイン済みです。手動設定は不要です。' : 'Microsoftでログインしています。SlackなしでもWaiwai内DMを使えます。' : 'ログイン状態を確認できていません。';
 }
 const saveSlack = (identity: SlackIdentity | null) => {
   if (auth.user || authUnavailable) return;

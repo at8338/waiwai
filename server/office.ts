@@ -1,3 +1,6 @@
+import { ChatService } from './chat.ts';
+import { persistentIdentity } from '../src/game/identity.ts';
+import { playerIdentity, userIdentity } from '../src/game/identity.ts';
 import { lostItemsSnapshot, lostItemPeriod } from '../src/game/lost-items.ts';
 import { BirthdayStore, BirthdayError } from './birthdays.ts';
 import { birthdayDay } from '../src/game/birthdays.ts';
@@ -25,7 +28,7 @@ import { COLS, ROWS } from '../src/game/world.ts';
 import { MAX_PLAYERS, POSITION_FRAME_MS, directions, parseClientMessage } from '../src/network/protocol.ts';
 import type { Player, Position, ServerMessage } from '../src/network/protocol.ts';
 import { VoiceRoom, readIceProvider } from './voice.ts';
-import type { SlackAuth } from './auth.ts';
+import type { OfficeAuthService } from './auth.ts';
 import { DEFAULT_APPEARANCE } from '../src/game/avatar.ts';
 import { getRoom, ROOMS } from '../src/game/rooms.ts';
 import type { RoomId } from '../src/game/rooms.ts';
@@ -40,7 +43,7 @@ import { REACTION_COOLDOWN_MS } from '../src/game/reactions.ts';
 
 class EditError extends Error {}
 
-export function attachOffice(server: Server, auth?: SlackAuth, options: { objectsFile?: string; membersFile?: string; linksFile?: string; announcementsFile?: string; birthdaysFile?: string; devControls?: boolean; birthdayClock?: () => number; eventClock?: () => number; lostClock?: () => number } = {}): () => void {
+export function attachOffice(server: Server, auth?: OfficeAuthService, options: { chat?: ChatService; objectsFile?: string; membersFile?: string; linksFile?: string; announcementsFile?: string; birthdaysFile?: string; devControls?: boolean; birthdayClock?: () => number; eventClock?: () => number; lostClock?: () => number } = {}): () => void {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 });
   const players = new Map<WebSocket, Player>();
   const contacts = new Map<string, () => void>();
@@ -50,11 +53,13 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
   const arena = new MagicArena(), ice = new IceShields();
   let publishedArena = "";
   const members = new MemberStore(options.membersFile);
+  const chat = options.chat ?? new ChatService();
+  for (const member of members.list()) chat.store.account(member.id, member.name, true);
   const links = new LinkStore(options.linksFile);
   const announcements = new AnnouncementStore(options.announcementsFile);
   const birthdayClock = options.birthdayClock ?? Date.now;
   const birthdays = new BirthdayStore(options.birthdaysFile, birthdayClock);
-  const birthdayOwner = (player: Player) => player.slackVerified && player.slack ? `slack:${player.slack.teamId}:${player.slack.userId}` : `guest:${player.id}`;
+  const birthdayOwner = playerIdentity;
   const birthdayThreads = new Map<WebSocket, { id: string; date: string }>();
   const sendBirthdayThreads = () => {
     for (const [client, thread] of birthdayThreads) {
@@ -219,7 +224,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     const identity = auth?.identify(request);
     if (identity) identities.set(ws, identity.id);
     const player: Player = { id: randomUUID(), slot: ++nextSlot, name: identity?.user.name ?? 'ゲスト', outfit: 0, appearance: { ...DEFAULT_APPEARANCE }, roomId: 'office',
-      slack: identity?.user.slack ?? null, slackVerified: !!identity, ...spawn(), facing: 'down' };
+      slack: identity?.user.slack ?? null, slackVerified: !!identity?.user.slack, ...(identity ? { accountId: userIdentity(identity.user) } : {}), ...spawn(), facing: 'down' };
     players.set(ws, player);
     directoryDirty = true;
     if (identity) void members.remember(identity.user).then(() => {
@@ -230,6 +235,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     alive.add(ws);
     if (allowDevWorld(options.devControls, request)) devClients.add(ws);
     send(ws, { type: 'welcome', id: player.id, players: [...players.values()] });
+    chat.join(ws, () => ({ id: playerIdentity(player), name: player.name, persistent: persistentIdentity(playerIdentity(player)), roomId: player.roomId }));
     broadcast({ type: 'player', player, reason: 'join' }, ws);
     sendObjects(ws, player.roomId);
     sendPets(ws, player.roomId);
@@ -282,6 +288,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
       const message = parseClientMessage(data.toString());
       if (message?.type === 'voice-signal' ? ++signals > 120 : ++messages > 40) { ws.close(1008, 'Too many messages'); return; }
       if (!message) return;
+      if (message.type === 'chat-history' || message.type === 'chat-send' || message.type === 'chat-read') { chat.action(ws, message); return; }
       if (message.type === 'arena-action') {
         if (arenaRequests.has(message.actionId)) { const error = arenaRequests.get(message.actionId); send(ws, { type: 'arena-result', actionId: message.actionId, ...(error ? { error } : {}) }); return; }
         const error = message.command === 'join' ? arena.join(player, now) : (leaveArena(player.id), undefined);
@@ -341,7 +348,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
           resetBuddy(mover, collisionObjects(destinationRoom)); contacts.get(mover.id)?.(); pending.delete(mover.id);
           movementBlocks.set(mover.id, now + movementStep(mover.riding?.kind)); if (message.spell === 'call') summonedAt.set(mover.id, now);
           broadcast({ type: 'player', player: mover, reason: 'spell' });
-          sendObjects(client, destinationRoom); sendPets(client, destinationRoom); sendRobot(client); sendArcade(client); sendLinks(client, destinationRoom); sendIce(client); sendArena(client);
+          chat.state(client); sendObjects(client, destinationRoom); sendPets(client, destinationRoom); sendRobot(client); sendArcade(client); sendLinks(client, destinationRoom); sendIce(client); sendArena(client);
         }
         directoryDirty = true; voice.refresh();
         const effect: Extract<ServerMessage, { type: 'spell-effect' }> = { type: 'spell-effect', id: randomUUID(), spell: message.spell, casterId: player.id, casterName: player.name, roomId: destinationRoom, origin, destinations, targetIds: movers.map((person) => person.id) };
@@ -445,7 +452,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
         if (now - lastLinkEdit < 350) { send(ws, { type: 'link-result', editId: message.editId, error: '少し待ってから、もう一度保存してください。' }); return; }
         lastLinkEdit = now;
         const roomId = player.roomId;
-        const owner = identity ? `slack:${identity.user.slack.teamId}:${identity.user.slack.userId}` : `guest:${player.id}`;
+        const owner = playerIdentity(player);
         void links.transact((state) => {
           if (!players.has(ws) || player.roomId !== roomId || (identity && auth?.identify(request)?.id !== identity.id)) throw new EditError('接続または部屋が変わったため、操作を取り消しました。');
           // Discard bindings left by removed furniture before applying a new edit.
@@ -491,7 +498,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
         sendPets(ws, player.roomId);
         sendRobot(ws);
         sendArcade(ws);
-        sendLinks(ws, player.roomId); sendIce(ws); sendArena(ws);
+        chat.state(ws); sendLinks(ws, player.roomId); sendIce(ws); sendArena(ws);
         directoryDirty = true;
         voice.refresh();
         lastMove = now;
@@ -502,7 +509,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
         if (now - lastEdit < 350) { send(ws, { type: 'object-result', editId: message.editId, error: '少し待ってから、もう一度操作してください。' }); return; }
         lastEdit = now;
         const roomId = player.roomId;
-        const owner = identity ? `slack:${identity.user.slack.teamId}:${identity.user.slack.userId}` : `guest:${player.id}`;
+        const owner = playerIdentity(player);
         void store.transact((objects) => {
           if (!players.has(ws) || player.roomId !== roomId || (identity && auth?.identify(request)?.id !== identity.id)) throw new EditError('部屋が変わったため操作を取り消しました。');
           const existing = 'id' in message ? objects.find((o) => o.id === message.id) : undefined;
@@ -531,11 +538,12 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
         player.appearance = message.appearance;
         if (message.buddy !== undefined && (message.buddy !== player.buddy || (message.buddy && !player.buddyPosition))) { player.buddy = message.buddy; resetBuddy(player, collisionObjects(player.roomId)); }
         pending.delete(player.id);
-        player.slack = identity?.user.slack ?? message.slack ?? null;
+        player.slack = identity ? identity.user.slack ?? null : message.slack ?? null;
       } else if (message.type === 'change-room') {
         leaveArena(player.id);
         if (message.roomId !== player.roomId) leaveArcade(player.id);
         player.roomId = message.roomId;
+        chat.state(ws);
         Object.assign(player, spawn(player.roomId, ws), { facing: 'down' });
         resetBuddy(player, collisionObjects(player.roomId));
         contact();
@@ -545,7 +553,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
         sendPets(ws, player.roomId);
         sendRobot(ws);
         sendArcade(ws);
-        sendLinks(ws, player.roomId); sendIce(ws); sendArena(ws);
+        chat.state(ws); sendLinks(ws, player.roomId); sendIce(ws); sendArena(ws);
         directoryDirty = true;
         voice.refresh();
         lastMove = now;
@@ -569,7 +577,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
         }
       }
       if (message.type !== 'profile') contact();
-      if (message.type === 'profile') { broadcast({ type: 'player', player, reason: 'profile' }); directoryDirty = true; }
+      if (message.type === 'profile') { chat.profile(ws); broadcast({ type: 'player', player, reason: 'profile' }); directoryDirty = true; }
       else {
         // Immediate authoritative acknowledgment keeps local movement responsive.
         send(ws, { type: 'player', player, reason: message.type, requestId: message.requestId });
@@ -586,6 +594,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
       const hadVehicle = !!player.riding; fleet.forget(player);
       players.delete(ws);
       contacts.delete(player.id); movementBlocks.delete(player.id); summonedAt.delete(player.id);
+      chat.leave(ws);
       birthdayThreads.delete(ws);
       if (!identity) void birthdays.removeGuest(birthdayOwner(player)).then(() => { sendBirthdays(); sendBirthdayThreads(); }).catch(() => {});
       if (hadVehicle) sendFleet();
@@ -633,5 +642,6 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     server.off('upgrade', upgrade);
     for (const ws of wss.clients) ws.terminate();
     wss.close();
+    chat.close();
   };
 }

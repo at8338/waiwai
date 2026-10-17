@@ -32,3 +32,11 @@ artifacts/
 *.tfplan.json
 crash.log
 crash.*.log
+
+# Private chat databases and SQLite write-ahead logs
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.db-wal
+*.db-shm

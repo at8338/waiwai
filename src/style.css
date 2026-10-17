@@ -539,3 +539,31 @@ select { color: #354b3e; background: #fffdf6; border: 1px solid #ced7c2; border-
 .arena-fighter { display: grid; flex: 1; gap: 6px; min-width: 140px; font-size: 12px; }
 .arena-fighter progress { width: 100%; accent-color: #679b76; }
 #arena-error { color: #9d3d50; }
+
+/* Persistent office chat */
+.chat-dialog { max-width: 1000px; width: min(1000px, calc(100vw - 32px)); max-height: 92dvh; padding: 24px; }
+.chat-heading { display: flex; align-items: start; justify-content: space-between; gap: 20px; }
+.chat-heading h2 { margin: 6px 0 12px; }
+.chat-layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 24px; }
+.chat-layout nav { border-right: 1px solid #d8d8c6; padding-right: 16px; max-height: 65dvh; overflow-y: auto; }
+.chat-layout nav button { width: 100%; text-align: left; margin-bottom: 7px; overflow-wrap: anywhere; }
+.chat-layout nav button[aria-pressed="true"] { background: #e4eacb; border-color: #71825e; }
+.chat-layout nav label { display: block; margin: 18px 0 10px; }
+.chat-layout nav input { width: 100%; margin-top: 8px; }
+.chat-conversation { min-width: 0; }
+.chat-conversation h3 { margin: 0 0 6px; }
+.chat-conversation header p { margin: 0 0 10px; font-size: 12px; color: #687160; }
+#chat-messages { list-style: none; padding: 10px 8px; margin: 10px 0; min-height: 100px; max-height: 36dvh; overflow-y: auto; overflow-wrap: anywhere; overscroll-behavior: contain; }
+#chat-messages li { padding: 10px 12px; background: #eeeddf; border-radius: 8px; margin: 0 34px 12px 0; }
+#chat-messages li.is-self { margin: 0 0 12px 34px; background: #e3ebd4; }
+.chat-message-meta { font-size: 10px; color: #63705c; }
+#chat-messages p { white-space: pre-wrap; margin: 7px 0 0; font-size: 14px; line-height: 1.65; }
+#chat-text { display: block; width: 100%; resize: vertical; margin: 8px 0; padding: 10px; font: inherit; border: 1px solid #c8cebb; border-radius: 6px; background: #fffdf4; }
+.chat-send-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 10px; }
+#chat-share-label { font-size: 12px; }
+#chat-status { font-size: 12px; min-height: 18px; }
+#chat-empty { font-size: 12px; color: #687160; }
+@media (max-width: 640px) { .chat-layout { grid-template-columns: 1fr; gap: 12px; } .chat-layout nav { border-right: 0; max-height: 140px; padding: 0; border-bottom: 1px solid #d8d8c6; } .chat-dialog { padding: 16px; } #chat-messages { max-height: 28dvh; } }
+
+.chat-dialog button { border: 1px solid #bccab1; border-radius: 4px; padding: 9px 12px; background: #fffdf3; font-size: 12px; }
+#chat-send { background: #355b49; color: #fff7da; white-space: nowrap; min-width: 72px; }

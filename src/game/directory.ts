@@ -1,19 +1,20 @@
+import { playerIdentity } from './identity.ts';
 import type { SlackIdentity } from '../slack/dm.ts';
 import type { Player } from '../network/protocol.ts';
 import type { RoomId } from './rooms.ts';
 
-export type Member = { id: string; name: string; slack: SlackIdentity };
+export type Member = { id: string; name: string; slack?: SlackIdentity };
 export type Person = { id: string; name: string; slack: SlackIdentity | null; verified: boolean; online: boolean; playerId?: string; roomId?: RoomId };
 export const memberId = (slack: SlackIdentity): string => `slack:${slack.teamId}:${slack.userId}`;
 
 export function directoryPeople(members: readonly Member[], players: Iterable<Player>): Person[] {
-  const people = new Map<string, Person>(members.map((m) => [m.id, { ...m, verified: true, online: false }]));
+  const people = new Map<string, Person>(members.map((m) => [m.id, { ...m, slack: m.slack ?? null, verified: true, online: false }]));
   for (const p of players) {
-    const verified = !!p.slackVerified && !!p.slack;
-    const id = verified ? memberId(p.slack!) : `guest:${p.id}`;
+    const verified = !!p.accountId || !!p.slackVerified && !!p.slack;
+    const id = playerIdentity(p);
     // One row per verified Slack account. The most recently connected tab is
     // its destination; a remaining tab keeps the account online after an exit.
-    people.set(id, { id, name: p.name, slack: verified ? p.slack! : null, verified, online: true, playerId: p.id, roomId: p.roomId });
+    people.set(id, { id, name: p.name, slack: p.slackVerified ? p.slack! : null, verified, online: true, playerId: p.id, roomId: p.roomId });
   }
   return [...people.values()];
 }

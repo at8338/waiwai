@@ -1,3 +1,5 @@
+import { parseChatAction } from '../game/chat.ts';
+import type { ChatAction, ChatEvent } from '../game/chat.ts';
 import type { LostItemsSnapshot } from '../game/lost-items.ts';
 import { parseSpellAction } from '../game/spells.ts';
 import type { SpellAction, SpellEffect, SpellKind } from '../game/spells.ts';
@@ -35,7 +37,7 @@ import { isReactionKind } from '../game/reactions.ts';
 import type { ReactionKind } from '../game/reactions.ts';
 
 export type Profile = { name: string; outfit: number; appearance?: Appearance; buddy?: BuddyKind | null; slack?: SlackIdentity | null };
-export type Player = Profile & { id: string; slot: number; roomId: RoomId; x: number; y: number; facing: Direction; slackVerified?: boolean; buddyPosition?: BuddyPosition; riding?: Riding; resting?: boolean };
+export type Player = Profile & { id: string; slot: number; roomId: RoomId; x: number; y: number; facing: Direction; slackVerified?: boolean; accountId?: string; buddyPosition?: BuddyPosition; riding?: Riding; resting?: boolean };
 // Profiles travel only on join/edit; movement is coalesced into one frame per 50ms.
 // Small numeric slot maps to a UUID in the welcome/join profile. Bits 0–1 are
 // direction; bit 2 means snap/reset. UUIDs and identities stay out of frames.
@@ -43,6 +45,7 @@ export type Position = [slot: number, x: number, y: number, flags: number, buddy
 export const MAX_PLAYERS = 150;
 export const POSITION_FRAME_MS = 50;
 export type ClientMessage =
+  | ChatAction
   | ArenaAction
   | SpellAction
   | DevWorldAction
@@ -66,6 +69,7 @@ export type ClientMessage =
   | { type: 'dash'; direction: Direction; requestId: number }
   | { type: 'reset'; requestId: number };
 export type ServerMessage =
+  | ChatEvent
   | ({ type: 'birthday-thread' } & BirthdayThread)
   | ({ type: 'ice-state' } & IceSnapshot)
   | { type: 'arena-state'; state: ArenaState; serverNow: number }
@@ -113,6 +117,7 @@ export function parseClientMessage(raw: string): ClientMessage | undefined {
   if (!value || typeof value !== 'object') return;
   const data = value as Record<string, unknown>;
   if (data.type === 'arena-action' && (data.command === 'join' || data.command === 'leave') && validAnnouncementId(data.actionId)) return { type: 'arena-action', command: data.command, actionId: data.actionId };
+  const chat = parseChatAction(data); if (chat) return chat;
   const spell = parseSpellAction(data); if (spell) return spell;
   const dev = parseDevWorldAction(data); if (dev) return dev;
   const birthday = parseBirthdayAction(data); if (birthday) return birthday;

@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import type { AuthConfig } from './auth.ts';
 import type { TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, request as httpRequest } from 'node:http';
@@ -6,7 +7,7 @@ import { createHash, createSign, generateKeyPairSync } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import WebSocket from 'ws';
 import * as oidc from 'openid-client';
-import { readAuthConfig, SlackAuth, slackConfiguration } from './auth.ts';
+import { readAuthConfig, SlackAuth, slackConfiguration, entraConfiguration, entraUser, readEntraConfig, OfficeAuth } from './auth.ts';
 import { attachOffice } from './office.ts';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -32,32 +33,36 @@ test('Slack configuration is optional but requires a complete server-side HTTPS 
   assert.throws(() => readAuthConfig({ SLACK_CLIENT_ID: 'id' }));
 });
 
-async function fixture(t: TestContext, enabled = true, policy: { required?: boolean; teamId?: string } = {}, membersFile?: string) {
+async function fixture(t: TestContext, enabled = true, policy: Partial<AuthConfig> = {}, membersFile?: string) {
+  const currentConfig = { ...config, ...policy };
+  const microsoft = currentConfig.provider === 'entra', route = microsoft ? '/auth/microsoft' : '/auth/slack';
+  const issuer = `https://login.microsoftonline.com/${currentConfig.tenantId}/v2.0`;
   let time = Date.now();
   let overrides: Record<string, unknown> = {};
   let wrongSignature = false;
   let tokenCalls = 0;
   let expectedNonce = '';
   let expectedChallenge = '';
-  const client = slackConfiguration(config);
+  const client = (microsoft ? entraConfiguration(currentConfig) : slackConfiguration(currentConfig));
   client[oidc.customFetch] = async (input, options) => {
     const url = String(input);
-    if (url === 'https://slack.com/openid/connect/keys') return Response.json({ keys: [{ ...publicKey.export({ format: 'jwk' }), kid: 'slack-key', alg: 'RS256', use: 'sig' }] });
-    assert.equal(url, 'https://slack.com/api/openid.connect.token');
+    if (url === (microsoft ? `https://login.microsoftonline.com/${currentConfig.tenantId}/discovery/v2.0/keys` : 'https://slack.com/openid/connect/keys')) return Response.json({ keys: [{ ...publicKey.export({ format: 'jwk' }), kid: 'slack-key', alg: 'RS256', use: 'sig' }] });
+    assert.equal(url, microsoft ? `https://login.microsoftonline.com/${currentConfig.tenantId}/oauth2/v2.0/token` : 'https://slack.com/api/openid.connect.token');
     tokenCalls++;
     const form = new URLSearchParams(String(options?.body));
-    assert.equal(form.get('client_secret'), config.clientSecret);
-    assert.equal(form.get('client_id'), config.clientId);
-    assert.equal(form.get('redirect_uri'), config.redirectUri);
+    assert.equal(form.get('client_secret'), currentConfig.clientSecret);
+    assert.equal(form.get('client_id'), currentConfig.clientId);
+    assert.equal(form.get('redirect_uri'), currentConfig.redirectUri);
     assert.equal(createHash('sha256').update(form.get('code_verifier')!).digest('base64url'), expectedChallenge);
     if (form.get('code') === 'bad') return Response.json({ error: 'invalid_grant', private: 'must-not-leak' }, { status: 400 });
     const now = Math.floor(Date.now() / 1000);
     return Response.json({ access_token: 'secret-access-token', token_type: 'Bearer', id_token: jwt({
-      iss: 'https://slack.com', sub: 'U012ABCDEF', aud: config.clientId, iat: now, exp: now + 300,
+      iss: microsoft ? issuer : 'https://slack.com', sub: 'U012ABCDEF', aud: currentConfig.clientId, iat: now, exp: now + 300,
+      ...(microsoft ? { tid: currentConfig.tenantId, oid: '22222222-2222-2222-2222-222222222222', email: 'before@example.test' } : {}),
       nonce: expectedNonce, name: 'はな Slack', 'https://slack.com/team_id': 'T012ABCDEF', 'https://slack.com/user_id': 'U012ABCDEF', ...overrides,
     }, wrongSignature) });
   };
-  const auth = new SlackAuth(enabled ? { ...config, ...policy } : undefined, { ...(enabled ? { client } : {}), now: () => time });
+  const auth = new SlackAuth(enabled ? currentConfig : undefined, { ...(enabled ? { client } : {}), now: () => time });
   const server = createServer((request, response) => {
     void auth.handle(request, response).then((handled) => { if (!handled) response.writeHead(404).end(); });
   });
@@ -86,13 +91,13 @@ async function fixture(t: TestContext, enabled = true, policy: { required?: bool
     request.end(options.body ? String(options.body) : undefined);
   });
   const begin = async () => {
-    const response = await request('/auth/slack');
+    const response = await request(route);
     const target = new URL(response.headers.get('location')!);
     expectedNonce = target.searchParams.get('nonce')!;
     expectedChallenge = target.searchParams.get('code_challenge')!;
     return { response, target, state: target.searchParams.get('state')!, cookie: response.headers.getSetCookie()[0].split(';')[0] };
   };
-  const callback = (flow: { state: string; cookie: string }, params: Record<string, string> = {}) => request('/auth/slack/callback', {
+  const callback = (flow: { state: string; cookie: string }, params: Record<string, string> = {}) => request(route + '/callback', {
     method: 'POST', headers: { Cookie: flow.cookie, 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ state: flow.state, code: 'ok', ...params }),
   });
   const login = async () => {
@@ -271,4 +276,29 @@ test('verified directory membership survives logout and server restart, merges t
   const restored = await observer.next('directory');
   assert.equal(restored.people.find((p) => p.id === id)!.online, false);
   assert.equal(restored.people.find((p) => p.id === id)!.name, 'はな Slack');
+});
+
+const tenant = '11111111-1111-1111-1111-111111111111';
+const entra = { provider: 'entra' as const, tenantId: tenant, clientId: '33333333-3333-3333-3333-333333333333', redirectUri: 'https://office.example/auth/microsoft/callback', required: true };
+test('Microsoft login validates signed tenant identity and keeps the same account when email changes', async t => {
+  const f = await fixture(t, true, entra);
+  const flow = await f.begin(); assert.equal(flow.target.origin, 'https://login.microsoftonline.com'); assert.equal(flow.target.searchParams.get('scope'), 'openid profile email');
+  const cookie = (await f.callback(flow)).headers.getSetCookie().find(v=>v.startsWith('waiwai_session='))!.split(';')[0];
+  const first = await (await f.request('/api/auth/session', { headers: { Cookie: cookie } })).json();
+  assert.equal(first.user.accountId, `entra:${tenant}:22222222-2222-2222-2222-222222222222`); assert.equal(first.user.slack, undefined);
+  const peer = await f.connect(cookie); assert.equal(peer.welcome.players.find(p=>p.id===peer.welcome.id)!.accountId, first.user.accountId);
+  f.change({ email: 'changed@example.test' }); const later = await f.login();
+  const second = await (await f.request('/api/auth/session', { headers: { Cookie: later } })).json(); assert.equal(second.user.accountId, first.user.accountId); assert.notEqual(second.user.email,first.user.email);
+  peer.ws.send(JSON.stringify({ type: 'profile', name: 'forged', outfit: 0, accountId: 'slack:T012ABCDEF:U012ABCDEF', slack: { teamId:'T012ABCDEF',userId:'U012ABCDEF' } }));
+  const updated = (await peer.next('player',m=>m.reason==='profile')).player; assert.equal(updated.accountId, first.user.accountId); assert.equal(updated.slack,null);
+});
+for (const [name, claims] of Object.entries({ tenant: {tid:'99999999-9999-9999-9999-999999999999'}, issuer:{iss:'https://example.invalid'}, audience:{aud:'wrong'}, object:{oid:'forged'}, nonce:{nonce:'wrong'} })) test(`Microsoft rejects invalid ${name}`,async t=>{
+  const f=await fixture(t,true,entra);f.change(claims);assert.equal((await f.callback(await f.begin())).headers.get('location'),'/?login=failed');
+});
+test('Entra requires a complete single-tenant HTTPS configuration, and does not use email as identity',()=>{
+  assert.equal(readEntraConfig({}),undefined);assert.throws(()=>readEntraConfig({REQUIRE_ENTRA_LOGIN:'true'}));
+  assert.throws(()=>readEntraConfig({ENTRA_TENANT_ID:'common',ENTRA_CLIENT_ID:entra.clientId,ENTRA_CLIENT_SECRET:'test',ENTRA_REDIRECT_URI:entra.redirectUri}));
+  const cfg=readEntraConfig({ENTRA_TENANT_ID:tenant,ENTRA_CLIENT_ID:entra.clientId,ENTRA_CLIENT_SECRET:'test',ENTRA_REDIRECT_URI:entra.redirectUri,REQUIRE_ENTRA_LOGIN:'true'})!;
+  const auth=new OfficeAuth(undefined,cfg);assert.equal(auth.canJoin({headers:{}} as never),false);auth.close();
+  assert.throws(()=>entraUser({tid:tenant,oid:'bad',email:'trusted@example.test',name:'A'},tenant));
 });

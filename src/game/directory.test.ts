@@ -20,8 +20,8 @@ test('the directory merges verified tabs, keeps remaining connections online, an
 });
 
 test('name and Slack ID search normalize width and case, apply status filters and sort online first', () => {
-  const people: Person[] = [{ ...member, name: 'Alice はな', online: false, verified: true },
-    { ...member, id: 'other', name: 'たろう', online: true, verified: true }];
+  const people: Person[] = [{ ...member, slack, name: 'Alice はな', online: false, verified: true },
+    { ...member, slack, id: 'other', name: 'たろう', online: true, verified: true }];
   assert.equal(searchPeople(people, 'ＡＬＩＣＥ　はな')[0].id, member.id);
   assert.equal(searchPeople(people, 'u012abc')[0].name, 'たろう');
   assert.equal(searchPeople(people, '', 'offline').length, 1);

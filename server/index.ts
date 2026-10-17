@@ -1,14 +1,16 @@
+import { ChatService, readSlackChatConfig } from './chat.ts';
 import { dirname, join } from 'node:path';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { extname, resolve, sep } from 'node:path';
 import { attachOffice } from './office.ts';
-import { readAuthConfig, SlackAuth } from './auth.ts';
+import { readAuthConfig, readEntraConfig, OfficeAuth } from './auth.ts';
 
 try { process.loadEnvFile(); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
-const auth = new SlackAuth(readAuthConfig(process.env));
+const auth = new OfficeAuth(readAuthConfig(process.env), readEntraConfig(process.env));
 
+const chat = new ChatService(process.env.WAIWAI_CHAT_FILE ?? join(dirname(process.env.WAIWAI_DATA_FILE ?? '.local/office-objects.json'), 'office-chat.sqlite'), readSlackChatConfig(process.env));
 const root = fileURLToPath(new URL('../dist/', import.meta.url));
 const types: Record<string, string> = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
@@ -18,7 +20,7 @@ const server = createServer(async (request, response) => {
   if (request.url === '/healthz' && (request.method === 'GET' || request.method === 'HEAD')) {
     response.writeHead(200, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' }).end(request.method === 'HEAD' ? undefined : 'ok'); return;
   }
-  try { if (await auth.handle(request, response)) return; }
+  try { if (await chat.handle(request, response)) return; if (await auth.handle(request, response)) return; }
   catch { response.writeHead(500).end('Authentication unavailable'); return; }
   if (request.method !== 'GET' && request.method !== 'HEAD') { response.writeHead(405).end(); return; }
   try {
@@ -32,7 +34,7 @@ const server = createServer(async (request, response) => {
     response.end(request.method === 'HEAD' ? undefined : content);
   } catch { response.writeHead(404).end('Not found'); }
 });
-const closeOffice = attachOffice(server, auth, { objectsFile: process.env.WAIWAI_DATA_FILE ?? '.local/office-objects.json', membersFile: process.env.WAIWAI_MEMBERS_FILE ?? '.local/office-members.json', linksFile: process.env.WAIWAI_LINKS_FILE ?? '.local/office-links.json', birthdaysFile: process.env.WAIWAI_BIRTHDAYS_FILE ?? join(dirname(process.env.WAIWAI_DATA_FILE ?? '.local/office-objects.json'), 'office-birthdays.json'), announcementsFile: process.env.WAIWAI_ANNOUNCEMENTS_FILE ?? join(dirname(process.env.WAIWAI_DATA_FILE ?? '.local/office-objects.json'), 'office-announcements.json') });
+const closeOffice = attachOffice(server, auth, { chat, objectsFile: process.env.WAIWAI_DATA_FILE ?? '.local/office-objects.json', membersFile: process.env.WAIWAI_MEMBERS_FILE ?? '.local/office-members.json', linksFile: process.env.WAIWAI_LINKS_FILE ?? '.local/office-links.json', birthdaysFile: process.env.WAIWAI_BIRTHDAYS_FILE ?? join(dirname(process.env.WAIWAI_DATA_FILE ?? '.local/office-objects.json'), 'office-birthdays.json'), announcementsFile: process.env.WAIWAI_ANNOUNCEMENTS_FILE ?? join(dirname(process.env.WAIWAI_DATA_FILE ?? '.local/office-objects.json'), 'office-announcements.json') });
 const port = Number(process.env.PORT ?? 5173);
 const host = process.env.HOST ?? '127.0.0.1';
 server.listen(port, host, () => console.log(`Waiwai: http://${host}:${port}/`));
