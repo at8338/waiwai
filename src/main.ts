@@ -65,7 +65,7 @@ app.innerHTML = `
         <p id="slack-login-help">ログインすると、名前とSlack IDが自動で設定されます。</p>
       </section>
       <div class="map-heading"><div><span class="eyebrow">LET’S TAKE A LITTLE WALK</span><h2 id="map-title">小さなオフィスへ、ようこそ。</h2></div><button type="button" class="help-button" id="help-button" aria-label="操作方法を表示">?</button></div>
-      <section class="room-switcher" aria-label="フロア移動"><div><span class="eyebrow">11 ROOMS TO EXPLORE</span><strong data-room-name>ひだまりオフィス</strong><p id="room-description"></p></div><div class="room-switcher-actions"><button type="button" id="people-open">人を探す</button><button type="button" id="room-picker-open">部屋を移動 <span aria-hidden="true">↗</span></button></div></section>
+      <section class="room-switcher" aria-label="フロア移動"><div><span class="eyebrow">${ROOMS.length} ROOMS TO EXPLORE</span><strong data-room-name>ひだまりオフィス</strong><p id="room-description"></p></div><div class="room-switcher-actions"><button type="button" id="people-open">人を探す</button><button type="button" id="room-picker-open">部屋を移動 <span aria-hidden="true">↗</span></button></div></section>
       <p id="people-travel-status" role="status"></p>
       <div class="game-frame">
         <div class="game-topline"><span><i></i> <span data-current-area>エントランス</span></span><span><span data-room-name>ひだまりオフィス</span> <b id="room-number">01</b></span></div>
