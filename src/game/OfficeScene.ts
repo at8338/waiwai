@@ -1,3 +1,4 @@
+import { walkingMotion } from './walking.ts';
 import { DailyEventsUI } from './daily-events-ui.ts';
 import { DailyEventsView } from './daily-events-view.ts';
 import { AnnouncementsUI } from './announcements-ui.ts';
@@ -405,6 +406,7 @@ export class OfficeScene extends Phaser.Scene {
       const seatId = player.id === this.localId ? this.avatar.seatId : this.peers.get(player.id)?.view.seatId;
       item.dataset.seatId = seatId ?? '';
       item.children[5].textContent = seatId ? '着席中' : '';
+      item.dataset.walkStyle = String(player.appearance?.walkStyle ?? 0);
       item.dataset.heldItem = String(player.appearance?.heldItem ?? 0);
       item.dataset.outfit = String(player.outfit);
       item.dataset.roomId = player.roomId;
@@ -660,13 +662,14 @@ export class OfficeScene extends Phaser.Scene {
     const seat = this.connected && this.objectsReady ? restingSeat(this.seats, walker.tile, walker.moving, !!riding, !!motion) : undefined;
     if (view.seatId !== seat?.id) { view.seatId = seat?.id; this.participantsDirty = true; }
     if (seat) { x = seat.anchor.x; y = seat.anchor.y; }
-    const lift = (motion?.lift ?? 0) + (riding?.kind === 'bike' ? 4 : 0);
-    const frame = walker.moving && !motion ? 1 + Math.floor(time / 95) % 2 : 0;
-    view.sprite.setPosition(Math.round(x), Math.round(y + 6 - lift)).setRotation(motion?.tilt ?? 0).setScale(1, motion?.scaleY ?? 1)
+    const walk = walkingMotion(appearance.walkStyle, time, walker.facing, walker.moving && !motion && !riding && !seat, this.reducedMotion);
+    const lift = (motion?.lift ?? walk.lift) + (riding?.kind === 'bike' ? 4 : 0);
+    const frame = riding && walker.moving && !motion ? 1 + Math.floor(time / 95) % 2 : walk.frame;
+    view.sprite.setPosition(Math.round(x + walk.offsetX), Math.round(y + 6 - lift)).setRotation(motion?.tilt ?? walk.tilt).setScale(walk.scaleX, motion?.scaleY ?? walk.scaleY)
       .setTexture(avatarTexture(this, appearance, motion ? 'down' : seat?.facing ?? walker.facing, frame, motion?.pose ?? (seat ? 'sit' : 'stand'))).setDepth(seat?.depth ?? y + 7);
     view.vehicle.setVisible(!!riding);
     if (riding) view.vehicle.setTexture(vehicleTexture(this, riding.kind, walker.facing, frame)).setPosition(Math.round(x), Math.round(y + 10 - (motion?.lift ?? 0))).setDepth(y + 6.5);
-    view.shadow.setPosition(Math.round(x), Math.round(y) + 5).setScale(motion?.shadow ?? 1, 1).setDepth(y + 6);
+    view.shadow.setPosition(Math.round(x), Math.round(y) + 5).setScale(motion?.shadow ?? walk.shadow, 1).setDepth(y + 6);
     view.label.setText(name).setPosition(Math.round(x), Math.round(y - 20 - lift)).setDepth(ROWS * TILE + 20);
     view.reactionLabel.setVisible(!!motion);
     if (motion && reaction) view.reactionLabel.setText(REACTIONS[reaction.kind].text)
@@ -679,6 +682,9 @@ export class OfficeScene extends Phaser.Scene {
       }
     }
     if (id === this.localId) {
+      this.game.canvas.dataset.walkStyle = String(appearance.walkStyle);
+      this.game.canvas.dataset.walkFrame = String(walk.frame);
+      this.game.canvas.dataset.walkLift = String(walk.lift);
       this.game.canvas.dataset.localReaction = motion && reaction ? reaction.kind : '';
       this.game.canvas.dataset.seatId = seat?.id ?? '';
       this.game.canvas.dataset.seatFacing = seat?.facing ?? '';
