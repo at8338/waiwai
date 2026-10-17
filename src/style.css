@@ -285,3 +285,9 @@ select { color: #354b3e; background: #fffdf6; border: 1px solid #ced7c2; border-
 @media(max-width:540px) { .vehicle-cards { grid-template-columns: 1fr; }.vehicle-cards section { display: grid; grid-template-columns: 40px 1fr; gap: 5px 8px; text-align: left; padding: 12px; }.vehicle-cards h3,.vehicle-cards p,.vehicle-cards strong { margin: 0; }.vehicle-cards button { grid-column: 2; }.vehicle-icon { grid-row: span 4; } }
 
 .participant-vehicle { font-size: 10px; color: #557b61; }
+
+.office-notice { font-size: 12px; color: #536a59; margin: 8px 0; }
+.participant-seat { font-size: 10px; color: #536a59; }
+#lost-items-panel { font-size: 12px; margin: 10px 0; color: #68715f; }
+#lost-item-list { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+#lost-item-list button { font-size: 11px; padding: 6px 10px; }

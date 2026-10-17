@@ -656,3 +656,42 @@ test('library document collections sync on fixed and placed shelves, persist and
   const c = await connect(); c.send({ type: 'change-room', roomId: 'library', requestId: 1 });
   assert.equal((await c.next('object-links', (m) => m.roomId === 'library')).bindings.length, 2);
 });
+
+test('walking onto pads auto-borrows and returns once; vending gives a synchronized bottle without changing clothes', async (t) => {
+  const { connect } = await fixture(t), a = await connect(), b = await connect();
+  let current = a.welcome.players.find((p) => p.id === a.welcome.id)!, sequence = 0;
+  const step = async (direction: typeof directions[number]) => {
+    await new Promise((r) => setTimeout(r, STEP_MS + 6));
+    const requestId = ++sequence; a.send({ type: 'move', direction, requestId });
+    current = (await a.next('player', (m) => m.requestId === requestId)).player;
+  };
+  const walk = async (x: number, y: number) => {
+    const queue = [{ x: current.x, y: current.y, path: [] as typeof directions[number][] }], seen = new Set<string>();
+    let route: typeof directions[number][] | undefined;
+    for (let i = 0; i < queue.length; i++) {
+      const p = queue[i], key = `${p.x},${p.y}`; if (seen.has(key)) continue; seen.add(key);
+      if (p.x === x && p.y === y) { route = p.path; break; }
+      for (const [direction, dx, dy] of [['up', 0, -1], ['down', 0, 1], ['left', -1, 0], ['right', 1, 0]] as const) {
+        if (canWalk(p.x + dx, p.y + dy, current.roomId)) queue.push({ x: p.x + dx, y: p.y + dy, path: [...p.path, direction] });
+      }
+    }
+    assert.ok(route); for (const direction of route) await step(direction);
+  };
+  await walk(3, 13); await step('down'); assert.equal(current.riding?.kind, 'bike');
+  assert.equal((await b.next('player', (m) => m.reason === 'vehicle' && m.player.id === a.welcome.id)).player.riding?.kind, 'bike');
+  await step('right'); assert.equal(current.riding?.kind, 'bike');
+  await step('up'); await step('down'); assert.equal(current.riding, undefined);
+  await step('left'); assert.equal(current.riding, undefined);
+  assert.equal((await b.next('player', (m) => m.reason === 'vehicle' && m.player.id === a.welcome.id && !m.player.riding)).player.riding, undefined);
+  a.send({ type: 'change-room', roomId: 'cafe', requestId: ++sequence });
+  current = (await a.next('player', (m) => m.reason === 'room' && m.player.id === a.welcome.id)).player;
+  const appearance = { ...DEFAULT_APPEARANCE, color: 4, hair: 2, body: 2, heldItem: 3 };
+  a.send({ type: 'profile', name: '自販機テスト', outfit: 1, appearance });
+  await b.next('player', (m) => m.reason === 'profile' && m.player.id === a.welcome.id);
+  await walk(26, 3);
+  const bottle = (await b.next('player', (m) => m.reason === 'vending' && m.player.id === a.welcome.id)).player;
+  assert.deepEqual(bottle.appearance, { ...appearance, heldItem: 2 }); assert.equal(bottle.name, '自販機テスト');
+  await step('right'); assert.equal(current.x, 26); assert.equal(current.appearance?.heldItem, 2);
+  assert.equal(b.seen.filter((m) => m.type === 'player' && m.reason === 'vending' && m.player.id === a.welcome.id).length, 1);
+  const c = await connect(); assert.equal(c.welcome.players.find((p) => p.id === a.welcome.id)?.appearance?.heldItem, 2);
+});

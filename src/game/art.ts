@@ -59,6 +59,16 @@ function drawFurniture(scene: Phaser.Scene, item: Furniture): void {
     rect(g, 0xa8b3a2, x, y, w, h); rect(g, 0xd7dcc3, x + 1, y + 1, w - 2, h - 2);
     rect(g, 0x789083, x, y, w, 2);
     for (let slot = 0; slot < 3; slot++) { rect(g, 0x8a998e, x + slot * 16 + 3, y + 3, 2, 10); rect(g, 0x8a998e, x + slot * 16 + 3, y + 12, 9, 2); }
+  } else if (kind === 'vending') {
+    rect(g, 0x557e87, x, y, w, h); rect(g, 0x8bb5b3, x + 2, y + 2, w - 4, h - 4);
+    rect(g, 0xe9ecd2, x + 4, y + 4, w - 8, 7); rect(g, 0x557e87, x + 7, y + 6, w - 14, 2);
+    rect(g, 0x344f5c, x + 4, y + 13, w - 12, 18);
+    for (let col = 0; col < 3; col++) for (let row = 0; row < 2; row++) {
+      rect(g, [0xc9e6de, 0xe5c680, 0xd49b89][col], x + 6 + col * 5, y + 15 + row * 8, 3, 6);
+      rect(g, 0xf0f1d4, x + 7 + col * 5, y + 14 + row * 8, 1, 2);
+    }
+    rect(g, 0xe2c97f, x + w - 7, y + 16, 3, 3); rect(g, 0x344f5c, x + 6, y + h - 11, w - 12, 6);
+    rect(g, 0x567580, x + 2, y + h - 3, 5, 3); rect(g, 0x567580, x + w - 7, y + h - 3, 5, 3);
   } else if (kind === 'monitor' || kind === 'rack') {
     const p: PixelRect = (color, px, py, pw, ph) => rect(g, color, x + px, y + py, pw, ph);
     if (kind === 'monitor') monitor(p, w, h); else serverRack(p, w, h);

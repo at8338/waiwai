@@ -38,17 +38,24 @@ export function avatarPixels(a: Appearance, direction = 'down', frame = 0, pose:
   const pixels: Pixel[] = [];
   const p = (color: number, x: number, y: number, w: number, h: number) => pixels.push({ color, x, y, w, h });
   const skin = SKINS[a.skin], hair = HAIR[a.hairColor], shirt = SHIRTS[a.color];
-  const width = 8 + a.body * 2, left = 10 - width / 2, top = 14 - a.height;
+  const width = 8 + a.body * 2, left = 10 - width / 2, top = (pose === 'sit' ? 18 : 14) - a.height;
   const bob = frame ? -1 : 0, foot = frame === 1 ? 1 : frame === 2 ? -1 : 0;
-  p(0x3f4239, 6, 24 + foot, 3, 3); p(0x3f4239, 11, 24 - foot, 3, 3);
-  p(0x59686c, 6, 20, 8, 5);
-  p(shirt, left, top + bob, width, 10 + a.height);
+  if (pose === 'sit') {
+    const side = direction === 'left' || direction === 'right';
+    p(0x59686c, side ? direction === 'left' ? 3 : 8 : 5, 22, side ? 9 : 10, 3);
+    p(0x3f4239, side ? direction === 'left' ? 2 : 13 : 4, 25, 5, 2);
+    if (!side) p(0x3f4239, 11, 25, 5, 2);
+  } else {
+    p(0x3f4239, 6, 24 + foot, 3, 3); p(0x3f4239, 11, 24 - foot, 3, 3);
+    p(0x59686c, 6, 20, 8, 5);
+  }
+  p(shirt, left, top + bob, width, (pose === 'sit' ? 6 : 10) + a.height);
   if (a.clothing === 1) {
-    p(0xf2ebd5, 8, top + bob, 4, 9); p(0x485b50, left, top + bob + 2, 2, 7);
-    p(0xc5ae77, 10, top + bob + 3, 1, 5);
+    p(0xf2ebd5, 8, top + bob, 4, pose === 'sit' ? 6 : 9); p(0x485b50, left, top + bob + 2, 2, pose === 'sit' ? 4 : 7);
+    p(0xc5ae77, 10, top + bob + 3, 1, pose === 'sit' ? 3 : 5);
   } else if (a.clothing === 2) {
-    p(shirt, left - 1, top + bob + 6, width + 2, 6);
-    p(0xf2dfb5, left, top + bob + 6, width, 1);
+    p(shirt, left - 1, top + bob + (pose === 'sit' ? 4 : 6), width + 2, pose === 'sit' ? 4 : 6);
+    p(0xf2dfb5, left, top + bob + (pose === 'sit' ? 4 : 6), width, 1);
   } else if (a.clothing === 3) {
     p(0xe4dfc9, 8, top + bob, 1, 4); p(0xe4dfc9, 11, top + bob, 1, 4);
     p(0x4f665c, 8, top + bob + 6, 4, 2);
@@ -57,6 +64,9 @@ export function avatarPixels(a: Appearance, direction = 'down', frame = 0, pose:
     p(shirt, left - 2, top + bob - 2, 3, 4); p(shirt, left + width - 1, top + bob - 2, 3, 4);
     p(skin, left - 3, top + bob - 9, 2, 9); p(skin, left + width + 1, top + bob - 9, 2, 9);
     p(skin, left - 3, top + bob - 11, 3, 3); p(skin, left + width, top + bob - 11, 3, 3);
+  } else if (pose === 'sit') {
+    p(shirt, left - 1, top + 1, 2, 4); p(shirt, left + width - 1, top + 1, 2, 4);
+    p(skin, left, top + 4, 3, 2); p(skin, left + width - 3, top + 4, 3, 2);
   } else if (pose === 'bow') {
     p(skin, left + 1, top + 6, 3, 3); p(skin, left + width - 4, top + 6, 3, 3);
   } else { p(skin, left - 1, top + bob + 2, 2, 5); p(skin, left + width - 1, top + bob + 2, 2, 5); }
@@ -92,7 +102,7 @@ export function avatarPixels(a: Appearance, direction = 'down', frame = 0, pose:
     const onLeft = direction === 'left';
     const x = onLeft ? left - 4 : left + width - 2;
     const raised = pose === 'raise' || pose === 'happy';
-    const y = raised ? Math.max(0, top + bob - 10) : pose === 'bow' ? top + 5 : top + bob + 4;
+    const y = raised ? Math.max(0, top + bob - 10) : pose === 'bow' ? top + 5 : pose === 'sit' ? top : top + bob + 4;
     const item = (color: number, dx: number, dy: number, w: number, h: number) => p(color, x + dx, y + dy, w, h);
     if (a.heldItem === 1) {
       item(0x627f80, 0, 1, 4, 6); item(0x627f80, 4, 2, 2, 4);

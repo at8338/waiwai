@@ -161,10 +161,10 @@ test('session cookies are secure and host-only; guest messages cannot claim a ve
   const sessionCookie = result.headers.getSetCookie().find((value) => value.startsWith('waiwai_session='))!;
   assert.match(sessionCookie, /HttpOnly; Secure; SameSite=Lax; Max-Age=28800/);
   assert.ok(!sessionCookie.includes('Domain='));
-  const { ws, welcome } = await f.connect('');
-  const changed = new Promise<Record<string, unknown>>((resolve) => ws.once('message', (raw) => resolve(JSON.parse(String(raw)))));
+  const { ws, welcome, next } = await f.connect('');
+  const changed = next('player', (m) => m.reason === 'profile' && m.player.id === welcome.id);
   ws.send(JSON.stringify({ type: 'profile', name: '手動', outfit: 0, slackVerified: true, slack: { teamId: 'T012ABCDEF', userId: 'U012ABCDEF' } }));
-  const player = (await changed).player as Record<string, unknown>;
+  const player = (await changed).player;
   assert.equal(player.id, welcome.id); assert.equal(player.slackVerified, false);
 });
 

@@ -19,3 +19,6 @@ export function nearVehicleDock(player: Point & { roomId: RoomId }, kind: Vehicl
   const dy = Math.max(dock.y - player.y, 0, player.y - (dock.y + dock.h - 1));
   return player.roomId === dock.roomId && dx + dy <= 2;
 }
+export function touchingVehicleDock(player: Point & { roomId: RoomId }): VehicleKind | undefined {
+  return VEHICLE_DOCKS.find((d) => player.roomId === d.roomId && player.x >= d.x && player.x < d.x + d.w && player.y >= d.y && player.y < d.y + d.h)?.kind;
+}

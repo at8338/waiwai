@@ -57,15 +57,15 @@ export class TransportUI {
     if (this.key === key) return; this.key = key;
     document.querySelector('#vehicle-current')!.textContent = riding ? `${VEHICLES[riding.kind].icon} ${VEHICLES[riding.kind].name}で移動中 · 速さ${VEHICLES[riding.kind].speed}` : 'いまは歩いています。';
     document.querySelector('#vehicle-location')!.textContent = !this.connected ? '接続すると借りられます。'
-      : riding ? (this.player && nearVehicleDock(this.player, riding.kind) ? 'ここで返却できます。返したあとは、ほかの乗りものも借りられます。' : '返すときは、ひだまりオフィスの同じ乗りものの置き場へ。')
-      : near.some(Boolean) ? '置き場の近くにいます。空いている乗りものを借りよう。' : 'ひだまりオフィスのロビー左下。置き場のすぐ横まで歩いて借りてください。';
+      : riding ? (near.some(Boolean) ? '置き場に踏み入れると自動で返却します。ボタンでも返せます。' : '返すときは、ひだまりオフィスの置き場に踏み入れよう。')
+      : near.some(Boolean) ? '置き場に踏み入れると、空いている乗りものに自動で乗れます。' : 'ひだまりオフィスのロビー左下。置き場に踏み入れると自動で乗れます。';
     VEHICLE_KINDS.forEach((kind, i) => {
       document.querySelector(`[data-vehicle-count="${kind}"]`)!.textContent = this.ready ? `${counts[i]} / ${VEHICLES[kind].count} ${kind === 'skates' ? '組' : '台'} 空き` : '確認中…';
       document.querySelector<HTMLButtonElement>(`[data-vehicle-take="${kind}"]`)!.disabled = !this.connected || !this.ready || !!this.pending || !!riding || !near[i] || counts[i] === 0;
     });
     const button = document.querySelector<HTMLButtonElement>('#vehicle-return')!;
-    button.hidden = !riding; button.disabled = !this.connected || !!this.pending || !riding || !this.player || !nearVehicleDock(this.player, riding.kind);
-    document.querySelector('#vehicle-return-hint')!.textContent = riding ? '乗ったまま部屋を移動できます。返すときは同じ乗りものの置き場へ。退出時には自動返却します。' : '1人につき1つ。みんなと共有する乗りものです。';
+    button.hidden = !riding; button.disabled = !this.connected || !!this.pending || !riding || !this.player || !near.some(Boolean);
+    document.querySelector('#vehicle-return-hint')!.textContent = riding ? '乗ったまま部屋を移動できます。置き場に踏み入れると自動で返却します。退出時には自動返却します。' : '1人1つ、各3つの共有です。置き場から一度離れると、次の乗り降りができます。';
     document.querySelector('#vehicle-open')!.textContent = riding ? `${VEHICLES[riding.kind].icon} ${VEHICLES[riding.kind].name}で移動中` : '🚲 乗りもの置き場';
   }
 }

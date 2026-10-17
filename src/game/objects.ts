@@ -1,4 +1,5 @@
 import { canWalk, COLS, ROWS } from './world.ts';
+import { VEHICLE_DOCKS } from './transport.ts';
 import { getRoom, isRoomId } from './rooms.ts';
 import type { RoomId } from './rooms.ts';
 export const OBJECT_KINDS = ['desk', 'chair', 'monitor', 'rack', 'bookshelf', 'plant', 'books', 'lamp', 'mug', 'cushion', 'flowers', 'box', 'mat'] as const;
@@ -47,6 +48,7 @@ export function placementProblem(candidate: RoomObject, objects: readonly RoomOb
   const room = getRoom(candidate.roomId);
   const others = objects.filter((o) => o.id !== candidate.id && o.roomId === candidate.roomId);
   const tiles = objectTiles(candidate);
+  if (VEHICLE_DOCKS.some((d) => d.roomId === candidate.roomId && tiles.some((p) => p.x >= d.x && p.x < d.x + d.w && p.y >= d.y && p.y < d.y + d.h))) return '乗りものの置き場は空けておきましょう。';
   if (tiles.some((p) => !canWalk(p.x, p.y, candidate.roomId))) return '壁や家具の上には置けません。';
   if (others.some((o) => tiles.some((p) => objectContains(o, p.x, p.y)))) return 'そのマスには家具・小物が置かれています。';
   if (others.length >= MAX_ROOM_OBJECTS) return `この部屋には${MAX_ROOM_OBJECTS}個まで置けます。`;

@@ -12,7 +12,7 @@ export type LinkState = { favorites: Favorite[]; bindings: LinkBinding[] };
 export type LinkEdit = { type: 'favorite-add'; title: string; url: string; editId: string }
   | { type: 'object-links-set'; objectId: string; linkIds: string[]; editId: string };
 export type LinkTarget = Point & { id: string; roomId: RoomId; name: string; kind: string; w: number; h: number; owner?: string };
-const names: Record<Furniture['kind'], string> = { desk: 'デスク・モニター', workbench: '作業台', table: 'テーブル', sofa: 'ソファ', plant: '植物', shelf: '本棚', board: 'ホワイトボード', counter: 'カウンター', pond: '池', easel: 'イーゼル', arcade: 'ゲーム機', bed: 'ベッド', telescope: '望遠鏡', monitor: '監視モニター', rack: 'サーバーラック', parking: '乗りもの置き場' };
+const names: Record<Furniture['kind'], string> = { desk: 'デスク・モニター', workbench: '作業台', table: 'テーブル', sofa: 'ソファ', plant: '植物', shelf: '本棚', board: 'ホワイトボード', counter: 'カウンター', pond: '池', easel: 'イーゼル', arcade: 'ゲーム機', bed: 'ベッド', telescope: '望遠鏡', monitor: '監視モニター', rack: 'サーバーラック', parking: '乗りもの置き場', vending: '自動販売機' };
 export const validLinkId = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9-]{36}$/.test(value);
 export const validObjectId = (value: unknown): value is string => typeof value === 'string' && /^(fixed:[a-z]+:[a-z]+:\d{1,2}:\d{1,2}|placed:[a-f0-9-]{36})$/.test(value);
 export function parseFavorite(value: unknown): { title: string; url: string } | undefined {
@@ -27,7 +27,7 @@ export function parseFavorite(value: unknown): { title: string; url: string } | 
   } catch { return; }
 }
 export function objectTargets(roomId: RoomId, objects: readonly RoomObject[]): LinkTarget[] {
-  const fixed: LinkTarget[] = getRoom(roomId).furniture.filter((f) => f.kind !== 'parking').map((f) => ({ ...f, id: `fixed:${roomId}:${f.kind}:${f.x}:${f.y}`, roomId, name: f.label ?? names[f.kind] }));
+  const fixed: LinkTarget[] = getRoom(roomId).furniture.filter((f) => f.kind !== 'parking' && f.kind !== 'vending').map((f) => ({ ...f, id: `fixed:${roomId}:${f.kind}:${f.x}:${f.y}`, roomId, name: f.label ?? names[f.kind] }));
   return [...fixed, ...objects.filter((o) => o.roomId === roomId).map((o) => ({ ...o, ...objectSize(o.kind, o.rotation), id: `placed:${o.id}`, name: OBJECT_CATALOG[o.kind].name }))];
 }
 export function targetAt(roomId: RoomId, objects: readonly RoomObject[], point: Point): LinkTarget | undefined {
