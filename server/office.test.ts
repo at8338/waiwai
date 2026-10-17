@@ -775,3 +775,18 @@ test('daily incidents agree across rooms and late joins; JST midnight updates ex
   a.send({ type: 'daily-event', event: { ...next.event, episodeId: 'kaiju-01' } });
   assert.equal(parseClientMessage(JSON.stringify({ type: 'daily-event', event: next.event })), undefined);
 });
+
+test('walking style synchronizes to peers and late joins; invalid styles cannot replace the profile', async (t) => {
+  const { connect } = await fixture(t), a = await connect(), b = await connect();
+  a.send({ type: 'profile', name: 'ぴょこさん', outfit: 0, appearance: { ...DEFAULT_APPEARANCE, walkStyle: 3, heldItem: 1 } });
+  const own = await a.next('player', (m) => m.reason === 'profile');
+  const peer = await b.next('player', (m) => m.reason === 'profile');
+  assert.equal(own.player.appearance?.walkStyle, 3); assert.deepEqual(peer.player.appearance, own.player.appearance);
+  a.send({ type: 'profile', name: '不正', outfit: 0, appearance: { ...DEFAULT_APPEARANCE, walkStyle: 6 } });
+  const late = await connect(), joined = late.welcome.players.find((p) => p.id === a.welcome.id)!;
+  assert.equal(joined.name, 'ぴょこさん'); assert.equal(joined.appearance?.walkStyle, 3); assert.equal(joined.appearance?.heldItem, 1);
+  const { walkStyle: _style, ...legacy } = { ...DEFAULT_APPEARANCE, color: 2, heldItem: 3 };
+  a.send({ type: 'profile', name: '旧クライアント', outfit: 2, appearance: legacy });
+  const reset = await a.next('player', (m) => m.reason === 'profile');
+  assert.equal(reset.player.appearance?.walkStyle, 0); assert.equal(reset.player.appearance?.heldItem, 3);
+});

@@ -1,8 +1,9 @@
+import { WALK_STYLES } from './walking.ts';
 import type { AvatarPose } from './reactions.ts';
 
 export type Appearance = {
   gender: number; body: number; height: number; skin: number; hair: number;
-  hairColor: number; clothing: number; color: number; accessory: number; heldItem: number;
+  hairColor: number; clothing: number; color: number; accessory: number; heldItem: number; walkStyle: number;
 };
 export const AVATAR_OPTIONS = {
   gender: { label: '性別・表現', choices: ['中性的', '男性タイプ', '女性タイプ'] },
@@ -15,8 +16,9 @@ export const AVATAR_OPTIONS = {
   color: { label: '服の色', choices: ['グリーン', 'テラコッタ', 'ブルー', 'マスタード', 'ラベンダー', 'アイボリー'] },
   accessory: { label: 'アクセサリー', choices: ['なし', 'めがね', 'キャップ', 'ヘッドホン'] },
   heldItem: { label: '持ちもの', choices: ['なし', 'マグカップ', 'ペットボトル', 'サンドイッチ'] },
+  walkStyle: { label: '歩き方', choices: WALK_STYLES.map((style) => style.label) },
 } as const;
-export const DEFAULT_APPEARANCE: Appearance = { gender: 0, body: 1, height: 1, skin: 1, hair: 0, hairColor: 0, clothing: 0, color: 0, accessory: 0, heldItem: 0 };
+export const DEFAULT_APPEARANCE: Appearance = { gender: 0, body: 1, height: 1, skin: 1, hair: 0, hairColor: 0, clothing: 0, color: 0, accessory: 0, heldItem: 0, walkStyle: 0 };
 export const SHIRTS = [0x668d77, 0xc17b5e, 0x698aab, 0xc5a34e, 0x9b83b5, 0xe5ddc1];
 const SKINS = [0xffdfbd, 0xf2cba2, 0xdcb18a, 0xc38d60, 0x966443, 0x65432f];
 const HAIR = [0x624632, 0x333536, 0xccab60, 0xb8b9b5, 0x9d83a7];
@@ -25,14 +27,14 @@ export function parseAppearance(value: unknown, outfit = 0): Appearance | undefi
   if (!value || typeof value !== 'object' || Array.isArray(value)) return;
   const result = {} as Appearance;
   for (const key of Object.keys(AVATAR_OPTIONS) as Array<keyof Appearance>) {
-    // Existing browser preferences and older clients have no held-item field.
-    const n = (value as Record<string, unknown>)[key] ?? (key === 'heldItem' && !Object.hasOwn(value, key) ? 0 : undefined);
+    // Older clients and browser preferences default newly introduced settings only.
+    const n = (value as Record<string, unknown>)[key] ?? ((key === 'heldItem' || key === 'walkStyle') && !Object.hasOwn(value, key) ? 0 : undefined);
     if (!Number.isInteger(n) || (n as number) < 0 || (n as number) >= AVATAR_OPTIONS[key].choices.length) return;
     result[key] = n as number;
   }
   return result;
 }
-export const appearanceKey = (a: Appearance) => (Object.keys(AVATAR_OPTIONS) as Array<keyof Appearance>).map((k) => a[k]).join('');
+export const appearanceKey = (a: Appearance) => (Object.keys(AVATAR_OPTIONS) as Array<keyof Appearance>).filter((k) => k !== 'walkStyle').map((k) => a[k]).join('');
 export type Pixel = { color: number; x: number; y: number; w: number; h: number };
 export function avatarPixels(a: Appearance, direction = 'down', frame = 0, pose: AvatarPose = 'stand'): Pixel[] {
   const pixels: Pixel[] = [];

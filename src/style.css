@@ -358,3 +358,10 @@ select { color: #354b3e; background: #fffdf6; border: 1px solid #ced7c2; border-
 .calendar-details p { font-size: 12px; line-height: 1.8; white-space: pre-wrap; }
 .calendar-details strong { font-size: 13px; }
 @media (max-width: 680px) { .daily-event-panel { flex-direction: column; align-items: stretch; padding: 14px; } .daily-event-actions { max-width: none; justify-content: flex-start; } .office-calendar-body { grid-template-columns: minmax(0, 1fr); } .calendar-details { max-height: 260px; } .calendar-grid button { min-height: 54px; } }
+
+#avatar-draft { width: 120px; height: 120px; max-width: 100%; }
+.walk-preview-controls { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.walk-preview-controls button { font-size: 10px; padding: 7px 4px; background: #fff7df; border: 1px solid #cfc2a4; border-radius: 5px; color: #665a43; cursor: pointer; }
+#avatar-fields .walk-style-field { grid-column: 1 / -1; padding-top: 8px; border-top: 1px solid #ded3b9; }
+#walk-preview-description { min-height: 3em; line-height: 1.7; }
+@media (max-width: 680px) { #avatar-draft { width: 88px; height: 88px; } }
