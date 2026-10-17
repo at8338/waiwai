@@ -9,9 +9,9 @@ import { parseClientMessage } from '../network/protocol.ts';
 import { seatSpots, restingSeat } from './seating.ts';
 import { canWalk } from './world.ts';
 
-test('all thirteen rooms have one robot location and the pilot seat uses a reachable approach', () => {
+test('all fifteen rooms have one robot location and the pilot seat uses a reachable approach', () => {
   const assigned = ROBOT_PARTS.flatMap((p) => [...p.rooms]);
-  assert.deepEqual([...assigned].sort(), [...ROOM_IDS].sort()); assert.equal(new Set(assigned).size, 13);
+  assert.deepEqual([...assigned].sort(), [...ROOM_IDS].sort()); assert.equal(new Set(assigned).size, ROOM_IDS.length);
   assert.equal(robotLocation('office'), '胴体'); assert.equal(robotLocation('cockpit'), '頭部');
   const room = getRoom('cockpit'); assert.equal(room.outlook, 'none'); assert.equal(room.style, 'mech');
   const seat = [...seatSpots('cockpit', []).values()].find((seat) => seat.name === 'パイロット席')!;

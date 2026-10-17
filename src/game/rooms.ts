@@ -1,13 +1,27 @@
 import { ARCADE_GAMES, ARCADE_IDS } from './arcade.ts';
 import { VEHICLE_DOCKS, VEHICLES } from './transport.ts';
 import type { Furniture, Point } from './world.ts';
-export const ROOM_IDS = ['office', 'focus', 'meeting', 'cafe', 'library', 'garden', 'studio', 'arcade', 'wellness', 'workshop', 'sky', 'ops', 'cockpit'] as const;
+export const ROOM_IDS = ['office', 'focus', 'meeting', 'cafe', 'library', 'garden', 'studio', 'arcade', 'wellness', 'workshop', 'sky', 'ops', 'cockpit', 'project', 'canteen'] as const;
 export type RoomId = typeof ROOM_IDS[number];
+export type RoomSection = Point & { id: string; name: string; w: number; h: number; color: number; entrance: Point & { w: number } };
+export const PROJECT_SECTIONS: readonly RoomSection[] = [
+  { id: 'app', name: 'アプリ', x: 1, y: 1, w: 12, h: 7, color: 0x88aabd, entrance: { x: 6, y: 8, w: 2 } },
+  { id: 'backend', name: 'バックエンド', x: 17, y: 1, w: 12, h: 7, color: 0x8cafa0, entrance: { x: 22, y: 8, w: 2 } },
+  { id: 'cms', name: 'CMS', x: 1, y: 12, w: 12, h: 7, color: 0xc59ca9, entrance: { x: 6, y: 11, w: 2 } },
+  { id: 'infra', name: 'インフラ', x: 17, y: 12, w: 12, h: 7, color: 0x9ba8bd, entrance: { x: 22, y: 11, w: 2 } },
+];
+// Each section has its own two-tile doorway; a cross-shaped corridor connects all four.
+const projectPartitions: Point[] = [
+  ...[13, 16].flatMap((x) => Array.from({ length: 18 }, (_, n) => ({ x, y: n + 1 })).filter((p) => p.y !== 9 && p.y !== 10)),
+  ...[8, 11].flatMap((y) => Array.from({ length: 28 }, (_, n) => ({ x: n + 1, y })).filter((p) => p.x !== 14 && p.x !== 15
+    && !PROJECT_SECTIONS.some((section) => p.y === section.entrance.y && p.x >= section.entrance.x && p.x < section.entrance.x + section.entrance.w))),
+];
 export type Room = {
   id: RoomId; name: string; description: string; icon: string;
   floor: number; grain: number; wall: number; rug: number; style: 'wood' | 'tile' | 'grass' | 'stars' | 'checker' | 'control' | 'mech';
   outlook: 'window' | 'open' | 'none';
   spawn: Point; door: Point; furniture: Furniture[];
+  sections?: readonly RoomSection[]; partitions?: readonly Point[];
 };
 const f = (kind: Furniture['kind'], x: number, y: number, w = 1, h = 1): Furniture => ({ kind, x, y, w, h });
 export const officeFurniture: Furniture[] = [
@@ -53,6 +67,22 @@ export const ROOMS: Room[] = [
       tool('console', '左腕コントロール', 2, 8, 6, 2), tool('console', 'メイン操縦パネル', 11, 8, 8, 2), tool('console', '右腕コントロール', 22, 8, 6, 2),
       tool('pilot', 'パイロット席', 14, 11, 2, 2), tool('console', '歩行ペダル', 2, 13, 6, 2), tool('console', 'バリア発生装置', 22, 13, 6, 2),
       tool('sofa', '見学シート', 3, 16, 5, 1), tool('sofa', 'クルーシート', 22, 16, 5, 1),
+    ] },
+  { id: 'project', name: '上位プラン案件部屋', description: 'アプリ・バックエンド・CMS・インフラ。4つの区画と、入口の看板がある案件チームの拠点。', icon: '▦', floor: 0xd9d9c7, grain: 0xc2c7b4, wall: 0xe6e5d2, rug: 0x91a7a0, style: 'tile', outlook: 'window', ...common,
+    sections: PROJECT_SECTIONS, partitions: projectPartitions,
+    furniture: [
+      ...PROJECT_SECTIONS.flatMap((section) => [
+        { ...f('board', section.x + 1, section.y, 4, 1), boardMount: 'wall' as const },
+        f('desk', section.x + 1, section.y + 2, 3, 2), f('desk', section.x + 7, section.y + 2, 3, 2),
+        f('plant', section.x + 10, section.y + 5),
+      ]),
+      tool('monitor', 'API・設計', 18, 5, 3, 2), tool('shelf', 'CMS資料', 2, 17, 4, 1), tool('rack', '検証環境', 24, 17, 2, 1),
+    ] },
+  { id: 'canteen', name: 'まんぷく食堂', description: '湯気の立つ定食カウンターと、みんなで囲む食卓。ひとりでも一緒でも、お昼にしよう。', icon: '♨', floor: 0xe9d7b8, grain: 0xd7c39f, wall: 0xf1e5cc, rug: 0xb7c5a2, style: 'checker', outlook: 'window', ...common,
+    furniture: [
+      tool('buffet', '本日の定食', 3, 2, 15, 3), tool('dishreturn', '食器の返却口', 21, 2, 4, 3), tool('vending', 'ドリンク', 27, 2, 2, 3),
+      ...[8, 14].flatMap((y) => [3, 12, 21].map((x) => ({ ...f('table', x, y, 5, 2), tableSetting: 'meal' as const }))),
+      f('plant', 1, 6), f('plant', 28, 17),
     ] },
 ];
 // A hanging calendar on the north wall, away from the window panes.

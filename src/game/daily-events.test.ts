@@ -89,3 +89,10 @@ test('calendar expands single, daily, weekday and weekly schedules on JST dates,
   assert.equal(schedulesOnDay([{ ...base, repeat: 'once' }], day('2026-10-20')).length, 0);
   assert.equal(schedulesOnDay([{ ...base, repeat: 'daily' }], day('2026-10-24')).length, 1);
 });
+
+
+test('new project and canteen incidents join only after the historical launch-day room roster', () => {
+  const rooms = new Set(Array.from({ length: 365 }, (_, index) => dailyEventAt(day('2026-10-18') + index * DAY).roomId));
+  assert.ok(rooms.has('project') && rooms.has('canteen'));
+  assert.equal(dailyEventAt(day('2026-10-17')).roomId, 'garden');
+});
