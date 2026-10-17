@@ -433,3 +433,18 @@ select { color: #354b3e; background: #fffdf6; border: 1px solid #ced7c2; border-
 #arcade-tabs button { padding:9px; } #arcade-tabs span,#arcade-tabs small { margin-top:5px; }
 #arcade-drop-controls { width:64.3%; max-width:216px; margin-inline:auto; padding:8px 0 0; }
 #arcade-rhythm-controls,#arcade-fire-controls { max-width:336px; margin-inline:auto; }
+
+.vehicle-ground-section { border-top: 1px solid #c5cfb9; margin-top: 18px; padding-top: 14px; }
+.vehicle-ground-section h3 { margin: 0 0 8px; font-size: 14px; }
+#vehicle-ground-list { list-style: none; padding: 0; display: grid; gap: 8px; }
+.vehicle-ground-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border: 1px solid #c5cfb9; border-radius: 6px; font-size: 12px; }
+.vehicle-ground-item.is-selected { background: #e4ecd7; border-color: #789475; }
+.vehicle-ground-item button { flex-shrink: 0; padding: 8px 10px; background: #385f4b; color: #fff8df; border: 0; border-radius: 4px; }
+.vehicle-ground-item button:disabled, #vehicle-drop:disabled { opacity: .45; cursor: default; }
+#vehicle-drop { background: #385f4b; color: #fff8df; border: 1px solid #385f4b; }
+
+.vehicle-quick-drop { position: absolute; right: 10px; bottom: 10px; z-index: 4; display: flex; align-items: center; gap: 4px; min-height: 0; height: 24px; padding: 3px 6px; border: 1px solid #f4e7bb; border-radius: 4px; background: #385f4b; color: #fff8df; box-shadow: 0 2px 5px #263c3c55; font: inherit; font-size: 9px; cursor: pointer; }
+.vehicle-quick-drop kbd { width: 11px; height: 13px; background: #f9f2d9; color: #385f4b; border: 0; font-size: 8px; }
+.vehicle-quick-drop:disabled { opacity: .6; cursor: wait; }
+.vehicle-quick-status { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 5; width: fit-content; max-width: calc(100% - 20px); margin: 0; padding: 8px 12px; border-radius: 5px; background: #fbf4dfee; color: #385f4b; font-size: 12px; pointer-events: none; }
+.vehicle-quick-drop[hidden], .vehicle-quick-status[hidden] { display: none; }

@@ -43,3 +43,55 @@ test('pad entry automatically borrows or returns once, rearms only after leaving
   assert.deepEqual(riders.map((r) => fleet.touch(r)), [true, true, true, false]);
   assert.equal(fleet.touch(riders[3]), false); assert.equal(riders[3].riding, undefined);
 });
+
+test('dropped vehicles remain after the former rider leaves and can be claimed once by anyone nearby', () => {
+  for (const kind of VEHICLE_KINDS) {
+    const fleet = new VehicleFleet(), dock = VEHICLE_DOCKS.find((d) => d.kind === kind)!;
+    const owner = person('owner', dock.x, dock.y - 1);
+    assert.equal(fleet.take(owner, kind), undefined);
+    const id = owner.riding!.id;
+    Object.assign(owner, { roomId: 'canteen', x: 15, y: 17 });
+    assert.equal(fleet.drop(owner), undefined); assert.equal(owner.riding, undefined);
+    assert.deepEqual(fleet.list().find((u) => u.id === id)?.ground, { roomId: 'canteen', x: 15, y: 17 });
+    assert.equal(fleet.list().filter((u) => u.kind === kind && !u.riderId && !u.ground).length, 2);
+    fleet.forget(owner);
+    assert.ok(fleet.list().find((u) => u.id === id)?.ground);
+    const snapshot = fleet.list(); snapshot.find((u) => u.id === id)!.ground!.x = 1;
+    assert.equal(fleet.list().find((u) => u.id === id)!.ground!.x, 15);
+    const a = { ...person('a', 14, 17), roomId: 'canteen' as const }, b = { ...person('b', 16, 17), roomId: 'canteen' as const };
+    assert.equal(fleet.pickup(a, id), undefined); assert.ok(fleet.pickup(b, id));
+    assert.equal(a.riding?.id, id); assert.equal(fleet.list().find((u) => u.id === id)?.ground, undefined);
+    assert.equal(fleet.list().length, 9);
+  }
+});
+
+test('dropping latches contact until leaving, then touching the same floor vehicle mounts again', () => {
+  const fleet = new VehicleFleet(), p = person('p'); fleet.take(p, 'bike');
+  Object.assign(p, { roomId: 'library', x: 15, y: 17 });
+  const id = p.riding!.id; assert.equal(fleet.drop(p), undefined);
+  for (let i = 0; i < 5; i++) { assert.equal(fleet.touch(p), false); assert.equal(p.riding, undefined); }
+  p.x--; assert.equal(fleet.touch(p), false);
+  p.x++; assert.equal(fleet.touch(p), true); assert.equal(p.riding?.id, id);
+  assert.equal(fleet.list().find((u) => u.id === id)?.ground, undefined);
+});
+
+test('floor pickup rejects remote locations and occupied floor drops preserve both leases', () => {
+  const fleet = new VehicleFleet(), a = person('a'), b = person('b');
+  fleet.take(a, 'bike'); fleet.take(b, 'bike'); const bId = b.riding!.id;
+  Object.assign(a, { roomId: 'garden', x: 15, y: 17 });
+  const id = a.riding!.id; fleet.drop(a);
+  const remote = person('remote', 15, 17);
+  assert.ok(fleet.pickup(remote, id)); remote.roomId = 'garden'; remote.x = 12; assert.ok(fleet.pickup(remote, id));
+  Object.assign(b, { roomId: 'garden', x: 15, y: 17 });
+  assert.ok(fleet.drop(b)); assert.equal(b.riding?.id, bId);
+  assert.ok(fleet.list().find((u) => u.id === id)?.ground);
+  b.x--; assert.equal(fleet.drop(b), undefined);
+  assert.equal(fleet.list().filter((u) => u.ground).length, 2);
+});
+
+test('dropping on a dock returns the unit and cannot create a floor copy or immediate remount', () => {
+  const fleet = new VehicleFleet(), p = person('p', 3, 13); fleet.take(p, 'bike');
+  p.y = 14; assert.equal(fleet.drop(p), undefined); assert.equal(p.riding, undefined);
+  assert.equal(fleet.touch(p), false);
+  assert.ok(fleet.list().every((u) => !u.ground && !u.riderId));
+});

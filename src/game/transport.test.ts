@@ -42,3 +42,14 @@ test('changing ride speed preserves interpolation progress', () => {
   walker.update(STEP_MS / 2); const before = walker.position(); walker.setStepMs(VEHICLES.bike.stepMs);
   assert.deepEqual(walker.position(), before); walker.update(VEHICLES.bike.stepMs / 2); assert.equal(walker.moving, false);
 });
+
+test('drop and pickup commands validate stable unit ids and discard client-supplied floor coordinates', () => {
+  const actionId = randomUUID();
+  assert.deepEqual(parseClientMessage(JSON.stringify({ type: 'vehicle-drop', actionId, roomId: 'garden', x: 99, y: -1 })), { type: 'vehicle-drop', actionId });
+  for (const kind of VEHICLE_KINDS) for (let i = 1; i <= 3; i++) {
+    const unitId = `${kind}-${i}`;
+    assert.deepEqual(parseClientMessage(JSON.stringify({ type: 'vehicle-pickup', unitId, actionId })), { type: 'vehicle-pickup', unitId, actionId });
+  }
+  for (const unitId of ['bike-0', 'bike-4', '__proto__', 'car-1', '', null]) assert.equal(parseClientMessage(JSON.stringify({ type: 'vehicle-pickup', unitId, actionId })), undefined);
+  assert.equal(parseClientMessage(JSON.stringify({ type: 'vehicle-drop', actionId: 'bad' })), undefined);
+});

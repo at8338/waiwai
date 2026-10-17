@@ -6,8 +6,8 @@ import type { RobotAction, RobotSnapshot } from '../game/robot.ts';
 import type { DailyEventSnapshot } from '../game/daily-events.ts';
 import { parseAnnouncementAction, validAnnouncementId } from '../game/announcements.ts';
 import type { AnnouncementAction, AnnouncementSnapshot } from '../game/announcements.ts';
-import { isVehicleKind } from '../game/transport.ts';
-import type { Riding, VehicleKind, VehicleUnit } from '../game/transport.ts';
+import { isVehicleKind, isVehicleId } from '../game/transport.ts';
+import type { Riding, VehicleAction, VehicleUnit } from '../game/transport.ts';
 import { isBuddyKind } from '../game/buddies.ts';
 import type { BuddyKind, BuddyPosition, RoomPet } from '../game/buddies.ts';
 import { parseAppearance } from '../game/avatar.ts';
@@ -39,8 +39,7 @@ export type ClientMessage =
   | ArcadeAction
   | { type: 'robot-action'; action: RobotAction; actionId: string }
   | AnnouncementAction
-  | { type: 'vehicle-take'; kind: VehicleKind; actionId: string }
-  | { type: 'vehicle-return'; actionId: string }
+  | (VehicleAction & { actionId: string })
   | LinkEdit
   | { type: 'reaction'; kind: ReactionKind }
   | { type: 'warp-to'; targetId: string; requestId: number }
@@ -94,7 +93,8 @@ export function parseClientMessage(raw: string): ClientMessage | undefined {
   const announcement = parseAnnouncementAction(data); if (announcement) return announcement;
   if (typeof data.actionId === 'string' && /^[a-f0-9-]{36}$/.test(data.actionId)) {
     if (data.type === 'vehicle-take' && isVehicleKind(data.kind)) return { type: 'vehicle-take', kind: data.kind, actionId: data.actionId };
-    if (data.type === 'vehicle-return') return { type: 'vehicle-return', actionId: data.actionId };
+    if (data.type === 'vehicle-return' || data.type === 'vehicle-drop') return { type: data.type, actionId: data.actionId };
+    if (data.type === 'vehicle-pickup' && isVehicleId(data.unitId)) return { type: 'vehicle-pickup', unitId: data.unitId, actionId: data.actionId };
   }
   if (data.type === 'reaction' && isReactionKind(data.kind)) return { type: 'reaction', kind: data.kind };
   if (data.type === 'voice-state' && typeof data.listening === 'boolean' && typeof data.microphone === 'boolean') {

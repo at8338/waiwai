@@ -166,8 +166,8 @@ export class OfficeScene extends Phaser.Scene {
     this.setupRoomTools();
     this.setupReactions();
     this.announcementsUI = new AnnouncementsUI(this.inputController.signal, (action) => this.connection?.announcement(action) ?? false, () => { this.controls.clear(); this.setEditMode('none'); });
-    this.vehicleUI = new TransportUI(this.inputController.signal, (kind, id) => this.connection?.vehicle(kind, id) ?? false, () => { this.controls.clear(); this.setEditMode('none'); });
-    this.vehicleDocks = new VehicleDocksView(this, () => { if (this.editMode === 'none') this.vehicleUI?.open(); });
+    this.vehicleUI = new TransportUI(this.inputController.signal, (action, id) => this.connection?.vehicle(action, id) ?? false, () => { this.controls.clear(); this.setEditMode('none'); });
+    this.vehicleDocks = new VehicleDocksView(this, (unitId) => { if (this.editMode === 'none') this.vehicleUI?.open(unitId); });
     this.linksUI = new ObjectLinksEditor({ signal: this.inputController.signal, owner: () => this.owner(),
       resolve: (id) => objectTargets(this.roomId, this.objects).find((o) => o.id === id),
       send: (edit) => this.connection?.editLinks(edit), open: () => this.controls.clear() });
@@ -276,7 +276,7 @@ export class OfficeScene extends Phaser.Scene {
     this.connected = state === 'online';
     this.announcementsUI?.setConnected(this.connected); this.dailyUI?.setConnected(this.connected); this.cockpitUI?.setConnected(this.connected); this.arcadeUI?.setConnected(this.connected);
     this.lostItems?.setConnected(this.connected);
-    this.vehicleUI?.setConnected(this.connected);
+    this.vehicleUI?.setConnected(this.connected); this.vehicleDocks?.setConnected(this.connected);
     this.voice?.setConnected(this.connected);
     this.linksUI?.setReady(this.connected && this.objectsReady);
     if (!this.connected) {
@@ -576,7 +576,7 @@ export class OfficeScene extends Phaser.Scene {
     }, { signal });
     this.game.canvas.addEventListener('keydown', (event) => {
       if (event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-      if (event.code === 'KeyE' && this.editMode === 'none') { event.preventDefault(); this.vehicleUI?.open(); return; }
+      if (event.code === 'KeyE' && this.editMode === 'none') { event.preventDefault(); this.vehicleUI?.quickAction(); return; }
       const index = ['Digit1', 'Digit2', 'Digit3', 'Digit4'].indexOf(event.code);
       if (index !== -1) { event.preventDefault(); this.playReaction(REACTION_KINDS[index]); }
     }, { signal });
