@@ -1,3 +1,4 @@
+import { cockpitFurniturePixels } from './robot-art.ts';
 import { WINDOW_COLUMNS } from './lighting.ts';
 import Phaser from 'phaser';
 import { COLS, ROWS, TILE, isWall } from './world.ts';
@@ -55,7 +56,9 @@ function drawFurniture(scene: Phaser.Scene, item: Furniture, openCalendar?: () =
   const x = tx * TILE, y = ty * TILE, w = tw * TILE, h = th * TILE;
   const g = scene.add.graphics().setDepth(y + h);
   if (kind !== 'calendar') rect(g, 0xb59b74, x + 2, y + h - 2, w, 4);
-  if (kind === 'calendar') {
+  if (['viewport', 'reactor', 'console', 'pilot'].includes(kind)) {
+    for (const pixel of cockpitFurniturePixels(kind, w, h)) rect(g, pixel.color, x + pixel.x, y + pixel.y, pixel.w, pixel.h);
+  } else if (kind === 'calendar') {
     rect(g, 0x816d59, x, y + 1, w, h - 1); rect(g, 0xfff3d8, x + 2, y + 2, w - 4, h - 3);
     rect(g, 0xbb6559, x + 2, y + 2, w - 4, 4);
     for (let row = 0; row < 2; row++) for (let col = 0; col < 7; col++) rect(g, col === 0 ? 0xc06a5b : 0x84918b, x + 3 + col * 4, y + 8 + row * 4, 2, 2);
@@ -207,7 +210,16 @@ export function drawOffice(scene: Phaser.Scene, roomId: RoomId = 'office', openC
       rect(floor, 0xf3d49e, x * TILE, 10 * TILE + 8, TILE, 1);
     }
   } else {
-    if (room.style === 'control') {
+    if (room.style === 'mech') {
+      rect(floor, 0x354d63, TILE, TILE, 28 * TILE, 18 * TILE);
+      for (let y = 2; y < 18; y++) for (let x = 2; x < 28; x++) {
+        rect(floor, 0x526d7e, x * TILE, y * TILE, 15, 15);
+        if ((x + y) % 4 === 0) rect(floor, 0x73909c, x * TILE + 3, y * TILE + 3, 2, 2);
+      }
+      for (const x of [9, 20]) { rect(floor, 0x8bc7bd, x * TILE + 7, 6 * TILE, 2, 11 * TILE); }
+      rect(floor, 0x728e9b, 11 * TILE, 11 * TILE, 8 * TILE, 5 * TILE);
+      for (let i = 0; i < 7; i++) rect(floor, 0xe0b96e, 12 * TILE + i * 12, 16 * TILE, 6, 3);
+    } else if (room.style === 'control') {
       rug(floor, 9 * TILE, 6 * TILE, 12 * TILE, 10 * TILE, room.rug);
       for (const x of [9, 20]) for (let y = 2; y < 18; y += 2) rect(floor, 0xb5c3b3, x * TILE + 7, y * TILE + 3, 2, 8);
     } else if (room.style !== 'grass') rug(floor, 9 * TILE, 5 * TILE, 12 * TILE, 9 * TILE, room.rug);

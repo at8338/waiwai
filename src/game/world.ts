@@ -9,7 +9,7 @@ export const SPAWN = { x: 15, y: 12 };
 export type Direction = 'up' | 'down' | 'left' | 'right';
 export type Point = { x: number; y: number };
 export type Furniture = Point & {
-  kind: 'calendar' | 'desk' | 'workbench' | 'table' | 'sofa' | 'plant' | 'shelf' | 'board' | 'counter' | 'pond' | 'easel' | 'arcade' | 'bed' | 'telescope' | 'monitor' | 'rack' | 'parking' | 'vending';
+  kind: 'viewport' | 'console' | 'pilot' | 'reactor' | 'calendar' | 'desk' | 'workbench' | 'table' | 'sofa' | 'plant' | 'shelf' | 'board' | 'counter' | 'pond' | 'easel' | 'arcade' | 'bed' | 'telescope' | 'monitor' | 'rack' | 'parking' | 'vending';
   w: number;
   h: number;
   label?: string;

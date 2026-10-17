@@ -44,7 +44,7 @@ test('each roaming resident exists once across the building and avoids walls, fu
   assert.equal(all.length, ROAMING_RESIDENTS.length);
   assert.equal(new Set(all.map((p) => p.id)).size, all.length);
   assert.equal(new Set(all.map((p) => p.kind)).size, all.length);
-  assert.equal(ROOMS.filter((r) => pets.list(r.id).length === 0).length, 6);
+  assert.equal(ROOMS.filter((r) => pets.list(r.id).length === 0).length, ROOMS.length - new Set(ROAMING_RESIDENTS.map((r) => r.roomId)).size);
   const animal = pets.list('office')[0];
   const obstacle: RoomObject = { id: 'obstacle', owner: 'test', roomId: 'office', kind: 'plant', x: animal.x, y: animal.y, rotation: 0 };
   pets.step([obstacle], []); assert.notDeepEqual([pets.list('office')[0].x, pets.list('office')[0].y], [animal.x, animal.y]);

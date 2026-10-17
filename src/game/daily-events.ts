@@ -39,7 +39,8 @@ export function dailyEventAt(now: number): DailyEvent {
   const startsAt = EPOCH + dayIndex * EVENT_DAY_MS;
   const day = new Date(startsAt + JST).toISOString().slice(0, 10);
   const theme = episodeById(episodeId)!.theme;
-  const eligible = ROOMS.filter((r) => theme !== 'kaiju' || r.outlook !== 'none');
+  // Preserve historical room draws when adding the dedicated simulator room.
+  const eligible = ROOMS.filter((r) => r.id !== 'cockpit' && (theme !== 'kaiju' || r.outlook !== 'none'));
   const roomId = eligible[eventHash(`${day}:${episodeId}:room`) % eligible.length].id;
   return { day, episodeId, roomId, startsAt, endsAt: startsAt + EVENT_DAY_MS };
 }

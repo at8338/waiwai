@@ -54,14 +54,14 @@ export function roomLightingAt(roomId: RoomId, timestamp: number, weather?: Weat
 export type RoomLight = { x: number; y: number; radius: number; color: number; kind: 'sconce' | 'lantern' | 'lamp' | 'screen' };
 export function roomLights(roomId: RoomId, objects: readonly RoomObject[]): RoomLight[] {
   const room = getRoom(roomId);
-  const color = roomId === 'ops' || roomId === 'arcade' ? 0xc6e7eb : 0xffcd86;
+  const color = roomId === 'ops' || roomId === 'arcade' || roomId === 'cockpit' ? 0xc6e7eb : 0xffcd86;
   const lights: RoomLight[] = roomId === 'garden'
     ? [[6, 4], [24, 4], [8, 15], [21, 15]].map(([x, y]) => ({ x: (x + 0.5) * TILE, y: (y + 0.5) * TILE, radius: 55, color, kind: 'lantern' }))
     : [5, 15, 25].map((x) => ({ x: (x + 0.5) * TILE, y: 20, radius: 83, color, kind: 'sconce' }));
   if (roomId === 'office') for (const x of [8, 22]) lights.push({ x: (x + 0.5) * TILE, y: 10 * TILE + 7, radius: 90, color, kind: 'sconce' });
   else if (roomId !== 'garden') for (const x of [1, 28]) lights.push({ x: (x + 0.5) * TILE, y: 13 * TILE, radius: 95, color, kind: 'sconce' });
   for (const item of [...room.furniture, ...objects.filter((o) => o.roomId === roomId)]) {
-    if (item.kind !== 'lamp' && item.kind !== 'monitor' && item.kind !== 'arcade') continue;
+    if (item.kind !== 'lamp' && item.kind !== 'monitor' && item.kind !== 'arcade' && item.kind !== 'viewport' && item.kind !== 'reactor' && item.kind !== 'console') continue;
     const size = 'rotation' in item ? objectSize(item.kind, item.rotation) : item;
     const rotation = 'rotation' in item ? item.rotation : 0;
     const lampOffset = item.kind === 'lamp' ? [[0, -5], [5, 0], [0, 5], [-5, 0]][rotation] : [0, 0];
