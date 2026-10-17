@@ -523,7 +523,7 @@ test('buddies share authoritative trail positions and pets stay scoped to the cu
   const { connect } = await fixture(t); const a = await connect(), b = await connect();
   const initial = a.welcome.players[0];
   const petsA = await a.next('pets'), petsB = await b.next('pets');
-  assert.deepEqual(petsA.pets, petsB.pets); assert.equal(petsA.pets.length, 2);
+  assert.deepEqual(petsA.pets, petsB.pets); assert.equal(petsA.pets.length, 1); assert.equal(petsA.pets[0].kind, 'dog');
   a.send({ type: 'profile', name: 'buddy-owner', outfit: 0, buddy: 'robot', buddyPosition: { x: 99, y: 99 } });
   const shared = await b.next('player', (m) => m.player.id === initial.id && m.reason === 'profile');
   assert.equal(shared.player.buddy, 'robot'); assert.ok(canWalk(shared.player.buddyPosition!.x, shared.player.buddyPosition!.y));
@@ -732,4 +732,28 @@ test('all-floor broadcasts and meeting schedules synchronize across rooms, permi
   assert.equal((await a.next('announcement-result')).error, undefined);
   assert.equal((await b.next('announcements', (m) => !m.schedules.length && !m.announcements.length)).schedules.length, 0);
   assert.equal(new AnnouncementStore(file).snapshot().schedules.length, 0);
+});
+
+test('room changes never clone roaming residents and Pokemon buddies synchronize independently', async (t) => {
+  const { connect } = await fixture(t), a = await connect(), b = await connect();
+  const first = await a.next('pets'); assert.deepEqual(first.pets.map((p) => p.id), ['pet:dog']);
+  const residents = [];
+  for (const [i, room] of ['office', 'focus', 'meeting', 'cafe', 'library', 'garden', 'studio', 'arcade', 'wellness', 'workshop', 'sky', 'ops'].entries()) {
+    a.send({ type: 'change-room', roomId: room, requestId: i + 1 });
+    const snapshot = await a.next('pets', (m) => m.roomId === room);
+    assert.ok(snapshot.pets.length <= 1); residents.push(...snapshot.pets);
+  }
+  assert.equal(residents.length, 6); assert.equal(new Set(residents.map((p) => p.id)).size, 6);
+  assert.equal(new Set(residents.map((p) => p.kind)).size, 6);
+  assert.equal(residents.find((p) => p.kind === 'cat')?.roomId, 'library');
+  assert.equal(residents.find((p) => p.kind === 'vacuum')?.roomId, 'cafe');
+  a.send({ type: 'change-room', roomId: 'office', requestId: 13 });
+  assert.equal((await a.next('pets', (m) => m.roomId === 'office')).pets[0].id, first.pets[0].id);
+  for (const buddy of ['pikachu', 'eevee', 'snorlax', 'vacuum']) {
+    a.send({ type: 'profile', name: '新しいバディ', outfit: 0, buddy });
+    const changed = await b.next('player', (m) => m.reason === 'profile' && m.player.id === a.welcome.id && m.player.buddy === buddy);
+    assert.equal(changed.player.buddy, buddy); assert.ok(changed.player.buddyPosition);
+  }
+  const c = await connect(); assert.equal(c.welcome.players.find((p) => p.id === a.welcome.id)?.buddy, 'vacuum');
+  assert.ok(b.seen.filter((m) => m.type === 'pets').every((m) => m.roomId === 'office'));
 });
