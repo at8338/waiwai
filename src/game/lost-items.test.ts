@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { LOST_ITEM_CATALOG, LOST_ITEM_KINDS, LEGACY_LOST_ITEMS, LOST_ITEMS_EPOCH, LOST_ITEM_PERIOD_MS, MAX_LOST_ITEMS, lostItemsAt, lostItemsForOffice, lostItemsSnapshot, lostItemPixels } from './lost-items.ts';
+import { drawLostKinds, lostItemWeight } from './lost-items.ts';
 import { EXTRA_LOST_ITEMS } from './lost-items-catalog.ts';
 import { LOST_ITEM_ARTS } from './lost-item-art.ts';
 import { ROOMS } from './rooms.ts';
@@ -20,16 +21,19 @@ test('the entire building shares just three different kinds, one per kind and on
   assert.notDeepEqual(lostItemsForOffice(now + LOST_ITEM_PERIOD_MS), global);
   assert.deepEqual(lostItemsForOffice(NaN), []);
 });
-test('375 curiosities rotate without replacement over 125 periods, including boundaries and dates before the epoch', () => {
-  const seen = new Set();
-  for (let period = 0; period < 125; period++) {
-    const timestamp = LOST_ITEMS_EPOCH + period * LOST_ITEM_PERIOD_MS, items = lostItemsForOffice(timestamp);
-    assert.equal(items.length, 3); for (const item of items) { assert.equal(seen.has(item.kind), false); seen.add(item.kind); }
-    assert.deepEqual(lostItemsForOffice(timestamp + LOST_ITEM_PERIOD_MS - 1), items);
+test('weighted curiosities remain unique per period, cover every kind, and rare items appear less often', () => {
+  const counts = new Map(LOST_ITEM_KINDS.map((kind) => [kind, 0]));
+  for (let period = 0; period < 6000; period++) {
+    const kinds = drawLostKinds(period); assert.equal(new Set(kinds).size, 3);
+    for (const kind of kinds) counts.set(kind, counts.get(kind)! + 1);
   }
-  assert.equal(seen.size, 375);
-  assert.notDeepEqual(lostItemsForOffice(LOST_ITEMS_EPOCH + 125 * LOST_ITEM_PERIOD_MS), lostItemsForOffice(LOST_ITEMS_EPOCH));
+  assert.ok([...counts.values()].every((count) => count > 0));
+  const average = (weight: number) => { const kinds = LOST_ITEM_KINDS.filter((kind) => lostItemWeight(kind) === weight); return kinds.reduce((sum, kind) => sum + counts.get(kind)!, 0) / kinds.length; };
+  assert.ok(average(8) > average(1) * 4); assert.ok(average(8) > average(3));
   const before = lostItemsSnapshot(LOST_ITEMS_EPOCH - 1); assert.equal(before.items.length, 3); assert.equal(before.expiresAt, LOST_ITEMS_EPOCH);
+  assert.deepEqual(lostItemsForOffice(now + 1), lostItemsForOffice(now));
+  const forced = lostItemsForOffice(now, [], { salt: 3, kind: 'box', roomId: 'office' });
+  assert.equal(forced.length, 3); assert.equal(forced.filter((item) => item.kind === 'box').length, 1); assert.equal(forced.find((item) => item.kind === 'box')!.roomId, 'office');
 });
 test('placements avoid fixed and movable furniture, seat approaches, parking and entrances without creating extra copies', () => {
   const items = lostItemsForOffice(now);

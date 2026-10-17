@@ -1,7 +1,9 @@
 import type { Pixel } from './avatar.ts';
 import type { Direction } from './world.ts';
+import { pokemonPixels } from './pokemon-art.ts';
 // Small code-drawn sprites share the existing companion animation system.
 export function extraBuddyPixels(kind: string, direction: Direction, frame: number): Pixel[] | undefined {
+  const pokemon = pokemonPixels(kind, direction, frame); if (pokemon) return pokemon;
   if (!['pikachu', 'eevee', 'snorlax', 'vacuum'].includes(kind)) return;
   const pixels: Pixel[] = [], p = (color: number, x: number, y: number, w: number, h: number) => pixels.push({ color, x, y, w, h });
   const foot = frame === 1 ? 1 : frame === 2 ? -1 : 0, front = direction === 'down', back = direction === 'up';

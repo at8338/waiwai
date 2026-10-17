@@ -35,6 +35,7 @@ export class PokemonJournalUI {
     el('pokemon-journal-open').textContent = `ポケモン図鑑 ${count} / ${POKEMON_KINDS.length}`;
     el('pokemon-journal-progress').textContent = count === POKEMON_KINDS.length ? `全${count}種類を発見！ オフィスの仲間がそろいました。` : `${count} / ${POKEMON_KINDS.length}種類を発見`;
     el<HTMLProgressElement>('pokemon-journal-meter').value = count;
+    el<HTMLProgressElement>('pokemon-journal-meter').max = POKEMON_KINDS.length;
     el('pokemon-journal-storage').textContent = this.journal.stored ? '発見記録はこのブラウザに保存します。同じURLのタブで共有されます。別の端末・ブラウザには同期されません。' : 'ブラウザに保存できません。この画面を開いている間だけ記録します。';
     const cards = el('pokemon-journal-cards'); cards.replaceChildren();
     for (const [index, kind] of POKEMON_KINDS.entries()) {

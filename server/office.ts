@@ -4,6 +4,8 @@ import { birthdayDay } from '../src/game/birthdays.ts';
 import { ArcadeRoom } from './arcade.ts';
 import { RobotSimulation } from './robot.ts';
 import { dailyEventAt } from '../src/game/daily-events.ts';
+import { WorldTestControls, allowDevWorld } from './dev-world.ts';
+import { isPokemonKind } from '../src/game/pokemon.ts';
 import { AnnouncementStore, AnnouncementError } from './announcements.ts';
 import { vendingInReach } from '../src/game/amenities.ts';
 import { VehicleFleet } from './vehicles.ts';
@@ -33,7 +35,7 @@ import { REACTION_COOLDOWN_MS } from '../src/game/reactions.ts';
 
 class EditError extends Error {}
 
-export function attachOffice(server: Server, auth?: SlackAuth, options: { objectsFile?: string; membersFile?: string; linksFile?: string; announcementsFile?: string; birthdaysFile?: string; birthdayClock?: () => number; eventClock?: () => number; lostClock?: () => number } = {}): () => void {
+export function attachOffice(server: Server, auth?: SlackAuth, options: { objectsFile?: string; membersFile?: string; linksFile?: string; announcementsFile?: string; birthdaysFile?: string; devControls?: boolean; birthdayClock?: () => number; eventClock?: () => number; lostClock?: () => number } = {}): () => void {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 });
   const players = new Map<WebSocket, Player>();
   const store = new ObjectStore(options.objectsFile);
@@ -47,6 +49,8 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
   let directoryDirty = false;
   let directoryWarning: string | undefined;
   const alive = new Set<WebSocket>();
+  const devClients = new Set<WebSocket>();
+  const world = new WorldTestControls((options.eventClock ?? Date.now)());
   const vectors = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
   const sendRaw = (ws: WebSocket, serialized: string) => {
     if (ws.readyState !== WebSocket.OPEN) return;
@@ -90,25 +94,28 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
   };
   const robotTimer = setInterval(() => { if (robot.tick(Date.now())) sendRobot(); }, 250); robotTimer.unref();
   const lostClock = options.lostClock ?? Date.now;
-  let lostState = lostItemsSnapshot(lostClock(), store.list());
+  let lostState = lostItemsSnapshot(lostClock(), store.list(), world.lost);
   let lostPeriod = lostItemPeriod(lostState.serverNow);
   const sendLostItems = (ws?: WebSocket): void => {
     const now = lostClock();
     if (ws && lostItemPeriod(now) !== lostPeriod) { sendLostItems(); return; }
-    if (!ws) { lostPeriod = lostItemPeriod(now); lostState = lostItemsSnapshot(now, store.list()); }
+    if (!ws) { lostPeriod = lostItemPeriod(now); lostState = lostItemsSnapshot(now, store.list(), world.lost); }
     const message: ServerMessage = { type: 'lost-items', ...lostState, serverNow: now };
-    if (ws) send(ws, message); else broadcast(message);
+    if (ws) send(ws, message); else { broadcast(message); sendDevWorld(); }
   };
   const lostTimer = setInterval(() => { if (lostItemPeriod(lostClock()) !== lostPeriod) sendLostItems(); }, 1000); lostTimer.unref();
   const eventClock = options.eventClock ?? Date.now;
   let eventDay = dailyEventAt(eventClock()).day;
   const sendDailyEvent = (ws?: WebSocket) => {
-    const serverNow = eventClock(), currentEvent = dailyEventAt(serverNow);
-    const message: ServerMessage = { type: 'daily-event', event: currentEvent, serverNow };
+    const serverNow = eventClock(), currentEvent = world.event(serverNow);
+    const message: ServerMessage = { type: 'daily-event', event: currentEvent, serverNow, ...(world.preview ? { preview: true } : {}) };
     if (ws) send(ws, message); else { eventDay = currentEvent.day; broadcast(message); }
   };
   const dailyEventTimer = setInterval(() => {
-    if (dailyEventAt(eventClock()).day !== eventDay) sendDailyEvent();
+    if (dailyEventAt(eventClock()).day !== eventDay) {
+      world.refresh(eventClock()); pets.replacePokemon(world.roster(eventClock()), store.list());
+      sendDailyEvent(); sendLostItems(); for (const [client, person] of players) sendPets(client, person.roomId); sendDevWorld();
+    }
   }, 1000);
   dailyEventTimer.unref();
   const sendAnnouncements = (ws?: WebSocket) => {
@@ -140,8 +147,13 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
   frame.unref();
   const roomObjects = (roomId: RoomId) => store.list().filter((o) => o.roomId === roomId);
   const sendObjects = (ws: WebSocket, roomId: RoomId) => send(ws, { type: 'objects', roomId, objects: roomObjects(roomId) });
-  const pets = new RoomPets();
+  const pets = new RoomPets(Math.random, eventClock());
+  pets.replacePokemon(world.roster(eventClock()), store.list());
   const sendPets = (ws: WebSocket, roomId: RoomId) => send(ws, { type: 'pets', roomId, pets: pets.list(roomId) });
+  const sendDevWorld = (target?: WebSocket) => {
+    const message: ServerMessage = { type: 'dev-world-state', event: world.event(eventClock()), preview: world.preview, pokemon: ROOMS.flatMap((room) => pets.list(room.id)).filter((pet) => isPokemonKind(pet.kind)).map(({ kind, roomId }) => ({ kind: kind as import('../src/game/pokemon.ts').PokemonKind, roomId })), lost: lostState.items };
+    for (const client of devClients) if (!target || target === client) send(client, message);
+  };
   const petTimer = setInterval(() => {
     const changed = pets.step(store.list(), players.values());
     for (const [ws, person] of players) if (changed.has(person.roomId)) sendPets(ws, person.roomId);
@@ -183,6 +195,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
       directoryWarning = 'メンバー情報を保存できませんでした。再接続後に表示が残らない場合があります。'; directoryDirty = true;
     });
     alive.add(ws);
+    if (allowDevWorld(options.devControls, request)) devClients.add(ws);
     send(ws, { type: 'welcome', id: player.id, players: [...players.values()] });
     broadcast({ type: 'player', player, reason: 'join' }, ws);
     sendObjects(ws, player.roomId);
@@ -194,6 +207,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     sendBirthdays(ws);
     sendDailyEvent(ws);
     sendLostItems(ws);
+    if (devClients.has(ws)) sendDevWorld(ws);
     let lastMove = -Infinity;
     let windowStart = Date.now();
     let messages = 0;
@@ -207,6 +221,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     let lastRobot = -Infinity;
     let lastVehicle = -Infinity;
     let lastBirthday = -Infinity;
+    let lastDevWorld = -Infinity;
     const vehicleResults = new Map<string, string | undefined>();
     let lastVending: string | undefined;
     const contact = () => {
@@ -228,6 +243,14 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
       const message = parseClientMessage(data.toString());
       if (message?.type === 'voice-signal' ? ++signals > 120 : ++messages > 40) { ws.close(1008, 'Too many messages'); return; }
       if (!message) return;
+      if (message.type === 'dev-world') {
+        if (!devClients.has(ws)) { send(ws, { type: 'dev-world-result', actionId: message.actionId, error: 'ローカル開発サーバー専用の操作です。' }); return; }
+        if (now - lastDevWorld < 250) { send(ws, { type: 'dev-world-result', actionId: message.actionId, error: '少し待ってから操作してください。' }); return; }
+        lastDevWorld = now; world.apply(message, eventClock());
+        if (message.command === 'pokemon' || message.command === 'reset') { pets.replacePokemon(world.roster(eventClock()), store.list()); for (const [client, person] of players) sendPets(client, person.roomId); }
+        if (message.command === 'lost' || message.command === 'reset') sendLostItems();
+        sendDailyEvent(); sendDevWorld(); send(ws, { type: 'dev-world-result', actionId: message.actionId }); return;
+      }
       if (message.type === 'birthday-save' || message.type === 'birthday-delete' || message.type === 'birthday-cheer') {
         if (now - lastBirthday < 750) { send(ws, { type: 'birthday-result', actionId: message.actionId, error: '少し待ってから操作してください。' }); return; }
         lastBirthday = now;
@@ -431,6 +454,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
       if (hadVehicle) sendFleet();
       directoryDirty = true;
       identities.delete(ws);
+      devClients.delete(ws);
       alive.delete(ws);
       pending.delete(player.id);
       voice.leave(ws);

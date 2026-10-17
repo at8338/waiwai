@@ -19,6 +19,7 @@ import { RoomLighting } from './RoomLighting.ts';
 import { CompanionsView } from './companions-view.ts';
 import { PokemonJournalUI } from './pokemon-journal-ui.ts';
 import { BirthdaysUI } from './birthdays-ui.ts';
+import { DevWorldUI } from './dev-world-ui.ts';
 import { isPokemonKind } from './pokemon-journal.ts';
 import { BUDDIES } from './buddies.ts';
 import type { BuddyKind } from './buddies.ts';
@@ -73,6 +74,7 @@ export class OfficeScene extends Phaser.Scene {
   private companions?: CompanionsView;
   private pokemonJournal?: PokemonJournalUI;
   private birthdaysUI?: BirthdaysUI;
+  private devWorldUI?: DevWorldUI;
   private buddyChoice: BuddyKind | null = null;
   readonly walker = new Walker();
   private controls = new Controls();
@@ -175,6 +177,9 @@ export class OfficeScene extends Phaser.Scene {
     this.controls.attach(this.game.canvas);
     this.setupRoomTools();
     this.setupReactions();
+    if (import.meta.env.DEV) this.devWorldUI = new DevWorldUI(this.inputController.signal, (action) => this.connection?.devWorld(action) ?? false, (room) => this.connection?.changeRoom(room), () => {
+      if (document.querySelector('dialog[open]')) return false; this.controls.clear(); this.setEditMode('none'); return true;
+    });
     this.birthdaysUI = new BirthdaysUI(this.inputController.signal, (action) => this.connection?.birthday(action) ?? false, () => {
       if (document.querySelector('dialog[open]')) return false; this.controls.clear(); this.setEditMode('none'); return true;
     });
@@ -228,6 +233,8 @@ export class OfficeScene extends Phaser.Scene {
       dailyEvent: (state) => { this.dailyUI?.receive(state); this.dailyView?.receive(state); this.skyWindow?.setDailyEvent(state); },
       announcements: (state) => { this.announcementsUI?.snapshot(state); this.dailyUI?.receiveSchedules(state); },
       birthdays: (state) => { this.birthdaysUI?.receive(state); this.dailyUI?.receiveBirthdays(state); },
+      devWorld: (state) => this.devWorldUI?.receive(state),
+      devWorldResult: (id, error) => this.devWorldUI?.result(id, error),
       birthdayResult: (id, error) => this.birthdaysUI?.result(id, error),
       announcementResult: (id, error) => this.announcementsUI?.result(id, error),
       vehicles: (units) => { this.vehicleUI?.inventory(units); this.vehicleDocks?.receive(units); },
@@ -278,6 +285,7 @@ export class OfficeScene extends Phaser.Scene {
       this.connection?.destroy();
       this.companions?.clear();
       this.birthdaysUI?.destroy();
+      this.devWorldUI?.destroy();
       this.lighting?.destroy();
       this.vehicleDocks?.destroy(); this.vehicleUI?.destroy(); this.announcementsUI?.destroy(); this.dailyUI?.destroy(); this.arcadeUI?.destroy(); this.cockpitUI?.destroy(); this.cockpitView?.destroy(); this.dailyView?.destroy(); this.lostItems?.destroy();
     };
@@ -292,6 +300,7 @@ export class OfficeScene extends Phaser.Scene {
     this.connected = state === 'online';
     this.announcementsUI?.setConnected(this.connected); this.dailyUI?.setConnected(this.connected); this.cockpitUI?.setConnected(this.connected); this.arcadeUI?.setConnected(this.connected);
     this.birthdaysUI?.setConnected(this.connected);
+    this.devWorldUI?.setConnected(this.connected);
     this.lostItems?.setConnected(this.connected);
     this.vehicleUI?.setConnected(this.connected); this.vehicleDocks?.setConnected(this.connected);
     this.voice?.setConnected(this.connected);

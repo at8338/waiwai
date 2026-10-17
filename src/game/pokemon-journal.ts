@@ -1,10 +1,11 @@
 import { isRoomId } from './rooms.ts';
 import type { RoomId } from './rooms.ts';
 
-export const POKEMON_KINDS = ['pikachu', 'eevee', 'snorlax'] as const;
-export type PokemonKind = typeof POKEMON_KINDS[number];
+import { POKEMON_KINDS, isPokemonKind } from './pokemon.ts';
+import type { PokemonKind } from './pokemon.ts';
+export { POKEMON_KINDS, isPokemonKind } from './pokemon.ts';
+export type { PokemonKind } from './pokemon.ts';
 export const POKEMON_JOURNAL_KEY = 'waiwai:pokemon-discoveries:v1';
-export const isPokemonKind = (kind: unknown): kind is PokemonKind => typeof kind === 'string' && (POKEMON_KINDS as readonly string[]).includes(kind);
 export type PokemonDiscovery = { kind: PokemonKind; roomId: RoomId; foundAt: number };
 type JournalStorage = Pick<Storage, 'getItem' | 'setItem'>;
 

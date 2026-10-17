@@ -7,6 +7,8 @@ import type { RoomPet } from '../src/game/buddies.ts';
 import { walkableWithObjects } from '../src/game/objects.ts';
 import type { RoomObject } from '../src/game/objects.ts';
 import type { Player } from '../src/network/protocol.ts';
+import { pokemonRoster } from '../src/game/pokemon-spawns.ts';
+import { isPokemonKind } from '../src/game/pokemon.ts';
 
 const vectors: Record<Direction, Point> = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
 const opposite: Record<Direction, Direction> = { up: 'down', down: 'up', left: 'right', right: 'left' };
@@ -25,11 +27,19 @@ export function advanceBuddy(player: Player, previous: Point): void {
 export class RoomPets {
   private pets: RoomPet[];
   private random: () => number;
-  constructor(random = Math.random) {
+  constructor(random = Math.random, now = Date.now()) {
     this.random = random;
     this.pets = ROAMING_RESIDENTS.map(({ kind, roomId, x, y }) => ({
       id: `pet:${kind}`, roomId, kind, ...this.floorNear(roomId, { x, y }, []), facing: 'down' as Direction,
     }));
+    this.replacePokemon(pokemonRoster(now), []);
+  }
+  replacePokemon(roster: ReturnType<typeof pokemonRoster>, objects: readonly RoomObject[]): void {
+    this.pets = this.pets.filter((pet) => !isPokemonKind(pet.kind));
+    for (const { kind, roomId, x, y } of roster) {
+      const occupied = this.pets.filter((pet) => pet.roomId === roomId).map((pet) => ({ id: pet.id, owner: 'resident', kind: 'mug' as const, rotation: 0, roomId, x: pet.x, y: pet.y }));
+      this.pets.push({ id: `pet:${kind}`, kind, roomId, ...this.floorNear(roomId, { x, y }, [...objects, ...occupied]), facing: 'down' });
+    }
   }
   list(roomId: RoomId): RoomPet[] { return this.pets.filter((p) => p.roomId === roomId).map((p) => ({ ...p })); }
   private floorNear(roomId: RoomId, origin: Point, objects: readonly RoomObject[]): Point {

@@ -73,15 +73,18 @@ export class DailyEventsUI {
     if (!event) { el('daily-event-title').textContent = '今日の事件を確認しています…'; return; }
     const episode = episodeById(event.episodeId)!;
     el('daily-event-title').textContent = episode.title;
-    el('daily-event-meta').textContent = `${event.day} · ${getRoom(event.roomId).name} · ${this.connected ? '毎日0:00 JSTに更新' : '再接続を待っています'}`;
+    el('daily-event-meta').textContent = `${event.day} · ${getRoom(event.roomId).name} · ${this.snapshot?.preview ? 'テスト表示（事件の図鑑には記録しません）' : this.connected ? '毎日0:00 JSTに更新' : '再接続を待っています'}`;
     const button = el<HTMLButtonElement>('daily-event-go'); button.disabled = !this.connected || this.now() >= event.endsAt;
     button.textContent = this.room === event.roomId ? '事件を調べる' : '現場を見に行く ↗';
     el('daily-event-panel').dataset.eventId = event.episodeId; el('daily-event-panel').dataset.eventRoom = event.roomId;
-    el('daily-event-found').textContent = this.found.has(event.day) ? '✓ 発見済み' : '今日、どこかで小さな事件。';
+    el('daily-event-found').textContent = this.snapshot?.preview ? '⚙ テスト中' : this.found.has(event.day) ? '✓ 発見済み' : '今日、どこかで小さな事件。';
   }
   inspect(): void {
     const event = this.snapshot?.event;
     if (!event || this.room !== event.roomId || !this.connected || this.now() >= event.endsAt || !this.beforeOpen()) return;
+    if (this.snapshot?.preview) {
+      this.fillDetail(event, 'event-detail'); el('event-detail-stamp').textContent = 'テスト表示 · 事件の図鑑の発見記録は変更しません。'; el<HTMLDialogElement>('event-detail-dialog').showModal(); return;
+    }
     this.found.add(event.day);
     this.found = new Set([...this.found].sort().slice(-400));
     let stored = true; try { localStorage.setItem(JOURNAL_KEY, JSON.stringify([...this.found])); } catch { stored = false; }
