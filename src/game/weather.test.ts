@@ -19,9 +19,9 @@ test('decorative weather is shared and stable throughout each JST half hour', ()
 
 test('Tokyo Bay panorama stays inside the window canvas in daylight and at night', async () => {
   const { tokyoBayPixels } = await import('./tokyo-bay.ts');
-  for (const night of [false, true]) for (const overcast of [false, true]) {
-    const pixels = tokyoBayPixels(night, overcast);
-    for (const p of pixels) assert.ok(p.x >= 0 && p.y >= 0 && p.x + p.w <= 480 && p.y + p.h <= 56 && p.w > 0 && p.h > 0, JSON.stringify(p));
+  for (const night of [false, true]) for (const overcast of [false, true]) for (const elevated of [false, true]) {
+    const pixels = tokyoBayPixels(night, overcast, elevated);
+    for (const p of pixels) assert.ok(p.x >= 0 && p.y >= 0 && p.x + p.w <= 480 && p.y + p.h <= (elevated ? 80 : 56) && p.w > 0 && p.h > 0, JSON.stringify(p));
   }
   assert.notDeepEqual(tokyoBayPixels(false, false), tokyoBayPixels(true, false));
 });

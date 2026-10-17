@@ -44,6 +44,13 @@ export function lightingAt(timestamp: number, weather: WeatherKind = weatherAt(t
   }
   return { phase, weather, time: `${String(jst.getUTCHours()).padStart(2, '0')}:${String(jst.getUTCMinutes()).padStart(2, '0')}`, palette };
 }
+export function roomLightingAt(roomId: RoomId, timestamp: number, weather?: WeatherKind): ReturnType<typeof lightingAt> {
+  const state = lightingAt(timestamp, weather);
+  if (getRoom(roomId).outlook !== 'none') return state;
+  // Windowless control rooms use steady indoor lights, unaffected by outside weather.
+  const base = lightingAt(timestamp, 'clear').palette;
+  return { ...state, palette: { ...base, tint: 0x273e52, shade: 0.12 + base.shade * 0.32, sun: 0, lamps: 0.7 + base.lamps * 0.3 } };
+}
 export type RoomLight = { x: number; y: number; radius: number; color: number; kind: 'sconce' | 'lantern' | 'lamp' | 'screen' };
 export function roomLights(roomId: RoomId, objects: readonly RoomObject[]): RoomLight[] {
   const room = getRoom(roomId);

@@ -1,7 +1,7 @@
 import type { Pixel } from './avatar.ts';
 
 // A stylized Tokyo Bay panorama rather than a geographically exact camera view.
-export function tokyoBayPixels(night: boolean, overcast: boolean): Pixel[] {
+export function tokyoBayPixels(night: boolean, overcast: boolean, elevated = false): Pixel[] {
   const pixels: Pixel[] = [];
   const p = (color: number, x: number, y: number, w: number, h: number) => pixels.push({ color, x, y, w, h });
   const water = night ? 0x243e59 : overcast ? 0x8babb0 : 0x8ebbc3;
@@ -43,6 +43,23 @@ export function tokyoBayPixels(night: boolean, overcast: boolean): Pixel[] {
   for (let i = 0; i < 48; i++) {
     const x = (i * 43 + 7) % 472, y = 47 + i % 8;
     p(night ? i % 3 ? 0x8a9a98 : 0xd0b57f : 0xb6d1d0, x, y, 3 + i % 5, 1);
+  }
+  if (!elevated) return pixels;
+  const distant = pixels.filter((pixel) => pixel.y < 45).map((pixel) => ({ ...pixel, y: Math.round(pixel.y * 0.6 + 2), h: Math.max(1, Math.round(pixel.h * 0.6)) }));
+  pixels.length = 0;
+  p(water, 0, 28, 480, 52);
+  pixels.push(...distant);
+  // From the roof the horizon sits high, with bay water and nearby rooftops below.
+  for (let i = 0; i < 56; i++) p(night ? i % 3 ? 0x718b99 : 0xc4ad7e : 0xb7d1cf, (i * 43 + 9) % 468, 34 + (i * 11) % 37, 3 + i % 7, 1);
+  for (const [x, y, width] of [[12, 54, 58, 14], [93, 64, 46, 11], [359, 61, 51, 13], [421, 49, 48, 16]]) {
+    p(night ? 0x2a4058 : 0x7c9499, x, y + 5, width, 80 - y - 5);
+    p(night ? 0x718898 : 0xc0cfca, x + 4, y, width - 4, 10);
+    p(night ? 0x556f82 : 0xa3b8b4, x, y + 4, width, 7);
+    p(night ? 0x8a9b9f : 0xdbe0cb, x + 4, y, width - 4, 2);
+    p(night ? 0x3d5369 : 0x859e9f, x + 13, y + 2, 12, 5);
+    p(night ? 0x93a9ad : 0xd8e0d5, x + 13, y + 2, 12, 1);
+    p(night ? 0x3d5369 : 0x859e9f, x + width - 15, y + 3, 8, 4);
+    for (let row = y + 12; row < 79; row += 5) for (let window = 5; window < width - 3; window += 7) p(night ? 0xd9bc80 : 0xb3cfcb, x + window, row, 2, 2);
   }
   return pixels;
 }

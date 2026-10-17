@@ -1,7 +1,8 @@
+import { getRoom } from './rooms.ts';
 import { WEATHER_LABELS } from './weather.ts';
 import type { WeatherKind } from './weather.ts';
 import Phaser from 'phaser';
-import { lightingAt, LIGHTING_LABELS, roomLights, WINDOW_COLUMNS } from './lighting.ts';
+import { roomLightingAt, LIGHTING_LABELS, roomLights, WINDOW_COLUMNS } from './lighting.ts';
 import type { RoomId } from './rooms.ts';
 import type { RoomObject } from './objects.ts';
 import { COLS, ROWS, TILE } from './world.ts';
@@ -29,10 +30,11 @@ export class RoomLighting {
     const key = `${Math.floor(now / 60_000)}:${weather ?? ''}`;
     if (this.key === key) return;
     this.key = key;
-    const { phase, time, weather: outside, palette: p } = lightingAt(now, weather);
+    const { phase, time, weather: outside, palette: p } = roomLightingAt(this.roomId, now, weather);
     this.sunlight.clear(); this.shade.clear(); this.glow.clear(); this.sources.clear();
     this.shade.fillStyle(p.tint, p.shade).fillRect(0, 0, COLS * TILE, ROWS * TILE);
-    for (const start of [3, 7, 14, 24]) {
+    const outlook = getRoom(this.roomId).outlook;
+    if (outlook === 'window') for (const start of [3, 7, 14, 24]) {
       const min = this.roomId !== 'office' ? TILE : (start < 10 ? 1 : start < 20 ? 11 : 21) * TILE;
       const max = this.roomId !== 'office' ? (COLS - 1) * TILE : (start < 10 ? 10 : start < 20 ? 20 : 29) * TILE;
       const clamp = (x: number) => Phaser.Math.Clamp(x, min, max);
@@ -47,7 +49,7 @@ export class RoomLighting {
         ], true);
       }
     }
-    for (const x of WINDOW_COLUMNS) {
+    if (outlook === 'window') for (const x of WINDOW_COLUMNS) {
       this.sources.fillStyle(p.glass).fillRect(x * TILE + 2, 3, 12, 7);
       this.sources.fillStyle(0xf7e9c4, 0.4).fillRect(x * TILE + 3, 3, 1, 6);
       if (phase === 'night') this.sources.fillStyle(0xd8e7df, 0.75).fillRect(x * TILE + (x % 2 ? 7 : 10), 4, 1, 1);
@@ -70,7 +72,7 @@ export class RoomLighting {
     const canvas = this.scene.game.canvas;
     canvas.dataset.lightingPhase = phase; canvas.dataset.jstTime = time; canvas.dataset.weather = outside;
     const label = document.querySelector<HTMLElement>('#lighting-status');
-    if (label) { label.textContent = `${phase === 'night' ? '☾' : '☀'} ${LIGHTING_LABELS[phase]} · ${WEATHER_LABELS[outside]} · ${time} JST`; label.title = '日本時間に合わせて照明が自動で切り替わります'; }
+    if (label) { label.textContent = `${phase === 'night' ? '☾' : '☀'} ${outlook === 'none' ? ({ morning: '朝', day: '昼', evening: '夕方', night: '夜' }[phase] + 'の室内灯') : LIGHTING_LABELS[phase]} · ${outlook === 'none' ? '' : WEATHER_LABELS[outside] + ' · '}${time} JST`; label.title = '日本時間に合わせて照明が自動で切り替わります'; }
   }
   destroy(): void { this.sunlight.destroy(); this.shade.destroy(); this.glow.destroy(); this.sources.destroy(); }
 }

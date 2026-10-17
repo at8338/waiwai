@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { lightingAt, roomLights } from './lighting.ts';
+import { lightingAt, roomLightingAt, roomLights } from './lighting.ts';
 import { ROOMS } from './rooms.ts';
 import type { RoomObject } from './objects.ts';
 const at = (clock: string) => lightingAt(Date.parse(`2026-10-18T${clock}:00+09:00`), 'clear');
@@ -58,4 +58,17 @@ test('rain and storms reduce sunlight and turn on indoor lamps during the day', 
   assert.ok(rain.sun < clear.sun && storm.sun < rain.sun);
   assert.ok(rain.shade > clear.shade && storm.shade > rain.shade);
   assert.ok(rain.lamps > clear.lamps && storm.lamps > rain.lamps);
+});
+
+
+test('control rooms have no sunlight or weather-dependent lighting; the garden is open air', () => {
+  assert.equal(ROOMS.find((r) => r.id === 'ops')!.outlook, 'none');
+  assert.equal(ROOMS.find((r) => r.id === 'garden')!.outlook, 'open');
+  for (const hour of ['08', '12', '17', '22']) {
+    const now = Date.parse(`2026-10-18T${hour}:00:00+09:00`);
+    const clear = roomLightingAt('ops', now, 'clear').palette;
+    assert.equal(clear.sun, 0); assert.ok(clear.lamps >= 0.7 && clear.shade <= 0.28);
+    assert.deepEqual(roomLightingAt('ops', now, 'rain').palette, clear);
+    assert.deepEqual(roomLightingAt('ops', now, 'storm').palette, clear);
+  }
 });

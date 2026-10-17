@@ -274,3 +274,5 @@ select { color: #354b3e; background: #fffdf6; border: 1px solid #ced7c2; border-
 
 .window-wall { position: relative; box-shadow: 0 0 0 3px #7d8968, 0 0 0 5px #d4d6b6; background: #8b927b; }
 #sky-window { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+
+.window-wall[hidden], #sky-window[hidden] { display: none; }
