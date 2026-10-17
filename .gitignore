@@ -15,3 +15,4 @@ coverage/
 # Logs and local files
 *.log
 .DS_Store
+artifacts/
