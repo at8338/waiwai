@@ -1,7 +1,8 @@
 import type { Point } from '../game/world.ts';
 
 export const VOICE_RADIUS = 5;
-export const MAX_VOICE_MEMBERS = 8;
+export const MAX_VOICE_MEMBERS = 30;
+export const MAX_VOICE_PEERS = 4;
 
 export function voiceZone({ x, y }: Point): string {
   if (y >= 10) return 'common';

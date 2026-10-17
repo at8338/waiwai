@@ -1,6 +1,6 @@
 import type { Player } from '../network/protocol.ts';
 import type { IceServer, VoicePayload, VoiceSignal, VoiceSnapshot, VoiceState } from './protocol.ts';
-import { proximityGain } from './proximity.ts';
+import { MAX_VOICE_MEMBERS, proximityGain } from './proximity.ts';
 
 export type VoiceUI = {
   active: boolean; microphone: boolean; busy: boolean;
@@ -12,6 +12,7 @@ type Options = {
   notify: (state: VoiceUI) => void;
   // Dependency injection is used by the dev-only synthetic audio test page.
   getMicrophone?: (context: AudioContext) => Promise<MediaStream>;
+  audioDestination?: (context: AudioContext) => AudioNode;
 };
 type Peer = {
   id: string; session: string; pc: RTCPeerConnection; initiator: boolean;
@@ -37,6 +38,7 @@ export class ProximityVoice {
   private notice = '';
   private meterTimer?: number;
   private speakers = new Set<string>();
+  private limited = false;
 
   constructor(options: Options) { this.options = options; }
 
@@ -46,10 +48,12 @@ export class ProximityVoice {
     this.notify();
   }
 
-  setWorld(id: string | undefined, players: Map<string, Player>): void {
+  setWorld(id: string | undefined, players: Map<string, Player>, changedId?: string): void {
     this.id = id;
-    this.players = new Map(players);
-    for (const peer of this.peers.values()) this.setGain(peer);
+    this.players = players;
+    for (const peer of this.peers.values()) {
+      if (!changedId || changedId === id || changedId === peer.id) this.setGain(peer);
+    }
   }
 
   async start(): Promise<void> {
@@ -114,6 +118,7 @@ export class ProximityVoice {
   stop(message = ''): void {
     this.generation++;
     this.active = false; this.busy = false;
+    this.limited = false;
     this.stream?.getTracks().forEach((track) => track.stop());
     this.stream = undefined; this.microphone = false;
     window.clearInterval(this.meterTimer);
@@ -129,10 +134,16 @@ export class ProximityVoice {
   accept(snapshot: VoiceSnapshot): void {
     if (!this.active) return;
     if (!snapshot.self.listening) {
-      this.stop(snapshot.error === 'capacity' ? '音声は同時に8人まで参加できます。空きができたらもう一度お試しください。' : '音声を終了しました。');
+      this.stop(snapshot.error === 'capacity' ? `音声は同時に${MAX_VOICE_MEMBERS}人まで参加できます。空きができたらもう一度お試しください。` : '音声を終了しました。');
       return;
     }
+    const iceChanged = JSON.stringify(this.iceServers) !== JSON.stringify(snapshot.iceServers);
     this.iceServers = snapshot.iceServers;
+    this.limited = !!snapshot.limited;
+    if (iceChanged) for (const [id, peer] of this.peers) {
+      try { peer.pc.setConfiguration({ ...peer.pc.getConfiguration(), iceServers: this.iceServers }); }
+      catch { this.closePeer(peer); this.peers.delete(id); }
+    }
     const allowed = new Map(snapshot.peers.map((peer) => [peer.id, peer]));
     for (const [id, peer] of this.peers) {
       if (allowed.get(id)?.session !== peer.session) { this.closePeer(peer); this.peers.delete(id); }
@@ -168,7 +179,7 @@ export class ProximityVoice {
       peer.source = this.context.createMediaStreamSource(stream);
       peer.gain = this.context.createGain(); peer.gain.gain.value = 0;
       peer.analyser = this.context.createAnalyser(); peer.analyser.fftSize = 256;
-      peer.source.connect(peer.gain).connect(peer.analyser).connect(this.context.destination);
+      peer.source.connect(peer.gain).connect(peer.analyser).connect(this.options.audioDestination?.(this.context) ?? this.context.destination);
       this.setGain(peer);
     };
     pc.onconnectionstatechange = () => {
@@ -190,6 +201,11 @@ export class ProximityVoice {
     if (transceiver && this.current(peer)) {
       transceiver.direction = 'sendrecv';
       await transceiver.sender.replaceTrack(this.stream?.getAudioTracks()[0] ?? null);
+      const parameters = transceiver.sender.getParameters();
+      if (parameters.encodings?.length) {
+        for (const encoding of parameters.encodings) encoding.maxBitrate = 48_000;
+        await transceiver.sender.setParameters(parameters);
+      }
     }
   }
 
@@ -221,6 +237,7 @@ export class ProximityVoice {
       if ((payload.type === 'offer') === peer.initiator) return;
       await peer.pc.setRemoteDescription({ type: payload.type, sdp: payload.sdp });
       if (!this.current(peer)) return;
+      if (payload.type === 'answer') await this.attachMicrophone(peer);
       for (const candidate of peer.candidates.splice(0)) await peer.pc.addIceCandidate(candidate);
       if (payload.type === 'offer') {
         await this.attachMicrophone(peer);
@@ -266,7 +283,7 @@ export class ProximityVoice {
     this.options.notify({
       active: this.active, microphone: this.microphone, busy: this.busy,
       nearby: this.peers.size, connected, speakers: new Set(this.speakers), levels,
-      message: this.notice || (!this.online ? 'オフィスへの接続後に参加できます。' : !this.active ? '参加すると、近くの人の声が聞こえます。' : this.microphone ? 'マイクON · 近くの人に声が届きます。' : 'マイクOFF · 聞くだけで参加しています。'),
+      message: this.notice || (this.limited ? '周囲が混み合っています。5人以内のグループに分かれてお話しください。' : !this.online ? 'オフィスへの接続後に参加できます。' : !this.active ? '参加すると、近くの人の声が聞こえます。' : this.microphone ? 'マイクON · 近くの人に声が届きます。' : 'マイクOFF · 聞くだけで参加しています。'),
     });
   }
 

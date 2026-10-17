@@ -3,9 +3,9 @@ import type { IncomingMessage, Server } from 'node:http';
 import type { Duplex } from 'node:stream';
 import WebSocket, { WebSocketServer } from 'ws';
 import { COLS, ROWS, SPAWN, STEP_MS, canWalk } from '../src/game/world.ts';
-import { parseClientMessage } from '../src/network/protocol.ts';
-import type { Player, ServerMessage } from '../src/network/protocol.ts';
-import { VoiceRoom, readIceServers } from './voice.ts';
+import { MAX_PLAYERS, POSITION_FRAME_MS, directions, parseClientMessage } from '../src/network/protocol.ts';
+import type { Player, Position, ServerMessage } from '../src/network/protocol.ts';
+import { VoiceRoom, readIceProvider } from './voice.ts';
 import type { SlackAuth } from './auth.ts';
 
 export function attachOffice(server: Server, auth?: SlackAuth): () => void {
@@ -13,15 +13,26 @@ export function attachOffice(server: Server, auth?: SlackAuth): () => void {
   const players = new Map<WebSocket, Player>();
   const alive = new Set<WebSocket>();
   const vectors = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
-  const send = (ws: WebSocket, message: ServerMessage) => {
+  const sendRaw = (ws: WebSocket, serialized: string) => {
     if (ws.readyState !== WebSocket.OPEN) return;
     if (ws.bufferedAmount > 64 * 1024) { ws.terminate(); return; }
-    ws.send(JSON.stringify(message));
+    ws.send(serialized);
   };
+  const send = (ws: WebSocket, message: ServerMessage) => sendRaw(ws, JSON.stringify(message));
   const broadcast = (message: ServerMessage, except?: WebSocket) => {
-    for (const ws of players.keys()) if (ws !== except) send(ws, message);
+    const serialized = JSON.stringify(message);
+    for (const ws of players.keys()) if (ws !== except) sendRaw(ws, serialized);
   };
-  const voice = new VoiceRoom(players, send, readIceServers());
+  const voice = new VoiceRoom(players, send, readIceProvider());
+  const pending = new Map<string, Position>();
+  const frame = setInterval(() => {
+    if (pending.size) {
+      broadcast({ type: 'positions', positions: [...pending.values()] });
+      pending.clear();
+    }
+    voice.refreshIfDirty();
+  }, POSITION_FRAME_MS);
+  frame.unref();
   const spawn = (except?: WebSocket) => {
     const occupied = new Set([...players].filter(([ws]) => ws !== except).map(([, { x, y }]) => `${x},${y}`));
     const tiles = [];
@@ -34,13 +45,14 @@ export function attachOffice(server: Server, auth?: SlackAuth): () => void {
   };
 
   const identities = new Map<WebSocket, string>();
+  let nextSlot = 0;
   const unsubscribe = auth?.onRevoke((id) => {
     for (const [ws, session] of identities) if (session === id) ws.close(4001, 'Session ended');
   });
   wss.on('connection', (ws, request) => {
     const identity = auth?.identify(request);
     if (identity) identities.set(ws, identity.id);
-    const player: Player = { id: randomUUID(), name: identity?.user.name ?? 'ゲスト', outfit: 0,
+    const player: Player = { id: randomUUID(), slot: ++nextSlot, name: identity?.user.name ?? 'ゲスト', outfit: 0,
       slack: identity?.user.slack ?? null, slackVerified: !!identity, ...spawn(), facing: 'down' };
     players.set(ws, player);
     alive.add(ws);
@@ -78,14 +90,20 @@ export function attachOffice(server: Server, auth?: SlackAuth): () => void {
           lastMove = now;
         }
       }
-      broadcast({ type: 'player', player, reason: message.type,
-        ...('requestId' in message ? { requestId: message.requestId } : {}) });
-      voice.refresh();
+      if (message.type === 'profile') broadcast({ type: 'player', player, reason: 'profile' });
+      else {
+        // Immediate authoritative acknowledgment keeps local movement responsive.
+        send(ws, { type: 'player', player, reason: message.type, requestId: message.requestId });
+        pending.set(player.id, [player.slot, player.x, player.y, directions.indexOf(player.facing) |
+          (message.type === 'reset' || ((pending.get(player.id)?.[3] ?? 0) & 4) ? 4 : 0)]);
+        voice.markDirty();
+      }
     });
     ws.on('close', () => {
       players.delete(ws);
       identities.delete(ws);
       alive.delete(ws);
+      pending.delete(player.id);
       voice.leave(ws);
       broadcast({ type: 'left', id: player.id });
     });
@@ -96,7 +114,10 @@ export function attachOffice(server: Server, auth?: SlackAuth): () => void {
     const origin = request.headers.origin;
     let sameOrigin = false;
     try { sameOrigin = !!origin && new URL(origin).host === request.headers.host; } catch { /* invalid origin */ }
-    if (!sameOrigin || players.size >= 50) { socket.destroy(); return; }
+    if (!sameOrigin || players.size >= MAX_PLAYERS) { socket.destroy(); return; }
+    if (auth && !auth.canJoin(request)) {
+      socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n'); socket.destroy(); return;
+    }
     wss.handleUpgrade(request, socket, head, (ws) => wss.emit('connection', ws, request));
   };
   server.on('upgrade', upgrade);
@@ -109,6 +130,7 @@ export function attachOffice(server: Server, auth?: SlackAuth): () => void {
   heartbeat.unref();
   return () => {
     clearInterval(heartbeat);
+    clearInterval(frame);
     unsubscribe?.();
     server.off('upgrade', upgrade);
     for (const ws of wss.clients) ws.terminate();

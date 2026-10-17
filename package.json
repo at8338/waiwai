@@ -12,7 +12,8 @@
     "test": "node --test src/game/*.test.ts src/audio/*.test.ts src/slack/*.test.ts server/*.test.ts",
     "build": "npm run check && vite build",
     "preview": "node server/index.ts",
-    "start": "node server/index.ts"
+    "start": "node server/index.ts",
+    "test:load": "node tests/load-office.ts"
   },
   "dependencies": {
     "openid-client": "^6.8.8",

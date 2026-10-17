@@ -6,7 +6,8 @@ import type { AddressInfo } from 'node:net';
 import WebSocket from 'ws';
 import { attachOffice } from './office.ts';
 import type { ServerMessage, Player } from '../src/network/protocol.ts';
-import { parseClientMessage } from '../src/network/protocol.ts';
+import { MAX_PLAYERS, directions, parseClientMessage } from '../src/network/protocol.ts';
+import { MAX_VOICE_MEMBERS, MAX_VOICE_PEERS } from '../src/audio/proximity.ts';
 import { STEP_MS, canWalk } from '../src/game/world.ts';
 
 async function fixture(t: TestContext) {
@@ -66,8 +67,9 @@ test('two clients receive each other, profile changes, and the same authoritativ
   const initial = a.welcome.players[0];
   a.send({ type: 'move', direction: 'right', requestId: 1 });
   const movedA = await a.next('player', (m) => m.reason === 'move');
-  const movedB = await b.next('player', (m) => m.reason === 'move');
-  assert.deepEqual(movedA, movedB);
+  const movedB = await b.next('positions', (m) => m.positions.some(([slot]) => slot === a.welcome.players[0].slot));
+  assert.deepEqual(movedB.positions.find(([slot]) => slot === a.welcome.players[0].slot),
+    [movedA.player.slot, movedA.player.x, movedA.player.y, directions.indexOf(movedA.player.facing)]);
   assert.deepEqual([movedA.player.x, movedA.player.y], [initial.x + 1, initial.y]);
   assert.equal(movedA.requestId, 1);
   // A client cannot teleport itself or impersonate another participant.
@@ -109,12 +111,13 @@ test('reset is shared; leaving removes a player; joining again receives a clean 
   const b = await connect();
   await a.next('player', (m) => m.reason === 'join');
   a.send({ type: 'move', direction: 'right', requestId: 1 });
-  await b.next('player', (m) => m.reason === 'move');
+  await b.next('positions');
   a.send({ type: 'reset', requestId: 2 });
-  const reset = await b.next('player', (m) => m.reason === 'reset');
-  assert.ok(canWalk(reset.player.x, reset.player.y));
-  assert.equal(reset.player.facing, 'down');
-  assert.equal(reset.requestId, 2);
+  const reset = await b.next('positions', (m) => m.positions.some(([slot,,, flags]) => slot === a.welcome.players[0].slot && !!(flags & 4)));
+  const position = reset.positions.find(([slot]) => slot === a.welcome.players[0].slot)!;
+  assert.ok(canWalk(position[1], position[2]));
+  assert.equal(position[3] & 3, directions.indexOf('down'));
+  assert.ok(position[3] & 4);
   b.ws.close();
   assert.equal((await a.next('left')).id, b.welcome.id);
   const rejoined = await connect();
@@ -187,12 +190,13 @@ test('voice signaling requires both participants to join and a current proximity
 test('voice limits simultaneous participation and frees capacity on exit', async (t) => {
   const { connect } = await fixture(t);
   const clients = [];
-  for (let i = 0; i < 9; i++) clients.push(await connect());
-  for (const client of clients.slice(0, 8)) {
+  for (let i = 0; i < MAX_VOICE_MEMBERS + 1; i++) clients.push(await connect());
+  for (const client of clients.slice(0, MAX_VOICE_MEMBERS)) {
     client.send({ type: 'voice-state', listening: true, microphone: false });
-    assert.equal((await client.next('voice', (message) => message.self.listening)).self.listening, true);
+    const snapshot = await client.next('voice', (message) => message.self.listening);
+    assert.ok(snapshot.peers.length <= MAX_VOICE_PEERS);
   }
-  const last = clients[8];
+  const last = clients[MAX_VOICE_MEMBERS];
   last.send({ type: 'voice-state', listening: true, microphone: false });
   assert.equal((await last.next('voice')).error, 'capacity');
   clients[0].send({ type: 'voice-state', listening: false, microphone: false });
@@ -224,4 +228,27 @@ test('Slack IDs synchronize in profiles and join snapshots, reject invalid edits
   assert.deepEqual(afterInvalid.player.slack, slack);
   a.send({ type: 'profile', name: '改名', outfit: 2, slack: null });
   assert.equal((await b.next('player', (message) => message.reason === 'profile')).player.slack, null);
+});
+
+// Exercise real upgrades at the production limit, including capacity recovery.
+test('150 clients join, compact frames coalesce moves and the 151st is refused', async (t) => {
+  const { connect, origin } = await fixture(t);
+  const clients = [];
+  for (let i = 0; i < MAX_PLAYERS; i++) clients.push(await connect());
+  assert.equal(clients.at(-1)!.welcome.players.length, MAX_PLAYERS);
+  const extra = new WebSocket(origin.replace('http:', 'ws:') + '/office', { origin });
+  extra.on('error', () => {});
+  let opened = false; extra.on('open', () => { opened = true; });
+  await new Promise((resolve) => extra.once('close', resolve));
+  assert.equal(opened, false);
+  const [a, b] = clients;
+  a.send({ type: 'move', direction: 'right', requestId: 1 });
+  const ack = await a.next('player', (m) => m.requestId === 1);
+  const frame = await b.next('positions', (m) => m.positions.some(([slot]) => slot === a.welcome.players[0].slot));
+  assert.deepEqual(frame.positions.find(([slot]) => slot === a.welcome.players[0].slot),
+    [ack.player.slot, ack.player.x, ack.player.y, directions.indexOf(ack.player.facing)]);
+  assert.ok(!JSON.stringify(frame).includes('slack'));
+  clients.at(-1)!.ws.close();
+  await a.next('left');
+  assert.equal((await connect()).welcome.players.length, MAX_PLAYERS);
 });

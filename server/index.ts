@@ -14,6 +14,9 @@ const types: Record<string, string> = {
   '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.woff2': 'font/woff2',
 };
 const server = createServer(async (request, response) => {
+  if (request.url === '/healthz' && (request.method === 'GET' || request.method === 'HEAD')) {
+    response.writeHead(200, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' }).end(request.method === 'HEAD' ? undefined : 'ok'); return;
+  }
   try { if (await auth.handle(request, response)) return; }
   catch { response.writeHead(500).end('Authentication unavailable'); return; }
   if (request.method !== 'GET' && request.method !== 'HEAD') { response.writeHead(405).end(); return; }
@@ -22,7 +25,9 @@ const server = createServer(async (request, response) => {
     const filename = resolve(root, `.${pathname === '/' ? '/index.html' : pathname}`);
     if (!filename.startsWith(root.endsWith(sep) ? root : root + sep)) { response.writeHead(403).end(); return; }
     const content = await readFile(filename);
-    response.writeHead(200, { 'Content-Type': types[extname(filename)] ?? 'application/octet-stream' });
+    response.writeHead(200, { 'Content-Type': types[extname(filename)] ?? 'application/octet-stream',
+      'Cache-Control': pathname.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache',
+      'X-Content-Type-Options': 'nosniff' });
     response.end(request.method === 'HEAD' ? undefined : content);
   } catch { response.writeHead(404).end('Not found'); }
 });
