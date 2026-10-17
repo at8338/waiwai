@@ -1,7 +1,13 @@
+import { roomEventStage } from './daily-event-stage.ts';
+import { damageContains } from './daily-event-stage.ts';
+import { getRoom } from './rooms.ts';
+import type { RoomId } from './rooms.ts';
 import type { Pixel } from './avatar.ts';
 import type { DailyEpisode } from './daily-event-catalog.ts';
-// All sprites use a 48 x 48 pixel canvas. Distinct themed silhouettes plus episode props.
+import { eventPropPixels } from './event-props.ts';
+// Bespoke visitor portraits plus icons of the authored scene's main prop.
 export function eventPixels(event: DailyEpisode, frame = 0): Pixel[] {
+  if ((!event.scene.special && event.theme !== 'comic') || event.scene.special === 'aquarium') return eventPropPixels(event.scene.props[0]).map(p => ({ ...p, x: 4 + p.x * 5, y: 4 + p.y * 5, w: 5, h: 5 }));
   const out: Pixel[] = [], v = event.variant;
   const p = (color: number, x: number, y: number, w: number, h: number) => out.push({ color, x, y, w, h });
   const ink = 0x36404d, white = 0xf7f0da, red = 0xc85a57, blue = 0x699db6, gold = 0xe6be6c, skin = 0xe4b68b;
@@ -132,15 +138,28 @@ export function eventPixels(event: DailyEpisode, frame = 0): Pixel[] {
   return out;
 }
 // Canvas and Phaser share exactly the same pixel geometry.
-export function drawEventPreview(canvas: HTMLCanvasElement, episode: DailyEpisode): void {
+export function drawEventPreview(canvas: HTMLCanvasElement, episode: DailyEpisode, roomId: RoomId = 'meeting'): void {
   const ctx = canvas.getContext('2d')!; ctx.imageSmoothingEnabled = false;
+  const stage = roomEventStage(episode, roomId, [], -1), scale = Math.min(canvas.width / 480, canvas.height / 320);
   ctx.fillStyle = '#eee3c8'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-  if (episode.theme === 'kaiju') {
-    ctx.fillStyle = '#cadce0'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = '#7f9caa'; ctx.fillRect(0, canvas.height - 26, canvas.width, 26);
-    for (let i = 0; i < Math.ceil(canvas.width / 18); i++) { ctx.fillStyle = '#97aaa8'; ctx.fillRect(i * 18, canvas.height - 30 - i % 4 * 5, 14, 30); }
-    for (const p of outsideEventPixels(episode, canvas.width, canvas.height)) { ctx.fillStyle = '#' + p.color.toString(16).padStart(6, '0'); ctx.fillRect(p.x, p.y, p.w, p.h); } }
-  else { const scale = Math.min(canvas.width / 64, canvas.height / 56); for (const p of eventPixels(episode)) { ctx.fillStyle = '#' + p.color.toString(16).padStart(6, '0'); ctx.fillRect(Math.round((canvas.width - 48 * scale) / 2 + p.x * scale), Math.round((canvas.height - 48 * scale) / 2 + p.y * scale), Math.ceil(p.w * scale), Math.ceil(p.h * scale)); } }
+  ctx.save(); ctx.translate((canvas.width - 480 * scale) / 2, (canvas.height - 320 * scale) / 2); ctx.scale(scale, scale);
+  ctx.fillStyle = '#c9bca3'; ctx.fillRect(0, 0, 480, 320);
+  for (let y = 0; y < 20; y++) for (let x = 0; x < 30; x++) { ctx.fillStyle = (x + y) % 2 ? '#ddd0b6' : '#d6c6a9'; ctx.fillRect(x * 16, y * 16, 15, 15); }
+  ctx.fillStyle = '#b6a686'; ctx.fillRect(0, 0, 480, 13); ctx.fillRect(0, 0, 14, 320); ctx.fillRect(466, 0, 14, 320); ctx.fillRect(0, 306, 480, 14);
+  for (const item of getRoom(roomId).furniture) {
+    const x = item.x * 16, y = item.y * 16, w = item.w * 16, h = item.h * 16;
+    if (stage.damage.some(shape => damageContains(shape, x + w / 2, y + h / 2))) continue;
+    ctx.fillStyle = '#8c7e69'; ctx.fillRect(x, y, w, h); ctx.fillStyle = ['board', 'monitor', 'calendar'].includes(item.kind) ? '#e7e9d4' : '#b9a784'; ctx.fillRect(x + 3, y + 2, Math.max(1, w - 6), Math.max(1, h - 5));
+  }
+  const draw = (pixels: typeof stage.floor) => { for (const p of pixels) { ctx.globalAlpha = p.alpha; ctx.fillStyle = '#' + p.color.toString(16).padStart(6, '0'); ctx.fillRect(p.x, p.y, p.w, p.h); } ctx.globalAlpha = 1; };
+  const hero = () => { for (const p of eventPixels(episode)) { ctx.fillStyle = '#' + p.color.toString(16).padStart(6, '0'); ctx.fillRect(stage.hero.x + p.x * stage.hero.scale, stage.hero.y + p.y * stage.hero.scale, p.w * stage.hero.scale, p.h * stage.hero.scale); } };
+  draw(stage.floor); if (stage.hero.y + 43 * stage.hero.scale < 210) hero(); draw(stage.scenery); if (stage.hero.y + 43 * stage.hero.scale >= 210) hero(); draw(stage.effects);
+  if (episode.theme === 'kaiju' && getRoom(roomId).outlook !== 'none') {
+    ctx.fillStyle = '#445b73'; ctx.fillRect(16, 0, 448, 56);
+    for (const pixel of outsideEventPixels(episode)) { ctx.fillStyle = '#' + pixel.color.toString(16).padStart(6, '0'); ctx.fillRect(pixel.x, pixel.y, pixel.w, pixel.h); }
+    ctx.fillStyle = '#cbb998'; for (const x of [16, 165, 314, 460]) ctx.fillRect(x, 0, 4, 56); ctx.fillRect(16, 53, 448, 3);
+  }
+  ctx.restore();
 }
 export function outsideEventPixels(event: DailyEpisode, width = 480, height = 56, frame = 0): Pixel[] {
   if (event.theme !== 'kaiju') return [];
@@ -152,15 +171,17 @@ export function outsideEventPixels(event: DailyEpisode, width = 480, height = 56
     p(0xd9e6cb, x - 3, base - 30, 5, 5); p(0xbad3b8, x - 8, base - 21, 5, 5); p(0xe7dc9a, x + 23, base - 36, 3, 2);
     p(color, x - 2, base, 10, 7); p(color, x + 14, base, 11, 7);
   };
-  if ([0, 10, 14].includes(v)) { monster(v === 14 ? 0x426f71 : 0x52756b); if (v === 10) p(0x52756b, x + 18, base - 30, 16, 5); }
+  if (v === 0) monster(0x52756b);
   else if (v === 1) { p(0x8d718d, x - 3, 12, 8, 31); for (const side of [-1, 1]) { p(0xe4bc7b, x + side * 20 - 12, 11, 26, 20); p(0xa97a7c, x + side * 20 - 8, 16, 18, 10); p(0x638c9d, x + side * 21 - 2, 19, 5, 6); } }
   else if (v === 2 || v === 5 || v === 9) { const c = v === 2 ? 0x76685d : v === 5 ? 0xd6c5a1 : 0x3f5669; p(c, x - 10, base - 30, 35, 33); p(c, x - 5, base - 44, 24, 19); p(c, x - 19, base - 25, 10, 22); p(c, x + 24, base - 25, 10, 22); p(0xe9ddbc, x, base - 34, 3, 3); p(0xe9ddbc, x + 12, base - 34, 3, 3); if (v === 9) p(0xd5d6c1, x - 3, base - 23, 19, 24); else p(0xcc9b76, x - 2, base - 29, 19, 11); }
-  else if (v === 3) { p(0x8296a3, x - 25, 19, 53, 12); p(0xd1dcdb, x - 19, 16, 41, 11); p(0x76b6cb, x - 11, 11, 22, 8); p(0x7bdbdb, x - 32, 29, 66, 2); }
+  else if (v === 3) { p(0xccb58b, x - 39, 12, 78, 21); p(0xe5d4aa, x - 29, 8, 57, 27); p(0x627a8f, x - 18, 20, 36, 2); p(0x7a8795, x - 10, 34, 22, 7); p(0x456877, x - 5, 35, 4, 3); p(0x456877, x + 5, 35, 4, 3); }
   else if (v === 4) { p(0x9bb1b6, x - 38, 20, 76, 9); p(0x84adc0, x - 18, 11, 37, 11); p(0xc4dbac, x - 32, 28, 64, 3); for (let i = 0; i < 5; i++) p(0xe7d48d, x - 27 + i * 13, 24, 4, 3); }
   else if (v === 6) { p(0x72846f, x - 38, 26, 74, 13); p(0x95ad7c, x - 29, 19, 56, 12); p(0xc5b797, x - 15, 4, 30, 20); p(0x8f8175, x - 19, 9, 38, 5); p(0x8f8175, x - 10, 0, 8, 8); p(0x8f8175, x + 5, 0, 8, 8); p(0x5f7a83, x - 3, 14, 6, 9); }
   else if (v === 7 || v === 11) { p(v === 7 ? 0x7f9d83 : 0x6c8fa8, x - 33, 19, 70, 19); p(v === 7 ? 0x7f9d83 : 0x6c8fa8, x + 24, 14, 27, 20); p(0xe1dbc0, x + 40, 18, 3, 3); p(0x7c98a1, x - 45, 12, 15, 27); p(0xa5c1c5, x - 12, 35, 17, 9); if (v === 11) for (let i = 0; i < 8; i++) p(0xe4d39c, x - 26 + i * 8, 24 + i % 2 * 4, 2, 2); }
-  else if (v === 8) { p(0xb25f61, x - 20, 20, 34, 11); p(0xe4c080, x - 24, 33, 43, 3); for (let i = 0; i < 3; i++) { p(0xb49170, x + 24 + i * 14, 16, 10, 9); p(0xb49170, x + 26 + i * 14, 12, 3, 6); } }
+  else if (v === 8) { p(0xb9757b, x - 15, 6, 31, 28); p(0xddbe79, x - 2, 6, 3, 28); p(0xddbe79, x - 15, 19, 31, 3); for (let i = 0; i < 5; i++) p(0xe4ce99, x - 1 + i % 2 * 4, 34 + i * 3, 2, 3); }
+  else if (v === 10) { const colors = [0xd18b86, 0xd9b478, 0x95b48c, 0x91bdd0, 0xa297bd]; for (let j = 0; j < 2; j++) for (let i = 0; i < 28; i++) { const a = Math.PI + i / 27 * Math.PI; p(colors[i % colors.length], x + Math.cos(a) * (45 - j * 9), 42 + Math.sin(a) * (31 - j * 6), 4, 3); } }
   else if (v === 12) { p(0x708a99, x - 9, base - 30, 30, 28); p(0x9fb8bd, x - 5, base - 43, 22, 14); p(0xe6b172, x, base - 38, 13, 4); p(0x708a99, x - 5, base - 2, 8, 10); p(0x708a99, x + 13, base - 2, 8, 10); p(0x708a99, x - 19, base - 27, 9, 25); p(0x708a99, x + 22, base - 27, 9, 25); }
+  else if (v === 14) { p(0xd2b77d, x - 23, 5, 47, 4); p(0xd2b77d, x - 23, 43, 47, 4); for (let i = 0; i < 14; i++) { const w = i < 7 ? 28 - i * 4 : (i - 6) * 4; p(0xa9c4cd, x - w / 2, 10 + i * 2, Math.max(2, w), 2); } p(0xebcf83, x - 3, 27, 6, 3); }
   else { for (let i = 0; i < 4; i++) { p(0x577b99, x - 50 + i * 24, 18, 22, 14); p(0xdfca88, x - 47 + i * 24, 21, 6, 6); p(0xdfca88, x - 38 + i * 24, 21, 6, 6); } p(0xd1d8c4, x - 65, 13, 23, 5); }
   return out;
 }
