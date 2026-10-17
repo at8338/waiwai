@@ -1,6 +1,7 @@
 import type { ArcadeAction } from '../game/arcade.ts';
 import type { BirthdayAction } from '../game/birthdays.ts';
 import type { DevWorldAction } from '../game/dev-world.ts';
+import type { SpellAction } from '../game/spells.ts';
 import type { RobotAction } from '../game/robot.ts';
 import type { AnnouncementAction } from '../game/announcements.ts';
 import type { RoomPet } from '../game/buddies.ts';
@@ -18,6 +19,8 @@ import type { ReactionKind } from '../game/reactions.ts';
 
 export type ConnectionState = 'connecting' | 'online' | 'reconnecting';
 export type ConnectionHandlers = {
+  spellEffect?: (message: Extract<ServerMessage, { type: 'spell-effect' }>) => void;
+  spellResult?: (message: Extract<ServerMessage, { type: 'spell-result' }>) => void;
   devWorld?: (message: Extract<ServerMessage, { type: 'dev-world-state' }>) => void;
   devWorldResult?: (id: string, error?: string) => void;
   birthdays?: (message: Extract<ServerMessage, { type: 'birthdays' }>) => void;
@@ -94,6 +97,9 @@ export class OfficeConnection {
         this.handlers.state('online');
         this.send({ type: 'profile', ...this.profile });
       } else if (message.type === 'player') {
+        if (message.player.id === this.id && message.reason === 'spell') {
+          this.pending = undefined; this.warpRequest = undefined; window.clearTimeout(this.watchdog); this.nextRequestAt = performance.now() + movementStep(message.player.riding?.kind);
+        }
         if (message.player.id === this.id && message.requestId !== undefined) {
           // A reset can supersede an in-flight move. Ignore that older response.
           if (this.pending !== undefined && message.requestId < this.pending) return;
@@ -105,7 +111,7 @@ export class OfficeConnection {
         this.players.set(message.player.id, message.player);
         this.slots.set(message.player.slot, message.player.id);
         if (message.player.id === this.id && message.reason === 'vending') this.profile = { ...this.profile, appearance: message.player.appearance };
-        this.handlers.player(message.player, message.reason === 'reset' || message.reason === 'join' || message.reason === 'room' || message.reason === 'warp', message.reason);
+        this.handlers.player(message.player, message.reason === 'reset' || message.reason === 'join' || message.reason === 'room' || message.reason === 'warp' || message.reason === 'spell', message.reason);
         if (message.player.id === this.id && message.reason === 'warp' && message.requestId === this.warpRequest) {
           this.warpRequest = undefined;
           this.handlers.travelComplete?.();
@@ -126,6 +132,8 @@ export class OfficeConnection {
         if (player) this.slots.delete(player.slot);
         this.players.delete(message.id); this.handlers.left(message.id);
       }
+      else if (message.type === 'spell-effect') this.handlers.spellEffect?.(message);
+      else if (message.type === 'spell-result') this.handlers.spellResult?.(message);
       else if (message.type === 'lost-items') this.handlers.lostItems?.(message);
       else if (message.type === 'arcade-state') this.handlers.arcadeState?.(message);
       else if (message.type === 'arcade-result') this.handlers.arcadeResult?.(message);
@@ -212,6 +220,7 @@ export class OfficeConnection {
   announcement(action: AnnouncementAction): boolean { if (!this.online) return false; this.send(action); return true; }
   birthday(action: BirthdayAction): boolean { if (!this.online) return false; this.send(action); return true; }
   devWorld(action: DevWorldAction): boolean { if (!this.online) return false; this.send(action); return true; }
+  castSpell(action: SpellAction): boolean { if (!this.online) return false; this.send(action); return true; }
 
   vehicle(action: VehicleAction, actionId: string): boolean {
     if (!this.online) return false;

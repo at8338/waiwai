@@ -1,4 +1,6 @@
 import type { LostItemsSnapshot } from '../game/lost-items.ts';
+import { parseSpellAction } from '../game/spells.ts';
+import type { SpellAction, SpellEffect, SpellKind } from '../game/spells.ts';
 import { parseDevWorldAction } from '../game/dev-world.ts';
 import type { DevWorldAction, DevWorldSnapshot } from '../game/dev-world.ts';
 import { parseBirthdayAction } from '../game/birthdays.ts';
@@ -40,6 +42,7 @@ export type Position = [slot: number, x: number, y: number, flags: number, buddy
 export const MAX_PLAYERS = 150;
 export const POSITION_FRAME_MS = 50;
 export type ClientMessage =
+  | SpellAction
   | DevWorldAction
   | BirthdayAction
   | ArcadeAction
@@ -59,6 +62,8 @@ export type ClientMessage =
   | { type: 'move'; direction: Direction; requestId: number }
   | { type: 'reset'; requestId: number };
 export type ServerMessage =
+  | ({ type: 'spell-effect' } & SpellEffect)
+  | { type: 'spell-result'; actionId: string; spell: SpellKind; error?: string }
   | ({ type: 'dev-world-state' } & DevWorldSnapshot)
   | { type: 'dev-world-result'; actionId: string; error?: string }
   | ({ type: 'birthdays' } & BirthdaySnapshot)
@@ -85,7 +90,7 @@ export type ServerMessage =
   | { type: 'objects'; roomId: RoomId; objects: RoomObject[] }
   | { type: 'object-result'; editId: string; error?: string }
   | { type: 'positions'; positions: Position[] }
-  | { type: 'player'; player: Player; reason: 'join' | 'profile' | 'move' | 'reset' | 'room' | 'warp' | 'vehicle' | 'vending'; requestId?: number }
+  | { type: 'player'; player: Player; reason: 'join' | 'profile' | 'move' | 'reset' | 'room' | 'warp' | 'spell' | 'vehicle' | 'vending'; requestId?: number }
   | { type: 'left'; id: string };
 
 export const directions = ['up', 'down', 'left', 'right'] as const;
@@ -98,6 +103,7 @@ export function parseClientMessage(raw: string): ClientMessage | undefined {
   try { value = JSON.parse(raw); } catch { return; }
   if (!value || typeof value !== 'object') return;
   const data = value as Record<string, unknown>;
+  const spell = parseSpellAction(data); if (spell) return spell;
   const dev = parseDevWorldAction(data); if (dev) return dev;
   const birthday = parseBirthdayAction(data); if (birthday) return birthday;
   if (data.type === 'robot-action' && isRobotAction(data.action) && validAnnouncementId(data.actionId)) return { type: 'robot-action', action: data.action, actionId: data.actionId };
