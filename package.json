@@ -7,13 +7,15 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "check": "tsc --noEmit",
-    "test": "node --test src/game/*.test.ts",
+    "test": "node --test src/game/*.test.ts server/*.test.ts",
     "build": "npm run check && vite build",
-    "preview": "vite preview --host 127.0.0.1"
+    "preview": "node server/index.ts",
+    "start": "node server/index.ts"
   },
-  "dependencies": { "phaser": "^3.90.0" },
+  "dependencies": { "phaser": "^3.90.0", "ws": "^8.18.3" },
   "devDependencies": {
     "@types/node": "^24.10.0",
+    "@types/ws": "^8.18.1",
     "typescript": "~5.9.3",
     "vite": "^7.2.2"
   }

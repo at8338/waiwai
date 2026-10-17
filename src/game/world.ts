@@ -86,6 +86,18 @@ export class Walker {
     };
   }
 
+  // Network state is authoritative. Only the drawing interpolates between tiles.
+  receive(tile: Point, facing: Direction, snap = false): void {
+    this.facing = facing;
+    if (!snap && tile.x === this.tile.x && tile.y === this.tile.y) return;
+    const current = this.position();
+    this.from = { x: current.x / TILE - 0.5, y: current.y / TILE - 0.5 };
+    this.tile = { ...tile };
+    const distance = Math.abs(this.from.x - tile.x) + Math.abs(this.from.y - tile.y);
+    this.elapsed = snap || distance > 2 ? STEP_MS : 0;
+    if (this.elapsed === STEP_MS) this.from = { ...tile };
+  }
+
   reset(): void {
     this.tile = { ...SPAWN };
     this.from = { ...SPAWN };
