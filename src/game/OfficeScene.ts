@@ -14,7 +14,7 @@ import { DEFAULT_APPEARANCE, parseAppearance } from './avatar.ts';
 import type { Appearance } from './avatar.ts';
 import { ROOMS, getRoom } from './rooms.ts';
 import type { RoomId } from './rooms.ts';
-import { MAX_ROOM_OBJECTS, OBJECT_CATALOG, placementProblem } from './objects.ts';
+import { MAX_ROOM_OBJECTS, OBJECT_CATALOG, objectContains, objectSize, placementProblem } from './objects.ts';
 import type { ObjectKind, RoomObject } from './objects.ts';
 
 type AvatarView = {
@@ -51,7 +51,7 @@ export class OfficeScene extends Phaser.Scene {
   private objectViews: Phaser.GameObjects.Graphics[] = [];
   private objectsReady = false;
   private editMode: 'none' | 'place' | 'move' | 'remove' = 'none';
-  private objectKind: ObjectKind = 'plant';
+  private objectKind: ObjectKind = 'desk';
   private objectRotation = 0;
   private selectedObject?: string;
   private pendingEdit?: string;
@@ -118,7 +118,7 @@ export class OfficeScene extends Phaser.Scene {
       objectResult: (editId, error) => {
         if (editId !== this.pendingEdit) return;
         this.pendingEdit = undefined;
-        this.objectStatus(error ?? '小物を保存しました。');
+        this.objectStatus(error ?? '家具・小物を保存しました。');
         if (!error) this.selectedObject = undefined;
         this.ghost?.destroy(); this.ghost = undefined;
         this.updateObjectTools();
@@ -400,6 +400,9 @@ export class OfficeScene extends Phaser.Scene {
     const rotate = document.querySelector<HTMLButtonElement>('#object-rotate')!;
     rotate.textContent = `回転 ${this.objectRotation * 90}°`;
     rotate.disabled = this.editMode === 'none' || this.editMode === 'remove' || !!this.pendingEdit;
+    const kind = this.objects.find((o) => o.id === this.selectedObject)?.kind ?? this.objectKind;
+    const { w, h } = objectSize(kind, this.objectRotation);
+    document.querySelector('#object-dimensions')!.textContent = `${w}×${h}マス · クリック位置が左上`;
     document.querySelector('#object-count')!.textContent = `${this.objects.length} / ${MAX_ROOM_OBJECTS}`;
     this.game.canvas.style.cursor = this.editMode === 'none' ? 'default' : 'crosshair';
   }
@@ -408,9 +411,9 @@ export class OfficeScene extends Phaser.Scene {
     this.selectedObject = undefined;
     this.ghost?.destroy(); this.ghost = undefined;
     this.controls.clear();
-    const hints = { none: '小物を選び、「置く」を押してマップをクリック。配置はみんなに共有されます。',
-      place: '空いているマスをクリックすると置けます。「回転」で向きを変更。Escでおわります。',
-      move: '自分が置いた小物をクリックし、移動先のマスをクリックしてください。', remove: '片づけたい自分の小物をクリックしてください。' };
+    const hints = { none: '家具・小物を選び、「置く」を押してマップをクリック。配置はみんなに共有されます。',
+      place: '置きたい位置の左上のマスをクリック。「回転」で向きを変更。Escでおわります。',
+      move: '自分が置いた家具・小物をクリックし、移動先のマスをクリックしてください。', remove: '片づけたい自分の家具・小物をクリックしてください。' };
     this.objectStatus(hints[mode]); this.updateObjectTools();
   }
   private drawObjects(): void {
@@ -425,7 +428,8 @@ export class OfficeScene extends Phaser.Scene {
       kind: selected?.kind ?? this.objectKind, x: Math.floor(pointer.x / TILE), y: Math.floor(pointer.y / TILE), rotation: this.objectRotation };
     const error = placementProblem(object, this.objects, [...this.players.values()]);
     this.ghost = drawRoomObject(this, object).setAlpha(error ? 0.25 : 0.65).setDepth(2000);
-    this.ghost.lineStyle(1, error ? 0xb96551 : 0xfff3bc).strokeRect(-8, -8, TILE, TILE);
+    const { w, h } = objectSize(object.kind);
+    this.ghost.lineStyle(1, error ? 0xb96551 : 0xfff3bc).strokeRect(-w * TILE / 2, -h * TILE / 2, w * TILE, h * TILE);
   }
   private editAt(pointer: Phaser.Input.Pointer): void {
     const x = Math.floor(pointer.x / TILE), y = Math.floor(pointer.y / TILE);
@@ -435,12 +439,15 @@ export class OfficeScene extends Phaser.Scene {
       return;
     }
     if (!this.connected || !this.objectsReady || this.pendingEdit) return;
-    const target = this.objects.find((o) => o.x === x && o.y === y);
+    const target = this.objects.find((o) => objectContains(o, x, y));
     const editId = crypto.randomUUID();
     if (this.editMode === 'remove' || (this.editMode === 'move' && !this.selectedObject)) {
-      if (!target || target.owner !== this.owner()) { this.objectStatus('自分が置いた小物を選んでください。'); return; }
+      if (!target || target.owner !== this.owner()) { this.objectStatus('自分が置いた家具・小物を選んでください。'); return; }
       if (this.editMode === 'move') {
-        this.selectedObject = target.id; this.objectRotation = target.rotation; this.updateObjectTools();
+        this.selectedObject = target.id; this.objectRotation = target.rotation;
+        this.objectKind = target.kind;
+        document.querySelector<HTMLSelectElement>('#object-kind')!.value = target.kind;
+        this.updateObjectTools();
         this.objectStatus(`${OBJECT_CATALOG[target.kind].name}の移動先をクリック。「回転」で向きを変えられます。`); return;
       }
       this.connection?.editObject({ type: 'object-remove', id: target.id, editId });
@@ -453,7 +460,7 @@ export class OfficeScene extends Phaser.Scene {
       else this.connection?.editObject({ type: 'object-place', kind: this.objectKind, x, y, rotation: this.objectRotation, editId });
     }
     this.pendingEdit = editId; this.ghost?.destroy(); this.ghost = undefined;
-    this.objectStatus('小物を保存しています…'); this.updateObjectTools();
+    this.objectStatus('家具・小物を保存しています…'); this.updateObjectTools();
   }
 
   private drawAvatar(view: AvatarView, walker: Walker, appearance: Appearance, name: string, time: number): void {

@@ -96,7 +96,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
         void store.transact((objects) => {
           if (!players.has(ws) || player.roomId !== roomId || (identity && auth?.identify(request)?.id !== identity.id)) throw new EditError('部屋が変わったため操作を取り消しました。');
           const existing = 'id' in message ? objects.find((o) => o.id === message.id) : undefined;
-          if (message.type !== 'object-place' && (!existing || existing.roomId !== roomId || existing.owner !== owner)) throw new EditError('自分が置いた小物だけを編集できます。');
+          if (message.type !== 'object-place' && (!existing || existing.roomId !== roomId || existing.owner !== owner)) throw new EditError('自分が置いた家具・小物だけを編集できます。');
           if (message.type === 'object-remove') { objects.splice(objects.indexOf(existing!), 1); return; }
           const candidate = { id: existing?.id ?? randomUUID(), owner, roomId, kind: message.type === 'object-place' ? message.kind : existing!.kind,
             x: message.x, y: message.y, rotation: message.rotation };
@@ -108,7 +108,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
           for (const [client, person] of players) if (person.roomId === roomId) sendObjects(client, roomId);
           send(ws, { type: 'object-result', editId: message.editId });
         }).catch((error: unknown) => send(ws, { type: 'object-result', editId: message.editId,
-          error: error instanceof EditError ? error.message : '小物を保存できませんでした。時間をおいて試してください。' }));
+          error: error instanceof EditError ? error.message : '家具・小物を保存できませんでした。時間をおいて試してください。' }));
         return;
       }
       if (message.type === 'profile') {
