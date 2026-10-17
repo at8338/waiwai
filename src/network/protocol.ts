@@ -1,3 +1,5 @@
+import { parseArcadeAction } from '../game/arcade.ts';
+import type { ArcadeAction, ArcadeSnapshot } from '../game/arcade.ts';
 import { isRobotAction } from '../game/robot.ts';
 import type { RobotAction, RobotSnapshot } from '../game/robot.ts';
 import type { DailyEventSnapshot } from '../game/daily-events.ts';
@@ -33,6 +35,7 @@ export type Position = [slot: number, x: number, y: number, flags: number, buddy
 export const MAX_PLAYERS = 150;
 export const POSITION_FRAME_MS = 50;
 export type ClientMessage =
+  | ArcadeAction
   | { type: 'robot-action'; action: RobotAction; actionId: string }
   | AnnouncementAction
   | { type: 'vehicle-take'; kind: VehicleKind; actionId: string }
@@ -50,6 +53,8 @@ export type ClientMessage =
   | { type: 'move'; direction: Direction; requestId: number }
   | { type: 'reset'; requestId: number };
 export type ServerMessage =
+  | ({ type: 'arcade-state' } & ArcadeSnapshot)
+  | { type: 'arcade-result'; actionId: string; error?: string }
   | ({ type: 'robot-state' } & RobotSnapshot)
   | { type: 'robot-result'; actionId: string; error?: string }
   | ({ type: 'daily-event' } & DailyEventSnapshot)
@@ -83,6 +88,7 @@ export function parseClientMessage(raw: string): ClientMessage | undefined {
   if (!value || typeof value !== 'object') return;
   const data = value as Record<string, unknown>;
   if (data.type === 'robot-action' && isRobotAction(data.action) && validAnnouncementId(data.actionId)) return { type: 'robot-action', action: data.action, actionId: data.actionId };
+  const arcade = parseArcadeAction(data); if (arcade) return arcade;
   const announcement = parseAnnouncementAction(data); if (announcement) return announcement;
   if (typeof data.actionId === 'string' && /^[a-f0-9-]{36}$/.test(data.actionId)) {
     if (data.type === 'vehicle-take' && isVehicleKind(data.kind)) return { type: 'vehicle-take', kind: data.kind, actionId: data.actionId };

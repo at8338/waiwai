@@ -1,3 +1,5 @@
+import { ARCADE_GAMES, ARCADE_IDS } from './arcade.ts';
+import type { ArcadeGame } from './arcade.ts';
 import { cockpitFurniturePixels } from './robot-art.ts';
 import { WINDOW_COLUMNS } from './lighting.ts';
 import Phaser from 'phaser';
@@ -191,7 +193,7 @@ function drawFurniture(scene: Phaser.Scene, item: Furniture, openCalendar?: () =
   }
 }
 
-export function drawOffice(scene: Phaser.Scene, roomId: RoomId = 'office', openCalendar?: () => void): Phaser.GameObjects.GameObject[] {
+export function drawOffice(scene: Phaser.Scene, roomId: RoomId = 'office', openCalendar?: () => void, openArcade?: (game: ArcadeGame) => void): Phaser.GameObjects.GameObject[] {
   const before = new Set(scene.children.list);
   const room = getRoom(roomId);
   const floor = scene.add.graphics().setDepth(-100);
@@ -246,6 +248,18 @@ export function drawOffice(scene: Phaser.Scene, roomId: RoomId = 'office', openC
     }
   }
   room.furniture.forEach((item) => drawFurniture(scene, item, openCalendar));
+  if (roomId === 'arcade') for (const id of ARCADE_IDS) {
+    const game = ARCADE_GAMES[id], x = game.x * TILE, y = game.y * TILE;
+    const screen = scene.add.graphics().setDepth(y + 48);
+    const color = Number.parseInt(game.color.slice(1), 16);
+    rect(screen, color, x + 2, y, 44, 5); rect(screen, 0x222e47, x + 9, y + 9, 30, 18);
+    if (id === 'four') { for (let row = 0; row < 3; row++) for (let col = 0; col < 4; col++) rect(screen, (row + col) % 3 ? color : 0x516780, x + 12 + col * 6, y + 11 + row * 5, 4, 3); }
+    else if (id === 'reflex' || id === 'echo') { rect(screen, color, x + 19, y + 11, 12, 12); rect(screen, 0x222e47, x + 22, y + 14, 2, 2); rect(screen, 0x222e47, x + 27, y + 14, 2, 2); }
+    else if (id === 'toast') { rect(screen, color, x + 16, y + 15, 18, 10); rect(screen, 0xefbf76, x + 21, y + 10, 8, 8); }
+    else { for (let i = 0; i < 3; i++) rect(screen, color, x + 12 + i * 9, y + 19, 5, 7); rect(screen, 0xefbf76, x + 23, y + 11, 4, 4); }
+    const label = scene.add.text(x + 24, y + 55, game.label, { fontFamily: 'monospace', fontSize: '7px', color: game.color, backgroundColor: '#30364c', padding: { x: 3, y: 2 } }).setOrigin(.5).setDepth(338);
+    if (openArcade) label.setInteractive({ useHandCursor: true }).on('pointerup', () => openArcade(id));
+  }
   const door = scene.add.graphics().setDepth(-90);
   rect(door, 0x526e65, room.door.x * TILE, room.door.y * TILE, TILE, TILE);
   rect(door, 0xebe3ba, room.door.x * TILE + 3, room.door.y * TILE + 3, 10, 10);

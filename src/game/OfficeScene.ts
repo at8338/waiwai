@@ -1,3 +1,5 @@
+import { ArcadeUI } from './arcade-ui.ts';
+import { ARCADE_GAMES, ARCADE_IDS } from './arcade.ts';
 import { CockpitUI } from './cockpit-ui.ts';
 import { CockpitView } from './CockpitView.ts';
 import { ROBOT_CONSOLE_KINDS, robotLocation } from './robot.ts';
@@ -53,6 +55,7 @@ type AvatarView = {
 type Peer = { player: Player; walker: Walker; view: AvatarView };
 
 export class OfficeScene extends Phaser.Scene {
+  private arcadeUI?: ArcadeUI;
   private cockpitUI?: CockpitUI;
   private cockpitView?: CockpitView;
   private dailyUI?: DailyEventsUI;
@@ -125,7 +128,7 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.mapViews = drawOffice(this, this.roomId, () => { if (this.editMode === 'none') this.dailyUI?.openCalendar(); });
+    this.mapViews = drawOffice(this, this.roomId, () => { if (this.editMode === 'none') this.dailyUI?.openCalendar(); }, (game) => { if (this.editMode === 'none') this.arcadeUI?.open(game); });
     this.lostItems = new LostItemsView(this, this.inputController.signal, (item) => {
       if (this.editMode !== 'none' || document.querySelector('dialog[open]')) return;
       this.controls.clear();
@@ -144,6 +147,9 @@ export class OfficeScene extends Phaser.Scene {
       if (document.querySelector('dialog[open]')) return false; this.controls.clear(); this.setEditMode('none'); return true;
     });
     this.cockpitView = new CockpitView(this);
+    this.arcadeUI = new ArcadeUI(this.inputController.signal, (action) => this.connection?.arcade(action) ?? false, () => {
+      if (document.querySelector('dialog[open]')) return false; this.controls.clear(); this.setEditMode('none'); return true;
+    });
     this.lighting = new RoomLighting(this);
     this.skyWindow = new SkyWindowView(document.querySelector<HTMLCanvasElement>('#sky-window')!);
     createAvatarTextures(this);
@@ -197,10 +203,12 @@ export class OfficeScene extends Phaser.Scene {
       welcome: (id, players) => {
         this.clearPeers();
         this.players.clear();
-        this.localId = id;
+        this.localId = id; this.arcadeUI?.setIdentity(id);
         this.showRoom(players.find((p) => p.id === id)?.roomId ?? 'office');
         for (const player of players) this.receivePlayer(player, true);
       },
+      arcadeState: (state) => { if (this.roomId === 'arcade') this.arcadeUI?.receive(state); },
+      arcadeResult: (result) => this.arcadeUI?.result(result.actionId, result.error),
       robotState: (state) => { if (this.roomId === 'cockpit') { this.cockpitUI?.receive(state); this.cockpitView?.receive(state); } },
       robotResult: (result) => this.cockpitUI?.result(result.actionId, result.error),
       dailyEvent: (state) => { this.dailyUI?.receive(state); this.dailyView?.receive(state); this.skyWindow?.setDailyEvent(state); },
@@ -254,7 +262,7 @@ export class OfficeScene extends Phaser.Scene {
       this.connection?.destroy();
       this.companions?.clear();
       this.lighting?.destroy();
-      this.vehicleDocks?.destroy(); this.vehicleUI?.destroy(); this.announcementsUI?.destroy(); this.dailyUI?.destroy(); this.cockpitUI?.destroy(); this.cockpitView?.destroy(); this.dailyView?.destroy(); this.lostItems?.destroy();
+      this.vehicleDocks?.destroy(); this.vehicleUI?.destroy(); this.announcementsUI?.destroy(); this.dailyUI?.destroy(); this.arcadeUI?.destroy(); this.cockpitUI?.destroy(); this.cockpitView?.destroy(); this.dailyView?.destroy(); this.lostItems?.destroy();
     };
     this.events.once('shutdown', cleanup);
     this.events.once('destroy', cleanup);
@@ -265,7 +273,7 @@ export class OfficeScene extends Phaser.Scene {
 
   private setConnectionState(state: ConnectionState): void {
     this.connected = state === 'online';
-    this.announcementsUI?.setConnected(this.connected); this.dailyUI?.setConnected(this.connected); this.cockpitUI?.setConnected(this.connected);
+    this.announcementsUI?.setConnected(this.connected); this.dailyUI?.setConnected(this.connected); this.cockpitUI?.setConnected(this.connected); this.arcadeUI?.setConnected(this.connected);
     this.vehicleUI?.setConnected(this.connected);
     this.voice?.setConnected(this.connected);
     this.linksUI?.setReady(this.connected && this.objectsReady);
@@ -503,7 +511,7 @@ export class OfficeScene extends Phaser.Scene {
 
   private showRoom(id: RoomId): void {
     this.reactions.clear();
-    this.roomId = id; this.cockpitUI?.setRoom(id); this.cockpitView?.setRoom(id);
+    this.roomId = id; this.arcadeUI?.setRoom(id); this.cockpitUI?.setRoom(id); this.cockpitView?.setRoom(id);
     this.companions?.setRoom(id);
     this.lighting?.setRoom(id);
     this.vehicleDocks?.setRoom(id);
@@ -518,7 +526,7 @@ export class OfficeScene extends Phaser.Scene {
     this.seats.clear(); this.objects = []; this.objectsReady = false; this.pendingEdit = undefined;
     for (const view of [...this.mapViews, ...this.objectViews]) view.destroy();
     this.objectViews = [];
-    this.mapViews = drawOffice(this, id, () => { if (this.editMode === 'none') this.dailyUI?.openCalendar(); });
+    this.mapViews = drawOffice(this, id, () => { if (this.editMode === 'none') this.dailyUI?.openCalendar(); }, (game) => { if (this.editMode === 'none') this.arcadeUI?.open(game); });
     const room = getRoom(id);
     this.game.canvas.setAttribute('aria-label', `${room.name}。矢印キーまたはWASDで移動。Tabキーでマップから移動できます。`);
     document.querySelectorAll('[data-room-name]').forEach((node) => { node.textContent = room.name; });
@@ -526,7 +534,7 @@ export class OfficeScene extends Phaser.Scene {
     document.querySelector('#robot-location')!.textContent = `WAIWAI-01 / ${robotLocation(id)}`;
     document.querySelector('#map-title')!.textContent = `${room.name}へ、ようこそ。`;
     document.querySelector('#room-number')!.textContent = String(ROOMS.indexOf(room) + 1).padStart(2, '0');
-    document.querySelector('.map-legend')!.textContent = id === 'cockpit' ? '操縦パネルでシミュレーターへ。機体の部位から、各部屋へ移動できます。' : `${room.description} 近づいて会話。人をクリックしてSlackへ、家具をクリックしてリンクへ。`;
+    document.querySelector('.map-legend')!.textContent = id === 'arcade' ? '8台の筐体で、対戦・協力・リズム遊び。ひとりでも気軽にどうぞ。' : id === 'cockpit' ? '操縦パネルでシミュレーターへ。機体の部位から、各部屋へ移動できます。' : `${room.description} 近づいて会話。人をクリックしてSlackへ、家具をクリックしてリンクへ。`;
     for (const button of document.querySelectorAll<HTMLButtonElement>('[data-room]')) button.disabled = button.dataset.room === id;
     // Other-room roster entries are kept for occupancy, but avatars stay local.
     for (const player of this.players.values()) if (player.id !== this.localId && player.roomId === id) this.receivePlayer(player, true);
@@ -637,7 +645,7 @@ export class OfficeScene extends Phaser.Scene {
     if (this.editMode === 'none') {
       const door = getRoom(this.roomId).door;
       if (x === door.x && y === door.y) this.openRoomPicker();
-      else if (this.connected && this.objectsReady) { const target = targetAt(this.roomId, this.objects, { x, y }); if (target?.kind === 'calendar') this.dailyUI?.openCalendar(); else if (target && this.roomId === 'cockpit' && (ROBOT_CONSOLE_KINDS as readonly string[]).includes(target.kind)) this.cockpitUI?.open(); else if (target) this.linksUI?.open(target); }
+      else if (this.connected && this.objectsReady) { const target = targetAt(this.roomId, this.objects, { x, y }); if (target?.kind === 'calendar') this.dailyUI?.openCalendar(); else if (target?.kind === 'arcade' && this.roomId === 'arcade') this.arcadeUI?.open(ARCADE_IDS.find((id) => x >= ARCADE_GAMES[id].x && x < ARCADE_GAMES[id].x + 3 && y >= ARCADE_GAMES[id].y && y < ARCADE_GAMES[id].y + 3)); else if (target && this.roomId === 'cockpit' && (ROBOT_CONSOLE_KINDS as readonly string[]).includes(target.kind)) this.cockpitUI?.open(); else if (target) this.linksUI?.open(target); }
       return;
     }
     if (!this.connected || !this.objectsReady || this.pendingEdit) return;

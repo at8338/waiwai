@@ -1,3 +1,4 @@
+import { ArcadeRoom } from './arcade.ts';
 import { RobotSimulation } from './robot.ts';
 import { dailyEventAt } from '../src/game/daily-events.ts';
 import { AnnouncementStore, AnnouncementError } from './announcements.ts';
@@ -51,6 +52,25 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     const serialized = JSON.stringify(message);
     for (const ws of players.keys()) if (ws !== except) sendRaw(ws, serialized);
   };
+  const arcade = new ArcadeRoom();
+  const publishedArcade = new Map<string, string>();
+  const sendArcade = (target?: WebSocket) => {
+    const snapshot = arcade.snapshot(Date.now());
+    if (!target) snapshot.tables = snapshot.tables.filter((table) => {
+      const version = `${table.roundId}:${table.revision}`;
+      if (publishedArcade.get(table.game) === version) return false;
+      publishedArcade.set(table.game, version); return true;
+    });
+    if (!snapshot.tables.length) return;
+    const message: ServerMessage = { type: 'arcade-state', ...snapshot };
+    if (target) { if (players.get(target)?.roomId === 'arcade') send(target, message); }
+    else {
+      const serialized = JSON.stringify(message);
+      for (const [client, person] of players) if (person.roomId === 'arcade') sendRaw(client, serialized);
+    }
+  };
+  const leaveArcade = (id: string) => { if (arcade.leave(id, Date.now())) sendArcade(); };
+  const arcadeTimer = setInterval(() => { if (arcade.tick(Date.now())) sendArcade(); }, 100); arcadeTimer.unref();
   const robot = new RobotSimulation();
   const sendRobot = (target?: WebSocket) => {
     const message: ServerMessage = { type: 'robot-state', ...robot.snapshot(Date.now()) };
@@ -159,6 +179,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     let lastLinkEdit = -Infinity;
     let lastReaction = -Infinity;
     let lastAnnouncementEdit = -Infinity, lastPublish = -Infinity;
+    const arcadeRequests = new Set<string>();
     let lastRobot = -Infinity;
     let lastVehicle = -Infinity;
     let lastVending: string | undefined;
@@ -181,6 +202,16 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
       const message = parseClientMessage(data.toString());
       if (message?.type === 'voice-signal' ? ++signals > 120 : ++messages > 40) { ws.close(1008, 'Too many messages'); return; }
       if (!message) return;
+      if (message.type === 'arcade-action') {
+        if (arcadeRequests.has(message.actionId)) return;
+        arcadeRequests.add(message.actionId);
+        if (arcadeRequests.size > 100) arcadeRequests.delete(arcadeRequests.values().next().value!);
+        if (player.roomId === 'arcade' && arcade.tick(now)) sendArcade();
+        const error = player.roomId !== 'arcade' ? 'ゲームセンターで遊んでください。' : arcade.apply(message, player, now);
+        // Rejected input must not amplify traffic to every spectator.
+        if (player.roomId === 'arcade') sendArcade(error ? ws : undefined);
+        send(ws, { type: 'arcade-result', actionId: message.actionId, ...(error ? { error } : {}) }); return;
+      }
       if (message.type === 'robot-action') {
         const error = player.roomId !== 'cockpit' ? '操縦室で試してください。' : now - lastRobot < 500 ? '少し待ってから操作してください。' : !robot.start(message.action, player.name, now) ? 'ただいま演出中です。終了したら次の操作を試せます。' : undefined;
         lastRobot = now; if (!error) sendRobot();
@@ -257,6 +288,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
         if (target.id === player.id) { fail('自分の隣へはワープできません。'); return; }
         const destination = adjacentTile(target, player.id, players.values(), roomObjects(target.roomId));
         if (!destination) { fail('相手の隣に空いているマスがありません。少し待ってから試してください。'); return; }
+        if (target.roomId !== player.roomId) leaveArcade(player.id);
         Object.assign(player, destination, { roomId: target.roomId, facing: 'down' });
         resetBuddy(player, roomObjects(player.roomId));
         contact();
@@ -265,6 +297,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
         sendObjects(ws, player.roomId);
         sendPets(ws, player.roomId);
         sendRobot(ws);
+        sendArcade(ws);
         sendLinks(ws, player.roomId);
         directoryDirty = true;
         voice.refresh();
@@ -305,6 +338,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
         pending.delete(player.id);
         player.slack = identity?.user.slack ?? message.slack ?? null;
       } else if (message.type === 'change-room') {
+        if (message.roomId !== player.roomId) leaveArcade(player.id);
         player.roomId = message.roomId;
         Object.assign(player, spawn(player.roomId, ws), { facing: 'down' });
         resetBuddy(player, roomObjects(player.roomId));
@@ -314,6 +348,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
         sendObjects(ws, player.roomId);
         sendPets(ws, player.roomId);
         sendRobot(ws);
+        sendArcade(ws);
         sendLinks(ws, player.roomId);
         directoryDirty = true;
         voice.refresh();
@@ -347,6 +382,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
       }
     });
     ws.on('close', () => {
+      leaveArcade(player.id);
       const hadVehicle = !!player.riding; fleet.forget(player);
       players.delete(ws);
       if (hadVehicle) sendFleet();
@@ -379,6 +415,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
   }, 15_000);
   heartbeat.unref();
   return () => {
+    clearInterval(arcadeTimer);
     clearInterval(robotTimer);
     clearInterval(dailyEventTimer);
     clearInterval(announcementTimer);
