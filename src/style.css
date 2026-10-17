@@ -106,3 +106,14 @@ dialog p { font-size: 12px; line-height: 1.9; color: #77816b; }
 [data-connection='reconnecting'] .local-badge i, [data-connection='connecting'] .local-badge i { background: #c69e61; }
 button:disabled { cursor: default; opacity: .5; }
 @media (max-width: 760px) { .participants-section { grid-column: 1 / -1; margin-top: 0; }#participants { display: flex; flex-wrap: wrap; gap: 5px 20px; }#participants li { min-width: 120px; }.connection-message { text-align: center; } }
+.voice-controls { border: 1px solid #d5dfc9; background: #edf1e4; padding: 17px; border-radius: 5px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-top: 17px; }
+.voice-controls h2 { font-family: 'DotGothic16', monospace; font-weight: 400; font-size: 16px; margin: 0 0 8px; }
+.voice-controls p { font-size: 10px; color: #7b896d; line-height: 1.8; margin: 4px 0 0; }
+.voice-controls #voice-nearby { font-size: 9px; }
+.voice-controls .voice-hint { flex-basis: 100%; font-size: 9px; border-top: 1px solid #d8e1cb; padding-top: 10px; }
+.voice-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.voice-buttons button { padding: 10px 13px; border: 1px solid #aabb98; background: #fffdf1; border-radius: 4px; font-size: 11px; }
+#voice-toggle[aria-pressed='true'] { background: #355b49; color: #fff8df; }
+#mic-toggle[aria-pressed='true'] { background: #b66d4f; color: #fff8df; border-color: #b66d4f; }
+#participants [data-speaking='true'] strong::before { content: '♪ '; color: #517f51; }
+@media (max-width: 760px) { .voice-controls { padding: 14px; }.voice-buttons { width: 100%; }.voice-buttons button { flex: 1; } }
