@@ -1,0 +1,41 @@
+import type { Furniture, Point } from './world.ts';
+export const ROOM_IDS = ['office', 'focus', 'meeting', 'cafe', 'library', 'garden', 'studio', 'arcade', 'wellness', 'workshop', 'sky'] as const;
+export type RoomId = typeof ROOM_IDS[number];
+export type Room = {
+  id: RoomId; name: string; description: string; icon: string;
+  floor: number; grain: number; wall: number; rug: number; style: 'wood' | 'tile' | 'grass' | 'stars' | 'checker';
+  spawn: Point; door: Point; furniture: Furniture[];
+};
+const f = (kind: Furniture['kind'], x: number, y: number, w = 1, h = 1): Furniture => ({ kind, x, y, w, h });
+export const officeFurniture: Furniture[] = [
+  f('desk', 2, 3, 3, 2), f('desk', 6, 3, 3, 2), f('desk', 2, 7, 3, 2), f('desk', 6, 7, 3, 2),
+  f('table', 13, 4, 4, 3), f('plant', 18, 2), f('shelf', 11, 1, 2), f('sofa', 23, 3, 4, 2),
+  f('table', 24, 6, 2), f('plant', 27, 8), f('shelf', 21, 1, 2), f('plant', 2, 12), f('plant', 27, 12),
+  f('shelf', 1, 17, 3), f('sofa', 20, 15, 4, 2), f('plant', 26, 17),
+];
+const common = { spawn: { x: 15, y: 17 }, door: { x: 15, y: 18 } };
+export const ROOMS: Room[] = [
+  { id: 'office', name: 'ひだまりオフィス', description: '執務エリアと、ゆったりしたロビーのあるいつもの場所。', icon: '▦', floor: 0xead3a5, grain: 0xd8bc8c, wall: 0xede5bf, rug: 0xa6b18c, style: 'wood', spawn: { x: 15, y: 12 }, door: { x: 28, y: 18 }, furniture: officeFurniture },
+  { id: 'focus', name: 'しずかな集中室', description: '青い絨毯と8台の個別デスク。集中したい時間に。', icon: '✎', floor: 0xc5d4dc, grain: 0xb0c3d1, wall: 0xe3e9e6, rug: 0x879eaf, style: 'tile', ...common,
+    furniture: [2, 8, 18, 24].flatMap((x) => [f('desk', x, 4, 3, 2), f('desk', x, 10, 3, 2)]).concat([f('shelf', 11, 1, 7), f('plant', 3, 15), f('plant', 26, 15)]) },
+  { id: 'meeting', name: 'みんなの作戦室', description: '大きなテーブルと白板。アイデアを持ち寄ろう。', icon: '◇', floor: 0xd9dfc4, grain: 0xc5cdae, wall: 0xf0ecd3, rug: 0x91b0a4, style: 'tile', ...common,
+    furniture: [f('board', 11, 1, 8, 2), f('table', 10, 6, 10, 5), f('sofa', 2, 5, 4, 2), f('sofa', 24, 5, 4, 2), f('plant', 3, 14), f('plant', 26, 14)] },
+  { id: 'cafe', name: '木漏れ日カフェ', description: 'コーヒーと丸いテーブルで、気軽にひと息。', icon: '☕', floor: 0xecd6ba, grain: 0xd9b899, wall: 0xf2e6cf, rug: 0xcc9b79, style: 'tile', ...common,
+    furniture: [f('counter', 3, 2, 10, 2), ...[5, 14, 23].flatMap((x) => [f('table', x, 7, 2, 2), f('table', x, 12, 2, 2)]), f('plant', 25, 2), f('sofa', 19, 2, 4, 2)] },
+  { id: 'library', name: '星灯り図書室', description: '本棚のあいだで、調べものと静かな雑談。', icon: '▤', floor: 0xccc0cc, grain: 0xb6a5b9, wall: 0xe5d8d5, rug: 0x9b899f, style: 'wood', ...common,
+    furniture: [...[3, 11, 20].flatMap((x) => [f('shelf', x, 3, 6), f('shelf', x, 8, 6)]), f('table', 4, 13, 6, 2), f('table', 20, 13, 6, 2), f('plant', 2, 16), f('plant', 27, 16)] },
+  { id: 'garden', name: '風の屋上ガーデン', description: '芝生と池、緑のベンチ。外の空気を感じて。', icon: '♧', floor: 0xa8bd84, grain: 0x92ab73, wall: 0xd0d8b5, rug: 0xdcd0a1, style: 'grass', ...common,
+    furniture: [f('pond', 11, 5, 8, 5), f('sofa', 4, 5, 4, 2), f('sofa', 22, 10, 4, 2), ...[3, 7, 22, 26].map((x) => f('plant', x, 2)), f('plant', 4, 13), f('plant', 25, 14)] },
+  { id: 'studio', name: 'いろどりアトリエ', description: 'キャンバスと色見本。創作とデザインの相談に。', icon: '✳', floor: 0xe9c4bf, grain: 0xd6ada9, wall: 0xf3dfd0, rug: 0xc59caa, style: 'wood', ...common,
+    furniture: [f('easel', 4, 3, 3, 3), f('easel', 13, 3, 3, 3), f('easel', 23, 3, 3, 3), f('table', 7, 10, 6, 2), f('table', 18, 10, 5, 2), f('shelf', 2, 14, 4), f('plant', 26, 15)] },
+  { id: 'arcade', name: 'ピクセルゲーム室', description: 'ネオンとゲーム筐体。仕事の合間の遊び場。', icon: '✚', floor: 0x69677d, grain: 0x59596f, wall: 0xc1b7cf, rug: 0xa17ea3, style: 'checker', ...common,
+    furniture: [...[3, 8, 18, 23].map((x) => f('arcade', x, 3, 3, 3)), f('table', 12, 9, 5, 3), f('sofa', 3, 13, 4, 2), f('sofa', 23, 13, 4, 2)] },
+  { id: 'wellness', name: 'うたたね休憩室', description: 'やわらかな色のベッドと緑。ゆっくり休もう。', icon: '☾', floor: 0xd8e1d4, grain: 0xc2d0c0, wall: 0xf1e8d7, rug: 0xafc6bf, style: 'tile', ...common,
+    furniture: [f('bed', 3, 3, 4, 4), f('bed', 12, 3, 4, 4), f('bed', 22, 3, 4, 4), f('sofa', 5, 12, 5, 2), f('sofa', 20, 12, 5, 2), f('plant', 9, 3), f('plant', 18, 3)] },
+  { id: 'workshop', name: 'ものづくり工房', description: '作業台と道具の棚。試作やペア作業の拠点。', icon: '⚒', floor: 0xd4c2a3, grain: 0xbca584, wall: 0xe9d8bb, rug: 0xb49c72, style: 'checker', ...common,
+    furniture: [f('board', 12, 1, 6, 2), ...[3, 12, 22].flatMap((x) => [f('workbench', x, 6, 4, 2), f('table', x, 12, 4, 2)]), f('shelf', 2, 1, 6), f('shelf', 22, 1, 6)] },
+  { id: 'sky', name: '星空ラウンジ', description: '星模様の床と望遠鏡。少し特別な夜の雑談。', icon: '✦', floor: 0x5b6787, grain: 0x4c5877, wall: 0xc6d0da, rug: 0x9d9ab8, style: 'stars', ...common,
+    furniture: [f('telescope', 22, 3, 3, 3), f('sofa', 3, 5, 5, 2), f('sofa', 12, 5, 5, 2), f('table', 7, 11, 3, 2), f('sofa', 19, 12, 6, 2), f('plant', 3, 14)] },
+];
+export function isRoomId(value: unknown): value is RoomId { return typeof value === 'string' && (ROOM_IDS as readonly string[]).includes(value); }
+export function getRoom(id: RoomId = 'office'): Room { return ROOMS.find((room) => room.id === id)!; }

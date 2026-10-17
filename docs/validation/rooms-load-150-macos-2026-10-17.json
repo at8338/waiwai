@@ -1,0 +1,18 @@
+{
+  "at": "2026-10-17T09:37:02.527Z",
+  "platform": "darwin/arm64",
+  "seconds": 60.204446499999996,
+  "clients": 150,
+  "voiceSignalingMembers": 30,
+  "audioMediaMeasured": false,
+  "movementRequests": 56500,
+  "unexpectedCloses": 0,
+  "ackP95Ms": 3.9727080000011483,
+  "ackMaxMs": 7.730374999999185,
+  "eventLoopP99Ms": 15.441919,
+  "serverCpuOneCorePercent": 12.684798954176916,
+  "serverRssMiB": 130.828125,
+  "serverPayloadEgressMbps": 18.198364268659127,
+  "positionFramesReceived": 162300,
+  "relayedSignals": 4611
+}
