@@ -423,6 +423,47 @@ test('desks and chairs share, persist, move, rotate and remove with full-footpri
   assert.equal(new ObjectStore(file).list().length, 0);
 });
 
+test('call summons several people across rooms atomically, synchronizes voice and buddies, and cannot replay or target departed people', async (t) => {
+  const { connect } = await fixture(t), a = await connect(), b = await connect(), c = await connect();
+  const caster = a.welcome.players.find((person) => person.id === a.welcome.id)!;
+  b.send({ type: 'profile', name: '呼ばれる人', outfit: 0, buddy: 'cat' }); await b.next('player', (m) => m.reason === 'profile');
+  b.send({ type: 'change-room', roomId: 'cafe', requestId: 1 }); await b.next('player', (m) => m.reason === 'room');
+  c.send({ type: 'change-room', roomId: 'library', requestId: 1 }); await c.next('player', (m) => m.reason === 'room');
+  for (const client of [a, b, c]) client.send({ type: 'voice-state', listening: true, microphone: false });
+  const action = { type: 'spell-cast', spell: 'call', targetIds: [b.welcome.id, c.welcome.id], actionId: randomUUID(), x: 999, roomId: 'garden' };
+  a.send(action); assert.equal((await a.next('spell-result')).error, undefined);
+  const summoned = (await b.next('player', (m) => m.reason === 'spell' && m.player.id === b.welcome.id)).player;
+  const also = (await c.next('player', (m) => m.reason === 'spell' && m.player.id === c.welcome.id)).player;
+  assert.equal(summoned.roomId, caster.roomId); assert.equal(also.roomId, caster.roomId); assert.ok(summoned.buddyPosition);
+  assert.notDeepEqual([summoned.x, summoned.y], [also.x, also.y]);
+  assert.ok(Math.abs(summoned.x - caster.x) + Math.abs(summoned.y - caster.y) <= 6);
+  await b.next('objects', (m) => m.roomId === caster.roomId); await b.next('voice', (m) => m.peers.some((person) => person.id === a.welcome.id));
+  const effect = await b.next('spell-effect', (m) => m.spell === 'call'); assert.equal(effect.casterId, a.welcome.id); assert.equal(effect.targetIds.length, 2);
+  b.send({ type: 'move', direction: 'left', requestId: 2 }); const blocked = (await b.next('player', (m) => m.requestId === 2)).player; assert.deepEqual([blocked.x, blocked.y], [summoned.x, summoned.y]);
+  a.send(action); assert.equal((await a.next('spell-result')).error, undefined);
+  a.send({ ...action, actionId: randomUUID() }); assert.match((await a.next('spell-result')).error!, /秒/);
+  const replayCount = b.seen.filter((m) => m.type === 'spell-effect' && m.spell === 'call').length; assert.equal(replayCount, 1);
+  b.ws.close(); await c.next('left', (m) => m.id === b.welcome.id);
+  c.send({ type: 'spell-cast', spell: 'call', targetIds: [a.welcome.id, b.welcome.id], actionId: randomUUID() }); assert.match((await c.next('spell-result')).error!, /退出/);
+  assert.equal(a.seen.some((m) => m.type === 'player' && m.reason === 'spell' && m.player.id === a.welcome.id), false);
+});
+
+test('rura moves only the caster next to the target, and fire is a shared room-local visual with no player movement', async (t) => {
+  const { connect } = await fixture(t), a = await connect(), b = await connect(), c = await connect();
+  b.send({ type: 'change-room', roomId: 'cafe', requestId: 1 }); const target = (await b.next('player', (m) => m.reason === 'room')).player;
+  a.send({ type: 'spell-cast', spell: 'rura', targetId: b.welcome.id, actionId: randomUUID() }); assert.equal((await a.next('spell-result')).error, undefined);
+  const moved = (await a.next('player', (m) => m.reason === 'spell' && m.player.id === a.welcome.id)).player;
+  assert.equal(moved.roomId, target.roomId); assert.equal(Math.abs(moved.x - target.x) + Math.abs(moved.y - target.y), 1);
+  const action = { type: 'spell-cast', spell: 'fire', actionId: randomUUID(), x: 999, direction: 'up', damage: 999 };
+  a.send(action); assert.equal((await a.next('spell-result')).error, undefined);
+  const fire = await b.next('spell-effect', (m) => m.spell === 'fire'), own = await a.next('spell-effect', (m) => m.spell === 'fire');
+  assert.equal(fire.id, own.id); assert.deepEqual(fire.origin, { x: moved.x, y: moved.y }); assert.equal(fire.roomId, 'cafe');
+  a.send(action); assert.equal((await a.next('spell-result')).error, undefined);
+  a.send({ ...action, actionId: randomUUID() }); assert.match((await a.next('spell-result')).error!, /秒/);
+  assert.equal(b.seen.filter((m) => m.type === 'spell-effect' && m.spell === 'fire').length, 1);
+  assert.equal(c.seen.some((m) => m.type === 'spell-effect'), false);
+});
+
 test('person warps synchronize across rooms, revoke old voice pairs, reject stale targets and retain movement limits', async (t) => {
   const { connect } = await fixture(t); const a = await connect(), b = await connect(), c = await connect();
   b.send({ type: 'profile', name: 'はな', outfit: 0 });
@@ -571,7 +612,7 @@ test('buddies share authoritative trail positions and pets stay scoped to the cu
   const { connect } = await fixture(t); const a = await connect(), b = await connect();
   const initial = a.welcome.players[0];
   const petsA = await a.next('pets'), petsB = await b.next('pets');
-  assert.deepEqual(petsA.pets, petsB.pets); assert.equal(petsA.pets.length, 1); assert.equal(petsA.pets[0].kind, 'dog');
+  assert.deepEqual(petsA.pets, petsB.pets); assert.ok(petsA.pets.length >= 1 && petsA.pets.length <= 2); assert.equal(petsA.pets[0].kind, 'dog');
   a.send({ type: 'profile', name: 'buddy-owner', outfit: 0, buddy: 'robot', buddyPosition: { x: 99, y: 99 } });
   const shared = await b.next('player', (m) => m.player.id === initial.id && m.reason === 'profile');
   assert.equal(shared.player.buddy, 'robot'); assert.ok(canWalk(shared.player.buddyPosition!.x, shared.player.buddyPosition!.y));

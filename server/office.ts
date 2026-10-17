@@ -6,6 +6,9 @@ import { RobotSimulation } from './robot.ts';
 import { dailyEventAt } from '../src/game/daily-events.ts';
 import { WorldTestControls, allowDevWorld } from './dev-world.ts';
 import { isPokemonKind } from '../src/game/pokemon.ts';
+import { SPELLS } from '../src/game/spells.ts';
+import type { SpellKind } from '../src/game/spells.ts';
+import { callDestinations, fireDestination } from './spells.ts';
 import { AnnouncementStore, AnnouncementError } from './announcements.ts';
 import { vendingInReach } from '../src/game/amenities.ts';
 import { VehicleFleet } from './vehicles.ts';
@@ -38,6 +41,9 @@ class EditError extends Error {}
 export function attachOffice(server: Server, auth?: SlackAuth, options: { objectsFile?: string; membersFile?: string; linksFile?: string; announcementsFile?: string; birthdaysFile?: string; devControls?: boolean; birthdayClock?: () => number; eventClock?: () => number; lostClock?: () => number } = {}): () => void {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 });
   const players = new Map<WebSocket, Player>();
+  const contacts = new Map<string, () => void>();
+  const movementBlocks = new Map<string, number>();
+  const summonedAt = new Map<string, number>();
   const store = new ObjectStore(options.objectsFile);
   const members = new MemberStore(options.membersFile);
   const links = new LinkStore(options.linksFile);
@@ -222,6 +228,8 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     let lastVehicle = -Infinity;
     let lastBirthday = -Infinity;
     let lastDevWorld = -Infinity;
+    const spellTimes = new Map<SpellKind, number>();
+    const spellResults = new Map<string, Extract<ServerMessage, { type: 'spell-result' }>>();
     const vehicleResults = new Map<string, string | undefined>();
     let lastVending: string | undefined;
     const contact = () => {
@@ -233,6 +241,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
       }
       lastVending = machine;
     };
+    contacts.set(player.id, contact);
     ws.on('pong', () => alive.add(ws));
     ws.on('error', () => ws.terminate());
     ws.on('message', (data, isBinary) => {
@@ -243,6 +252,47 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
       const message = parseClientMessage(data.toString());
       if (message?.type === 'voice-signal' ? ++signals > 120 : ++messages > 40) { ws.close(1008, 'Too many messages'); return; }
       if (!message) return;
+      if (message.type === 'spell-cast') {
+        const cached = spellResults.get(message.actionId); if (cached) { send(ws, cached); return; }
+        const finish = (error?: string) => {
+          const result: Extract<ServerMessage, { type: 'spell-result' }> = { type: 'spell-result', actionId: message.actionId, spell: message.spell, ...(error ? { error } : {}) };
+          spellResults.set(message.actionId, result); if (spellResults.size > 128) spellResults.delete(spellResults.keys().next().value!); send(ws, result);
+        };
+        const wait = SPELLS[message.spell].cooldown - (now - (spellTimes.get(message.spell) ?? -Infinity));
+        if (wait > 0) { finish(`あと${Math.ceil(wait / 1000)}秒で、もう一度唱えられます。`); return; }
+        const origin = { x: player.x, y: player.y };
+        if (message.spell === 'fire') {
+          spellTimes.set('fire', now);
+          const position = pending.get(player.id); if (position) { broadcast({ type: 'positions', positions: [position] }); pending.delete(player.id); }
+          const effect: Extract<ServerMessage, { type: 'spell-effect' }> = { type: 'spell-effect', id: randomUUID(), spell: 'fire', casterId: player.id, casterName: player.name, roomId: player.roomId, origin, destinations: [fireDestination(player, roomObjects(player.roomId))], targetIds: [] };
+          for (const [client, person] of players) if (person.roomId === player.roomId) send(client, effect);
+          finish(); return;
+        }
+        const ids = message.spell === 'call' ? message.targetIds : [message.targetId];
+        const targets = ids.map((id) => [...players.values()].find((person) => person.id === id));
+        if (ids.includes(player.id)) { finish('自分以外の人を選んでください。'); return; }
+        if (targets.some((person) => !person)) { finish('選んだ人が退出しました。一覧を確認してください。'); return; }
+        const selected = targets as Player[];
+        if (message.spell === 'call' && selected.some((person) => now - (summonedAt.get(person.id) ?? -Infinity) < SPELLS.call.cooldown)) { finish('その人はコールで移動したばかりです。少し待ってください。'); return; }
+        if (message.spell === 'rura' && now - lastWarp < 1000) { finish('少し待ってから移動してください。'); return; }
+        const destinationRoom = message.spell === 'call' ? player.roomId : selected[0].roomId;
+        const movers = message.spell === 'call' ? selected : [player];
+        const destinations = message.spell === 'call' ? callDestinations(player, selected, players.values(), roomObjects(destinationRoom)) : callDestinations(selected[0], [player], players.values(), roomObjects(destinationRoom));
+        if (!destinations) { finish('移動先の床を確認できません。相手が少し動いてから試してください。'); return; }
+        spellTimes.set(message.spell, now); if (message.spell === 'rura') lastWarp = now;
+        for (const [index, mover] of movers.entries()) {
+          const client = [...players].find(([, person]) => person.id === mover.id)![0];
+          leaveArcade(mover.id); Object.assign(mover, destinations[index], { roomId: destinationRoom, facing: 'down' });
+          resetBuddy(mover, roomObjects(destinationRoom)); contacts.get(mover.id)?.(); pending.delete(mover.id);
+          movementBlocks.set(mover.id, now + movementStep(mover.riding?.kind)); if (message.spell === 'call') summonedAt.set(mover.id, now);
+          broadcast({ type: 'player', player: mover, reason: 'spell' });
+          sendObjects(client, destinationRoom); sendPets(client, destinationRoom); sendRobot(client); sendArcade(client); sendLinks(client, destinationRoom);
+        }
+        directoryDirty = true; voice.refresh();
+        const effect: Extract<ServerMessage, { type: 'spell-effect' }> = { type: 'spell-effect', id: randomUUID(), spell: message.spell, casterId: player.id, casterName: player.name, roomId: destinationRoom, origin, destinations, targetIds: movers.map((person) => person.id) };
+        for (const [client, person] of players) if (person.roomId === destinationRoom) send(client, effect);
+        finish(); return;
+      }
       if (message.type === 'dev-world') {
         if (!devClients.has(ws)) { send(ws, { type: 'dev-world-result', actionId: message.actionId, error: 'ローカル開発サーバー専用の操作です。' }); return; }
         if (now - lastDevWorld < 250) { send(ws, { type: 'dev-world-result', actionId: message.actionId, error: '少し待ってから操作してください。' }); return; }
@@ -426,7 +476,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
       } else {
         player.facing = message.direction;
         const [dx, dy] = vectors[message.direction];
-        if (now - lastMove >= movementStep(player.riding?.kind) && walkableWithObjects(player.x + dx, player.y + dy, player.roomId, roomObjects(player.roomId))) {
+        if (now >= (movementBlocks.get(player.id) ?? 0) && now - lastMove >= movementStep(player.riding?.kind) && walkableWithObjects(player.x + dx, player.y + dy, player.roomId, roomObjects(player.roomId))) {
           const previous = { x: player.x, y: player.y };
           player.x += dx;
           player.y += dy;
@@ -450,6 +500,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
       leaveArcade(player.id);
       const hadVehicle = !!player.riding; fleet.forget(player);
       players.delete(ws);
+      contacts.delete(player.id); movementBlocks.delete(player.id); summonedAt.delete(player.id);
       if (!identity) void birthdays.removeGuest(birthdayOwner(player)).then(() => sendBirthdays()).catch(() => {});
       if (hadVehicle) sendFleet();
       directoryDirty = true;

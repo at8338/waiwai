@@ -20,6 +20,8 @@ import { CompanionsView } from './companions-view.ts';
 import { PokemonJournalUI } from './pokemon-journal-ui.ts';
 import { BirthdaysUI } from './birthdays-ui.ts';
 import { DevWorldUI } from './dev-world-ui.ts';
+import { SpellsUI } from './spells-ui.ts';
+import { SpellsView } from './spells-view.ts';
 import { isPokemonKind } from './pokemon-journal.ts';
 import { BUDDIES } from './buddies.ts';
 import type { BuddyKind } from './buddies.ts';
@@ -75,6 +77,8 @@ export class OfficeScene extends Phaser.Scene {
   private pokemonJournal?: PokemonJournalUI;
   private birthdaysUI?: BirthdaysUI;
   private devWorldUI?: DevWorldUI;
+  private spellsUI?: SpellsUI;
+  private spellsView?: SpellsView;
   private buddyChoice: BuddyKind | null = null;
   readonly walker = new Walker();
   private controls = new Controls();
@@ -177,6 +181,10 @@ export class OfficeScene extends Phaser.Scene {
     this.controls.attach(this.game.canvas);
     this.setupRoomTools();
     this.setupReactions();
+    this.spellsView = new SpellsView(this);
+    this.spellsUI = new SpellsUI(this.inputController.signal, (action) => { this.controls.clear(); this.setEditMode('none'); return this.connection?.castSpell(action) ?? false; }, () => {
+      if (document.querySelector('dialog[open]')) return false; this.controls.clear(); this.setEditMode('none'); return true;
+    });
     if (import.meta.env.DEV) this.devWorldUI = new DevWorldUI(this.inputController.signal, (action) => this.connection?.devWorld(action) ?? false, (room) => this.connection?.changeRoom(room), () => {
       if (document.querySelector('dialog[open]')) return false; this.controls.clear(); this.setEditMode('none'); return true;
     });
@@ -235,6 +243,12 @@ export class OfficeScene extends Phaser.Scene {
       birthdays: (state) => { this.birthdaysUI?.receive(state); this.dailyUI?.receiveBirthdays(state); },
       devWorld: (state) => this.devWorldUI?.receive(state),
       devWorldResult: (id, error) => this.devWorldUI?.result(id, error),
+      spellResult: (result) => this.spellsUI?.result(result.actionId, result.error),
+      spellEffect: (effect) => {
+        if (effect.roomId !== this.roomId) return;
+        this.spellsView?.receive(effect);
+        if (effect.spell === 'call' && effect.targetIds.includes(this.localId ?? '')) document.querySelector('#office-notice')!.textContent = `🔔 ${effect.casterName}さんの「コール」で、${getRoom(effect.roomId).name}へ呼び寄せられました。`;
+      },
       birthdayResult: (id, error) => this.birthdaysUI?.result(id, error),
       announcementResult: (id, error) => this.announcementsUI?.result(id, error),
       vehicles: (units) => { this.vehicleUI?.inventory(units); this.vehicleDocks?.receive(units); },
@@ -252,7 +266,7 @@ export class OfficeScene extends Phaser.Scene {
         }
       },
       left: (id) => this.removePlayer(id),
-      directory: (people, warning) => this.directoryUI?.setPeople(people, warning),
+      directory: (people, warning) => { this.directoryUI?.setPeople(people, warning); this.spellsUI?.setPeople(people); },
       travelComplete: () => this.directoryUI?.complete(),
       travelError: (error) => this.directoryUI?.fail(error),
       objects: (roomId, objects) => {
@@ -286,6 +300,7 @@ export class OfficeScene extends Phaser.Scene {
       this.companions?.clear();
       this.birthdaysUI?.destroy();
       this.devWorldUI?.destroy();
+      this.spellsUI?.destroy(); this.spellsView?.destroy();
       this.lighting?.destroy();
       this.vehicleDocks?.destroy(); this.vehicleUI?.destroy(); this.announcementsUI?.destroy(); this.dailyUI?.destroy(); this.arcadeUI?.destroy(); this.cockpitUI?.destroy(); this.cockpitView?.destroy(); this.dailyView?.destroy(); this.lostItems?.destroy();
     };
@@ -301,6 +316,7 @@ export class OfficeScene extends Phaser.Scene {
     this.announcementsUI?.setConnected(this.connected); this.dailyUI?.setConnected(this.connected); this.cockpitUI?.setConnected(this.connected); this.arcadeUI?.setConnected(this.connected);
     this.birthdaysUI?.setConnected(this.connected);
     this.devWorldUI?.setConnected(this.connected);
+    this.spellsUI?.setConnected(this.connected, this.localId); if (!this.connected) this.spellsView?.clear();
     this.lostItems?.setConnected(this.connected);
     this.vehicleUI?.setConnected(this.connected); this.vehicleDocks?.setConnected(this.connected);
     this.voice?.setConnected(this.connected);
@@ -366,6 +382,11 @@ export class OfficeScene extends Phaser.Scene {
     if (previous && (snap || previous.x !== player.x || previous.y !== player.y || previous.roomId !== player.roomId)) this.reactions.delete(player.id);
     this.players.set(player.id, player);
     if (player.id === this.localId) {
+      if (reason === 'spell') {
+        this.controls.clear(); this.setEditMode('none');
+        for (const dialog of document.querySelectorAll<HTMLDialogElement>('dialog[open]')) dialog.close();
+        this.directoryUI?.fail('魔法で移動しました。現在の場所から操作できます。');
+      }
       if (reason === 'vending' && player.appearance) {
         this.appearance = { ...player.appearance };
         this.appearancePickup?.(this.appearance);
@@ -538,6 +559,7 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   private showRoom(id: RoomId): void {
+    this.spellsView?.clear();
     this.reactions.clear();
     this.roomId = id; this.arcadeUI?.setRoom(id); this.cockpitUI?.setRoom(id); this.cockpitView?.setRoom(id);
     this.companions?.setRoom(id);
@@ -759,6 +781,7 @@ export class OfficeScene extends Phaser.Scene {
       this.renderParticipants();
     }
     this.companions?.update(time, delta, this.reducedMotion);
+    this.spellsView?.update(this.reducedMotion);
     this.walker.update(delta);
     if (this.editMode === 'none' && !this.walker.moving && this.connection?.readyToMove) {
       const direction = this.controls.direction();
