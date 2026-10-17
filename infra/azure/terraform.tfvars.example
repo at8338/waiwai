@@ -1,7 +1,0 @@
-subscription_id = "00000000-0000-0000-0000-000000000000"
-location        = "japaneast"
-name            = "waiwai"
-vm_size         = "Standard_B2als_v2"
-admin_cidr      = "203.0.113.10/32" # Replace with your company VPN / public IP
-ssh_public_key  = "ssh-ed25519 REPLACE_WITH_PUBLIC_KEY"
-acme_email      = "ops@example.com"

@@ -26,3 +26,9 @@ artifacts/
 **/*.auto.tfvars
 **/backend.hcl
 .local/
+
+# Any operator-specific JSON tfvars and machine-readable plans
+**/*.tfvars.json
+*.tfplan.json
+crash.log
+crash.*.log

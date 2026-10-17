@@ -13,7 +13,9 @@
     "build": "npm run check && vite build",
     "preview": "node server/index.ts",
     "start": "node server/index.ts",
-    "test:load": "node tests/load-office.ts"
+    "test:load": "node tests/load-office.ts",
+    "infra:check": "node scripts/azure/check.mjs",
+    "infra:fmt": "terraform fmt -recursive infra"
   },
   "dependencies": {
     "openid-client": "^6.8.8",

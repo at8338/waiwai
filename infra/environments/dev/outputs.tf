@@ -1,0 +1,10 @@
+output "environment" { value = "dev" }
+output "url" { value = "https://${module.network.domain}" }
+output "slack_redirect_uri" { value = "https://${module.network.domain}/auth/slack/callback" }
+output "public_ip" { value = module.network.public_ip }
+output "private_ip" { value = module.network.private_ip }
+output "domain" { value = module.network.domain }
+output "ssh_target" { value = module.office_vm.ssh_target }
+output "resource_group" { value = azurerm_resource_group.office.name }
+output "vm_name" { value = module.office_vm.vm_name }
+output "vm_size" { value = module.office_vm.vm_size }
