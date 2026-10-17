@@ -1,6 +1,7 @@
 import { BUDDIES, BUDDY_KINDS, buddyPixels, isBuddyKind } from './buddies.ts';
 import type { BuddyKind } from './buddies.ts';
 import type { OfficeScene } from './OfficeScene.ts';
+import { isPokemonKind, pokemonMatches, pokemonQuery } from './pokemon.ts';
 const STORAGE = 'waiwai.buddy.v1';
 export function setupBuddyEditor(scene: OfficeScene): void {
   let selected: BuddyKind | null = null;
@@ -14,6 +15,8 @@ export function setupBuddyEditor(scene: OfficeScene): void {
   const dialog = document.querySelector<HTMLDialogElement>('#buddy-dialog')!;
   const cards = document.querySelector('#buddy-cards')!;
   const only = document.querySelector<HTMLInputElement>('#buddy-favorites-only')!;
+  const searchLabel = document.createElement('label'); searchLabel.htmlFor = 'buddy-query'; searchLabel.textContent = '名前・ポケモンの図鑑番号で探す';
+  const query = document.createElement('input'); query.id = 'buddy-query'; query.type = 'search'; query.maxLength = 40; query.placeholder = '例：ぴかちゅう、ルギア、300'; searchLabel.append(query); cards.before(searchLabel);
   const save = () => { try { localStorage.setItem(STORAGE, JSON.stringify({ selected, favorites: [...favorites] })); } catch { /* Keep preferences in memory. */ } };
   const apply = () => {
     scene.setBuddy(selected);
@@ -26,6 +29,7 @@ export function setupBuddyEditor(scene: OfficeScene): void {
     input.addEventListener('change', () => { draft = null; }); none.append(input, ' バディなし'); cards.append(none);
     for (const kind of BUDDY_KINDS) {
       if (only.checked && !favorites.has(kind)) continue;
+      if (isPokemonKind(kind) ? !pokemonMatches(kind, query.value) : !pokemonQuery(BUDDIES[kind].name).includes(pokemonQuery(query.value))) continue;
       const data = BUDDIES[kind], card = document.createElement('div'); card.className = 'buddy-card';
       const label = document.createElement('label');
       const radio = document.createElement('input'); radio.type = 'radio'; radio.name = 'buddy'; radio.value = kind; radio.checked = draft === kind;
@@ -43,8 +47,9 @@ export function setupBuddyEditor(scene: OfficeScene): void {
     }
   };
   apply();
-  document.querySelector('#buddy-edit')!.addEventListener('click', () => { draft = selected; render(); dialog.showModal(); });
+  document.querySelector('#buddy-edit')!.addEventListener('click', () => { draft = selected; query.value = ''; render(); dialog.showModal(); });
   only.addEventListener('change', render);
+  query.addEventListener('input', render);
   document.querySelector('#buddy-form')!.addEventListener('submit', (event) => { event.preventDefault(); selected = draft; save(); apply(); dialog.close(); });
   document.querySelector('#buddy-cancel')!.addEventListener('click', () => dialog.close());
   document.querySelector('#buddy-info-close')!.addEventListener('click', () => document.querySelector<HTMLDialogElement>('#buddy-info')!.close());
