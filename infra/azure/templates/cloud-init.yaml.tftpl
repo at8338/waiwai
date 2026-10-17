@@ -1,0 +1,145 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+packages: [caddy, coturn, curl, xz-utils, ca-certificates, unattended-upgrades]
+write_files:
+  # Block the distribution's default TURN service, including apt auto-start.
+  # Only waiwai-turn.service may run, after its authenticated config exists.
+  - path: /etc/systemd/system/coturn.service.d/waiwai.conf
+    permissions: '0644'
+    content: |
+      [Unit]
+      ConditionPathExists=/etc/waiwai-turn/use-default-service
+  - path: /etc/caddy/Caddyfile
+    permissions: '0644'
+    content: |
+      {
+        email ${acme_email}
+        storage file_system {
+          root /var/lib/caddy
+        }
+      }
+      ${domain} {
+        encode zstd gzip
+        header {
+          X-Content-Type-Options nosniff
+          Referrer-Policy no-referrer
+          Permissions-Policy "camera=(), microphone=(self)"
+          Strict-Transport-Security "max-age=31536000"
+        }
+        reverse_proxy 127.0.0.1:5173
+      }
+  - path: /etc/systemd/system/waiwai.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Waiwai office
+      After=network-online.target
+      Wants=network-online.target
+      ConditionPathExists=/etc/waiwai/app.env
+      ConditionPathExists=/opt/waiwai/current/server/index.ts
+      [Service]
+      User=waiwai
+      Group=waiwai
+      WorkingDirectory=/opt/waiwai/current
+      EnvironmentFile=/etc/waiwai/app.env
+      ExecStart=/usr/local/bin/node server/index.ts
+      Restart=always
+      RestartSec=3
+      KillSignal=SIGTERM
+      TimeoutStopSec=15
+      NoNewPrivileges=true
+      PrivateTmp=true
+      ProtectSystem=strict
+      ProtectHome=true
+      MemoryMax=1536M
+      LimitNOFILE=65536
+      [Install]
+      WantedBy=multi-user.target
+  - path: /etc/systemd/system/waiwai-turn.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Waiwai coturn relay
+      After=network-online.target
+      ConditionPathExists=/etc/waiwai-turn/turnserver.conf
+      ConditionPathExists=/etc/waiwai-turn/tls.key
+      [Service]
+      User=turnserver
+      Group=turnserver
+      ExecStart=/usr/bin/turnserver -c /etc/waiwai-turn/turnserver.conf --pidfile=
+      Restart=always
+      RestartSec=3
+      NoNewPrivileges=true
+      PrivateTmp=true
+      ProtectSystem=strict
+      ProtectHome=true
+      LimitNOFILE=65536
+      MemoryMax=768M
+      [Install]
+      WantedBy=multi-user.target
+  - path: /usr/local/sbin/waiwai-sync-turn-cert
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      cert=$(find /var/lib/caddy/certificates -type f -name '${domain}.crt' -print -quit)
+      test -n "$cert"
+      key="$${cert%.crt}.key"
+      install -d -m 0750 -o root -g turnserver /etc/waiwai-turn
+      if ! cmp -s "$cert" /etc/waiwai-turn/tls.crt || ! cmp -s "$key" /etc/waiwai-turn/tls.key; then
+        install -m 0640 -o root -g turnserver "$cert" /etc/waiwai-turn/tls.crt
+        install -m 0640 -o root -g turnserver "$key" /etc/waiwai-turn/tls.key
+        systemctl try-restart waiwai-turn.service
+      fi
+  - path: /etc/systemd/system/waiwai-turn-cert.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Copy renewed HTTPS certificate for TURN TLS
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/sbin/waiwai-sync-turn-cert
+  - path: /etc/systemd/system/waiwai-turn-cert.timer
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Check TURN TLS certificate hourly
+      [Timer]
+      OnBootSec=3min
+      OnUnitActiveSec=1h
+      Persistent=true
+      [Install]
+      WantedBy=timers.target
+  - path: /etc/systemd/journald.conf.d/waiwai.conf
+    permissions: '0644'
+    content: |
+      [Journal]
+      SystemMaxUse=256M
+      MaxRetentionSec=7day
+  - path: /etc/ssh/sshd_config.d/10-waiwai.conf
+    permissions: '0644'
+    content: |
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin no
+  - path: /usr/local/sbin/waiwai-install-node
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      cd /var/tmp
+      curl --fail --location --retry 3 https://nodejs.org/dist/v24.22.0/node-v24.22.0-linux-x64.tar.xz -o waiwai-node.tar.xz
+      echo 'cc2f601cee82d9a5a233302fe307abc600727035fd7d2c3a3571755989e95008  waiwai-node.tar.xz' | sha256sum --check
+      tar -xJf waiwai-node.tar.xz -C /usr/local --strip-components=1
+      rm waiwai-node.tar.xz
+runcmd:
+  - [systemctl, disable, --now, coturn]
+  - [useradd, --system, --home-dir, /opt/waiwai, --shell, /usr/sbin/nologin, waiwai]
+  - [install, -d, -m, '0755', /opt/waiwai/releases]
+  - [install, -d, -m, '0750', -o, root, -g, waiwai, /etc/waiwai]
+  - [/usr/local/sbin/waiwai-install-node]
+  - [systemctl, daemon-reload]
+  - [systemctl, enable, waiwai.service, waiwai-turn.service, waiwai-turn-cert.timer]
+  - [systemctl, restart, caddy, ssh]
+  - [systemctl, start, waiwai-turn-cert.timer]

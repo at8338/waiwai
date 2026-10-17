@@ -1,0 +1,13 @@
+{
+  "members": 30,
+  "microphones": 30,
+  "maxPeers": 4,
+  "grantEndpoints": 106,
+  "connectedEndpoints": 106,
+  "audibleEndpoints": 106,
+  "status": "PASS",
+  "notices": [
+    "周囲が混み合っています。5人以内のグループに分かれてお話しください。",
+    "マイクON · 近くの人に声が届きます。"
+  ]
+}

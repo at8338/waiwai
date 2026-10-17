@@ -1,7 +1,7 @@
 export type IceServer = { urls: string | string[]; username?: string; credential?: string };
 export type VoiceState = { listening: boolean; microphone: boolean };
 export type VoicePeer = { id: string; session: string; microphone: boolean };
-export type VoiceSnapshot = { type: 'voice'; self: VoiceState; peers: VoicePeer[]; iceServers: IceServer[]; error?: 'capacity' };
+export type VoiceSnapshot = { type: 'voice'; self: VoiceState; peers: VoicePeer[]; iceServers: IceServer[]; limited?: boolean; error?: 'capacity' };
 export type VoicePayload =
   | { kind: 'description'; type: 'offer' | 'answer'; sdp: string }
   | { kind: 'candidate'; candidate: string; sdpMid: string | null; sdpMLineIndex: number | null };

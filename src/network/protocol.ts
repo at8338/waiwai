@@ -5,7 +5,13 @@ import type { SlackIdentity } from '../slack/dm.ts';
 import { parseSlackIdentity } from '../slack/dm.ts';
 
 export type Profile = { name: string; outfit: number; slack?: SlackIdentity | null };
-export type Player = Profile & { id: string; x: number; y: number; facing: Direction; slackVerified?: boolean };
+export type Player = Profile & { id: string; slot: number; x: number; y: number; facing: Direction; slackVerified?: boolean };
+// Profiles travel only on join/edit; movement is coalesced into one frame per 50ms.
+// Small numeric slot maps to a UUID in the welcome/join profile. Bits 0–1 are
+// direction; bit 2 means snap/reset. UUIDs and identities stay out of frames.
+export type Position = [slot: number, x: number, y: number, flags: number];
+export const MAX_PLAYERS = 150;
+export const POSITION_FRAME_MS = 50;
 export type ClientMessage =
   | { type: 'voice-state'; listening: boolean; microphone: boolean }
   | { type: 'voice-signal'; to: string; session: string; payload: VoicePayload }
@@ -16,6 +22,7 @@ export type ServerMessage =
   | VoiceSnapshot
   | VoiceSignal
   | { type: 'welcome'; id: string; players: Player[] }
+  | { type: 'positions'; positions: Position[] }
   | { type: 'player'; player: Player; reason: 'join' | 'profile' | 'move' | 'reset'; requestId?: number }
   | { type: 'left'; id: string };
 

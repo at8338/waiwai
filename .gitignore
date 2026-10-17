@@ -16,3 +16,13 @@ coverage/
 *.log
 .DS_Store
 artifacts/
+
+# Terraform state, plans, and operator-specific values
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+**/terraform.tfvars
+**/*.auto.tfvars
+**/backend.hcl
+.local/

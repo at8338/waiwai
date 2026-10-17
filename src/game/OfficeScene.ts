@@ -35,8 +35,11 @@ export class OfficeScene extends Phaser.Scene {
   private speaking = new Set<string>();
   private slack: SlackIdentity | null;
   private selectedPlayer?: string;
+  private participantsDirty = false;
+  private lastParticipantsAt = 0;
+  private loginRequired: boolean;
 
-  constructor(slack: SlackIdentity | null = null) { super('office'); this.slack = slack; }
+  constructor(slack: SlackIdentity | null = null, loginRequired = false) { super('office'); this.slack = slack; this.loginRequired = loginRequired; }
 
   private makeAvatar(local: boolean): AvatarView {
     const shadow = this.add.graphics();
@@ -77,7 +80,7 @@ export class OfficeScene extends Phaser.Scene {
       if (!this.walker.moving) this.connection?.move(event.detail);
     }) as EventListener, { signal: this.inputController.signal });
 
-    this.connection = new OfficeConnection({
+    if (!this.loginRequired) this.connection = new OfficeConnection({
       state: (state) => this.setConnectionState(state),
       welcome: (id, players) => {
         this.clearPeers();
@@ -91,6 +94,10 @@ export class OfficeScene extends Phaser.Scene {
       voiceSignal: (signal) => this.voice?.signal(signal),
     });
     this.sendProfile();
+    if (this.loginRequired) {
+      document.querySelector('#connection-message')!.textContent = 'Slackでログインすると入室できます。';
+      document.querySelector('#connection-label')!.textContent = 'ログインを待っています';
+    }
     const cleanup = () => {
       this.controls.destroy();
       this.inputController.abort();
@@ -178,8 +185,8 @@ export class OfficeScene extends Phaser.Scene {
       peer.player = player;
       peer.walker.receive(player, player.facing, snap);
     }
-    this.renderParticipants();
-    this.voice?.setWorld(this.localId, this.players);
+    this.participantsDirty = true;
+    this.voice?.setWorld(this.localId, this.players, player.id);
     if (this.selectedPlayer === player.id) this.renderSlackTarget();
   }
 
@@ -188,7 +195,7 @@ export class OfficeScene extends Phaser.Scene {
     if (peer) this.destroyView(peer.view);
     this.peers.delete(id);
     this.players.delete(id);
-    this.voice?.setWorld(this.localId, this.players);
+    this.voice?.setWorld(this.localId, this.players, id);
     this.renderParticipants();
     if (this.selectedPlayer === id) this.renderSlackTarget();
   }
@@ -286,6 +293,11 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number): void {
+    if (this.participantsDirty && time - this.lastParticipantsAt >= 100) {
+      this.participantsDirty = false;
+      this.lastParticipantsAt = time;
+      this.renderParticipants();
+    }
     this.walker.update(delta);
     if (!this.walker.moving && this.connection?.readyToMove) {
       const direction = this.controls.direction();
@@ -308,8 +320,8 @@ export class OfficeScene extends Phaser.Scene {
   }
 }
 
-export function startOffice(parent: HTMLElement, slack: SlackIdentity | null = null): { game: Phaser.Game; scene: OfficeScene } {
-  const scene = new OfficeScene(slack);
+export function startOffice(parent: HTMLElement, slack: SlackIdentity | null = null, loginRequired = false): { game: Phaser.Game; scene: OfficeScene } {
+  const scene = new OfficeScene(slack, loginRequired);
   const game = new Phaser.Game({
     type: Phaser.AUTO, parent, width: COLS * TILE, height: ROWS * TILE,
     backgroundColor: '#ead3a5', pixelArt: true, roundPixels: true,

@@ -27,7 +27,7 @@ test('Slack configuration is optional but requires a complete server-side HTTPS 
   assert.throws(() => readAuthConfig({ SLACK_CLIENT_ID: 'id' }));
 });
 
-async function fixture(t: TestContext, enabled = true) {
+async function fixture(t: TestContext, enabled = true, policy: { required?: boolean; teamId?: string } = {}) {
   let time = Date.now();
   let overrides: Record<string, unknown> = {};
   let wrongSignature = false;
@@ -52,7 +52,7 @@ async function fixture(t: TestContext, enabled = true) {
       nonce: expectedNonce, name: 'はな Slack', 'https://slack.com/team_id': 'T012ABCDEF', 'https://slack.com/user_id': 'U012ABCDEF', ...overrides,
     }, wrongSignature) });
   };
-  const auth = new SlackAuth(enabled ? config : undefined, { ...(enabled ? { client } : {}), now: () => time });
+  const auth = new SlackAuth(enabled ? { ...config, ...policy } : undefined, { ...(enabled ? { client } : {}), now: () => time });
   const server = createServer((request, response) => {
     void auth.handle(request, response).then((handled) => { if (!handled) response.writeHead(404).end(); });
   });
@@ -214,4 +214,17 @@ test('expired sessions are revoked and disconnect authenticated avatars', async 
   f.advance(8 * 60 * 60_000 + 1);
   assert.equal((await (await f.request('/api/auth/session', { headers: { Cookie: session } })).json()).user, null);
   assert.equal(await closed, 4001);
+});
+
+test('production requires Slack authentication and rejects another workspace', async (t) => {
+  const f = await fixture(t, true, { required: true, teamId: 'T012ABCDEF' });
+  assert.equal((await (await f.request('/api/auth/session')).json()).required, true);
+  await assert.rejects(f.connect(''), /401/);
+  f.change({ 'https://slack.com/team_id': 'T999ABCDEF' });
+  assert.equal((await f.callback(await f.begin())).headers.get('location'), '/?login=failed');
+  f.change({});
+  const { welcome } = await f.connect(await f.login());
+  assert.equal(welcome.players[0].slackVerified, true);
+  assert.throws(() => readAuthConfig({ REQUIRE_SLACK_LOGIN: 'true' }));
+  assert.throws(() => readAuthConfig({ SLACK_TEAM_ID: 'bad' }));
 });

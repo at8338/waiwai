@@ -10,19 +10,23 @@ const FLOW_COOKIE = 'waiwai_login';
 const FLOW_MS = 10 * 60_000;
 const SESSION_MS = 8 * 60 * 60_000;
 const random = () => randomBytes(32).toString('base64url');
-export type AuthConfig = { clientId: string; clientSecret: string; redirectUri: string };
+export type AuthConfig = { clientId: string; clientSecret: string; redirectUri: string; required?: boolean; teamId?: string };
 type Session = { user: AuthUser; expires: number };
 type Flow = { state: string; nonce: string; verifier: string; expires: number };
 
 export function readAuthConfig(env: Record<string, string | undefined>): AuthConfig | undefined {
+  if (env.REQUIRE_SLACK_LOGIN && !['true', 'false'].includes(env.REQUIRE_SLACK_LOGIN)) throw new Error('REQUIRE_SLACK_LOGIN must be true or false.');
+  if (env.SLACK_TEAM_ID && !/^T[A-Z0-9]{8,39}$/.test(env.SLACK_TEAM_ID)) throw new Error('Invalid SLACK_TEAM_ID.');
   const values = [env.SLACK_CLIENT_ID, env.SLACK_CLIENT_SECRET, env.SLACK_REDIRECT_URI];
-  if (values.every((value) => !value)) return;
+  if (values.every((value) => !value) && env.REQUIRE_SLACK_LOGIN !== 'true' && !env.SLACK_TEAM_ID) return;
   if (values.some((value) => !value?.trim())) throw new Error('Set SLACK_CLIENT_ID, SLACK_CLIENT_SECRET, and SLACK_REDIRECT_URI together.');
   const url = new URL(values[2]!);
   if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.pathname !== '/auth/slack/callback') {
     throw new Error('SLACK_REDIRECT_URI must be https://<your-host>/auth/slack/callback');
   }
-  return { clientId: values[0]!.trim(), clientSecret: values[1]!.trim(), redirectUri: url.href };
+  return { clientId: values[0]!.trim(), clientSecret: values[1]!.trim(), redirectUri: url.href,
+    ...(env.REQUIRE_SLACK_LOGIN === 'true' || env.SLACK_TEAM_ID ? { required: true } : {}),
+    ...(env.SLACK_TEAM_ID ? { teamId: env.SLACK_TEAM_ID } : {}) };
 }
 
 export function slackConfiguration(config: AuthConfig): oidc.Configuration {
@@ -85,6 +89,10 @@ export class SlackAuth {
     for (const [id, session] of this.sessions) if (session.expires <= this.now()) this.revoke(id);
   }
   onRevoke(notify: (id: string) => void): () => void { this.revoked.add(notify); return () => { this.revoked.delete(notify); }; }
+  canJoin(request: IncomingMessage): boolean {
+    const identity = this.identify(request);
+    return !this.config?.required || (!!identity && (!this.config.teamId || identity.user.slack.teamId === this.config.teamId));
+  }
   identify(request: IncomingMessage): { id: string; user: AuthUser } | undefined {
     const id = cookie(request, SESSION_COOKIE);
     const session = id ? this.sessions.get(id) : undefined;
@@ -104,7 +112,8 @@ export class SlackAuth {
       if (request.method !== 'GET') { response.writeHead(405).end(); return true; }
       const session = this.config && this.canonicalHost(request) ? this.identify(request) : undefined;
       response.writeHead(200, { 'Content-Type': 'application/json' });
-      response.end(JSON.stringify({ configured: !!this.config, loginUrl: this.origin ? this.origin + '/auth/slack' : null, user: session?.user ?? null }));
+      response.end(JSON.stringify({ configured: !!this.config, loginUrl: this.origin ? this.origin + '/auth/slack' : null, user: session?.user ?? null,
+        ...(this.config?.required ? { required: true } : {}) }));
       return true;
     }
     if (!this.config || !this.client) { response.writeHead(503).end('Slack login is not configured.'); return true; }
@@ -156,6 +165,7 @@ export class SlackAuth {
       const claims = tokens.claims()!;
       const slack = parseSlackIdentity({ teamId: claims['https://slack.com/team_id'], userId: claims['https://slack.com/user_id'] });
       if (!slack || typeof claims.name !== 'string' || !claims.name.trim() || claims.sub !== slack.userId) throw new Error('Missing Slack identity');
+      if (this.config.teamId && slack.teamId !== this.config.teamId) throw new Error('Workspace not allowed');
       if (this.sessions.size >= 1000) throw new Error('Session capacity');
       const user = { name: normalizeName(claims.name), slack };
       const previous = cookie(request, SESSION_COOKIE);

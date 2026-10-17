@@ -84,7 +84,7 @@ app.innerHTML = `
 `;
 
 const parent = document.querySelector<HTMLElement>('#game')!;
-const { game, scene } = startOffice(parent, initialSlack);
+const { game, scene } = startOffice(parent, initialSlack, authUnavailable || (!!auth.required && !auth.user));
 const nameInput = document.querySelector<HTMLInputElement>('#display-name')!;
 const loginStatus = document.querySelector<HTMLElement>('#slack-login-status')!;
 const loginLink = document.querySelector<HTMLAnchorElement>('#slack-login-link')!;
@@ -92,6 +92,7 @@ const logout = document.querySelector<HTMLButtonElement>('#slack-logout')!;
 const retry = document.querySelector<HTMLButtonElement>('#slack-auth-retry')!;
 loginStatus.textContent = authUnavailable ? 'ログイン状態を確認できませんでした。再確認してください。'
   : auth.user ? `${auth.user.name}さんでログイン中`
+  : auth.required ? '会社のSlackアカウントでログインして入室してください。'
   : auth.configured ? 'ゲストとして入室しています。' : 'Slackログインは準備中です。管理者の連携設定後に利用できます。';
 if (!authUnavailable && auth.loginUrl) { loginLink.href = auth.loginUrl; loginLink.hidden = !!auth.user; }
 logout.hidden = !auth.user;

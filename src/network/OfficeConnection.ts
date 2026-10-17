@@ -1,5 +1,6 @@
 import type { Direction } from '../game/world.ts';
 import { STEP_MS } from '../game/world.ts';
+import { directions } from './protocol.ts';
 import type { ClientMessage, Player, Profile, ServerMessage } from './protocol.ts';
 import type { VoiceSignal, VoiceSnapshot, VoicePayload, VoiceState } from '../audio/protocol.ts';
 
@@ -26,6 +27,8 @@ export class OfficeConnection {
   private online = false;
   private nextRequestAt = 0;
   private handlers: ConnectionHandlers;
+  private players = new Map<string, Player>();
+  private slots = new Map<number, string>();
 
   constructor(handlers: ConnectionHandlers) {
     this.handlers = handlers;
@@ -49,6 +52,8 @@ export class OfficeConnection {
         this.online = true;
         this.attempts = 0;
         this.id = message.id;
+        this.players = new Map(message.players.map((player) => [player.id, player]));
+        this.slots = new Map(message.players.map((player) => [player.slot, player.id]));
         this.handlers.welcome(message.id, message.players);
         this.handlers.state('online');
         this.send({ type: 'profile', ...this.profile });
@@ -61,8 +66,25 @@ export class OfficeConnection {
             window.clearTimeout(this.watchdog);
           }
         }
+        this.players.set(message.player.id, message.player);
+        this.slots.set(message.player.slot, message.player.id);
         this.handlers.player(message.player, message.reason === 'reset' || message.reason === 'join');
-      } else if (message.type === 'left') this.handlers.left(message.id);
+      } else if (message.type === 'positions') {
+        for (const [slot, x, y, flags] of message.positions) {
+          const id = this.slots.get(slot);
+          if (!id) continue;
+          const previous = this.players.get(id);
+          // Own acknowledgments are newer than a coalesced remote frame.
+          if (!previous || id === this.id) continue;
+          const player = { ...previous, x, y, facing: directions[flags & 3] };
+          this.players.set(id, player);
+          this.handlers.player(player, (flags & 4) !== 0);
+        }
+      } else if (message.type === 'left') {
+        const player = this.players.get(message.id);
+        if (player) this.slots.delete(player.slot);
+        this.players.delete(message.id); this.handlers.left(message.id);
+      }
       else if (message.type === 'voice') this.handlers.voice(message);
       else if (message.type === 'voice-signal') this.handlers.voiceSignal(message);
     };
@@ -73,6 +95,8 @@ export class OfficeConnection {
       this.online = false;
       this.pending = undefined;
       this.id = undefined;
+      this.players.clear();
+      this.slots.clear();
       if (event.code === 4001) {
         this.handlers.state('reconnecting');
         window.location.reload();
