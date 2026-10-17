@@ -8,7 +8,9 @@ export const VEHICLES = {
 } as const;
 export type VehicleKind = keyof typeof VEHICLES;
 export type Riding = { id: string; kind: VehicleKind };
-export type VehicleUnit = Riding & { riderId: string | null };
+export type VehicleGround = Point & { roomId: RoomId };
+export type VehicleUnit = Riding & { riderId: string | null; ground?: VehicleGround };
+export type VehicleAction = { type: 'vehicle-take'; kind: VehicleKind } | { type: 'vehicle-return' } | { type: 'vehicle-drop' } | { type: 'vehicle-pickup'; unitId: string };
 export const VEHICLE_KINDS = Object.keys(VEHICLES) as VehicleKind[];
 export const isVehicleKind = (value: unknown): value is VehicleKind => typeof value === 'string' && Object.hasOwn(VEHICLES, value);
 export const movementStep = (kind?: VehicleKind) => kind ? VEHICLES[kind].stepMs : WALK_STEP_MS;
@@ -21,4 +23,12 @@ export function nearVehicleDock(player: Point & { roomId: RoomId }, kind: Vehicl
 }
 export function touchingVehicleDock(player: Point & { roomId: RoomId }): VehicleKind | undefined {
   return VEHICLE_DOCKS.find((d) => player.roomId === d.roomId && player.x >= d.x && player.x < d.x + d.w && player.y >= d.y && player.y < d.y + d.h)?.kind;
+}
+
+export function isVehicleId(value: unknown): value is string {
+  return typeof value === 'string' && VEHICLE_KINDS.some((kind) => Array.from({ length: VEHICLES[kind].count }, (_, i) => `${kind}-${i + 1}`).includes(value));
+}
+export function nearGroundVehicle(player: VehicleGround, unit: VehicleUnit): boolean {
+  return !unit.riderId && !!unit.ground && player.roomId === unit.ground.roomId
+    && Math.abs(player.x - unit.ground.x) + Math.abs(player.y - unit.ground.y) <= 1;
 }

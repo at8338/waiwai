@@ -6,7 +6,7 @@ import type { RoomId } from '../game/rooms.ts';
 import type { RoomObject } from '../game/objects.ts';
 import type { Direction } from '../game/world.ts';
 import { movementStep } from '../game/transport.ts';
-import type { VehicleKind, VehicleUnit } from '../game/transport.ts';
+import type { VehicleAction, VehicleUnit } from '../game/transport.ts';
 import { directions } from './protocol.ts';
 import type { ClientMessage, Player, Profile, ServerMessage } from './protocol.ts';
 import type { VoiceSignal, VoiceSnapshot, VoicePayload, VoiceState } from '../audio/protocol.ts';
@@ -201,9 +201,9 @@ export class OfficeConnection {
 
   announcement(action: AnnouncementAction): boolean { if (!this.online) return false; this.send(action); return true; }
 
-  vehicle(kind: VehicleKind | null, actionId: string): boolean {
+  vehicle(action: VehicleAction, actionId: string): boolean {
     if (!this.online) return false;
-    this.send(kind ? { type: 'vehicle-take', kind, actionId } : { type: 'vehicle-return', actionId }); return true;
+    this.send({ ...action, actionId }); return true;
   }
 
   reset(): void {

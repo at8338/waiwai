@@ -195,6 +195,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     const arcadeRequests = new Set<string>();
     let lastRobot = -Infinity;
     let lastVehicle = -Infinity;
+    const vehicleResults = new Map<string, string | undefined>();
     let lastVending: string | undefined;
     const contact = () => {
       if (fleet.touch(player)) { pending.delete(player.id); broadcast({ type: 'player', player, reason: 'vehicle' }); sendFleet(); }
@@ -241,10 +242,17 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
         }).catch((error: unknown) => send(ws, { type: 'announcement-result', actionId: message.actionId, error: error instanceof AnnouncementError ? error.message : '放送・予定を保存できませんでした。時間をおいて試してください。' }));
         return;
       }
-      if (message.type === 'vehicle-take' || message.type === 'vehicle-return') {
+      if (message.type === 'vehicle-take' || message.type === 'vehicle-return' || message.type === 'vehicle-drop' || message.type === 'vehicle-pickup') {
+        if (vehicleResults.has(message.actionId)) {
+          const error = vehicleResults.get(message.actionId); send(ws, { type: 'vehicle-result', actionId: message.actionId, ...(error ? { error } : {}) }); return;
+        }
         if (now - lastVehicle < 350) { send(ws, { type: 'vehicle-result', actionId: message.actionId, error: '少し待ってから、もう一度操作してください。' }); return; }
         lastVehicle = now;
-        const error = message.type === 'vehicle-take' ? fleet.take(player, message.kind) : fleet.return(player);
+        const error = message.type === 'vehicle-take' ? fleet.take(player, message.kind)
+          : message.type === 'vehicle-pickup' ? fleet.pickup(player, message.unitId)
+          : message.type === 'vehicle-drop' ? fleet.drop(player) : fleet.return(player);
+        vehicleResults.set(message.actionId, error);
+        if (vehicleResults.size > 128) vehicleResults.delete(vehicleResults.keys().next().value!);
         if (!error) { pending.delete(player.id); broadcast({ type: 'player', player, reason: 'vehicle' }); sendFleet(); }
         send(ws, { type: 'vehicle-result', actionId: message.actionId, ...(error ? { error } : {}) });
         return;

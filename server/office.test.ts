@@ -922,3 +922,48 @@ test('lost items have one shared three-kind registry across floors, furniture ed
   const scheduled = await a.next('lost-items', (m) => m.serverNow === now);
   assert.equal(scheduled.items.length, 3); assert.equal(new Set(scheduled.items.map((i) => i.kind)).size, 3);
 });
+
+test('floor vehicles synchronize to newcomers, survive the dropper leaving, and competing pickup requests lease one unit', async (t) => {
+  const { connect } = await fixture(t), owner = await connect();
+  for (let i = 0; i < 10; i++) {
+    if (i) await new Promise((resolve) => setTimeout(resolve, STEP_MS + 5));
+    owner.send({ type: 'move', direction: 'left', requestId: 200 + i });
+    await owner.next('player', (m) => m.requestId === 200 + i);
+  }
+  const takeId = randomUUID(); owner.send({ type: 'vehicle-take', kind: 'bike', actionId: takeId });
+  assert.equal((await owner.next('vehicle-result', (m) => m.actionId === takeId)).error, undefined);
+  const rider = await owner.next('player', (m) => m.reason === 'vehicle' && !!m.player.riding);
+  const unitId = rider.player.riding!.id;
+  owner.send({ type: 'change-room', roomId: 'garden', requestId: 220 });
+  await owner.next('player', (m) => m.requestId === 220);
+  await new Promise((resolve) => setTimeout(resolve, 90));
+  owner.send({ type: 'move', direction: 'left', requestId: 221 });
+  const moved = await owner.next('player', (m) => m.requestId === 221);
+  await new Promise((resolve) => setTimeout(resolve, 360));
+  const dropId = randomUUID(); owner.send({ type: 'vehicle-drop', actionId: dropId, x: 1, y: 1, roomId: 'office' });
+  assert.equal((await owner.next('vehicle-result', (m) => m.actionId === dropId)).error, undefined);
+  const dropped = await owner.next('vehicles', (m) => m.units.some((u) => u.id === unitId && !!u.ground));
+  assert.deepEqual(dropped.units.find((u) => u.id === unitId)?.ground, { roomId: 'garden', x: moved.player.x, y: moved.player.y });
+  owner.ws.terminate();
+  const a = await connect(), b = await connect();
+  const initial = await a.next('vehicles'); assert.ok(initial.units.find((u) => u.id === unitId)?.ground);
+  for (const client of [a, b]) {
+    client.send({ type: 'change-room', roomId: 'garden', requestId: 230 });
+    const arrived = await client.next('player', (m) => m.player.id === client.welcome.id && m.requestId === 230);
+    if (Math.abs(arrived.player.x - moved.player.x) + Math.abs(arrived.player.y - moved.player.y) > 1) {
+      await new Promise((resolve) => setTimeout(resolve, STEP_MS + 5));
+      client.send({ type: 'move', direction: 'down', requestId: 231 });
+      await client.next('player', (m) => m.player.id === client.welcome.id && m.requestId === 231);
+    }
+  }
+  const aId = randomUUID(), bId = randomUUID();
+  a.send({ type: 'vehicle-pickup', unitId, actionId: aId }); b.send({ type: 'vehicle-pickup', unitId, actionId: bId });
+  const results = await Promise.all([a.next('vehicle-result', (m) => m.actionId === aId), b.next('vehicle-result', (m) => m.actionId === bId)]);
+  assert.equal(results.filter((m) => !m.error).length, 1);
+  const picked = await a.next('vehicles', (m) => m.units.some((u) => u.id === unitId && !!u.riderId));
+  assert.equal(picked.units.length, 9); assert.equal(picked.units.find((u) => u.id === unitId)?.ground, undefined);
+  // Replaying an already accepted request returns its result, without another mutation.
+  const winner = results[0].error ? b : a, winnerId = results[0].error ? bId : aId;
+  winner.send({ type: 'vehicle-pickup', unitId, actionId: winnerId });
+  assert.equal((await winner.next('vehicle-result', (m) => m.actionId === winnerId)).error, undefined);
+});
