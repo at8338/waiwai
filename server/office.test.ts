@@ -458,3 +458,30 @@ test('placed furniture links follow movement, allow only owner edits, and disapp
   a.send({ type: 'object-links-set', objectId: `placed:${desk.id}`, linkIds: [id], editId: randomUUID() });
   assert.match((await a.next('link-result')).error!, /見つかりません/);
 });
+
+test('the operations room shares named monitor links and supports placing and rotating monitoring furniture', async (t) => {
+  const { connect } = await fixture(t); const a = await connect(), b = await connect();
+  for (const client of [a, b]) {
+    client.send({ type: 'change-room', roomId: 'ops', requestId: 1 });
+    const moved = await client.next('player', (m) => m.reason === 'room' && m.player.id === client.welcome.id);
+    assert.equal(moved.player.roomId, 'ops');
+    await client.next('object-links', (m) => m.roomId === 'ops');
+  }
+  a.send({ type: 'favorite-add', title: 'Monitoring dashboard', url: 'https://example.com/dashboard', editId: randomUUID() });
+  const linkId = (await a.next('link-result')).favoriteId!;
+  await new Promise((resolve) => setTimeout(resolve, 360));
+  a.send({ type: 'object-links-set', objectId: 'fixed:ops:monitor:22:2', linkIds: [linkId], editId: randomUUID() });
+  assert.equal((await a.next('link-result')).error, undefined);
+  assert.equal((await b.next('object-links', (m) => m.bindings.length === 1)).bindings[0].objectId, 'fixed:ops:monitor:22:2');
+  a.send({ type: 'object-place', kind: 'monitor', x: 22, y: 16, rotation: 0, editId: randomUUID() });
+  assert.equal((await a.next('object-result')).error, undefined);
+  const monitor = (await b.next('objects', (m) => m.roomId === 'ops' && m.objects.length === 1)).objects[0];
+  await new Promise((resolve) => setTimeout(resolve, 360));
+  a.send({ type: 'object-move', id: monitor.id, x: 25, y: 16, rotation: 1, editId: randomUUID() });
+  assert.equal((await a.next('object-result')).error, undefined);
+  assert.equal((await b.next('objects', (m) => m.objects[0]?.rotation === 1)).objects[0].x, 25);
+  await new Promise((resolve) => setTimeout(resolve, 360));
+  a.send({ type: 'object-place', kind: 'rack', x: 21, y: 16, rotation: 2, editId: randomUUID() });
+  assert.equal((await a.next('object-result')).error, undefined);
+  assert.ok((await b.next('objects', (m) => m.objects.length === 2)).objects.some((o) => o.kind === 'rack'));
+});

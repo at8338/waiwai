@@ -1,11 +1,13 @@
 import { canWalk, COLS, ROWS } from './world.ts';
 import { getRoom, isRoomId } from './rooms.ts';
 import type { RoomId } from './rooms.ts';
-export const OBJECT_KINDS = ['desk', 'chair', 'plant', 'books', 'lamp', 'mug', 'cushion', 'flowers', 'box', 'mat'] as const;
+export const OBJECT_KINDS = ['desk', 'chair', 'monitor', 'rack', 'plant', 'books', 'lamp', 'mug', 'cushion', 'flowers', 'box', 'mat'] as const;
 export type ObjectKind = typeof OBJECT_KINDS[number];
 export const OBJECT_CATALOG: Record<ObjectKind, { name: string; icon: string; solid: boolean; size?: readonly [number, number] }> = {
   desk: { name: 'デスク', icon: '▦', solid: true, size: [3, 2] },
   chair: { name: 'オフィスチェア', icon: '▥', solid: true },
+  monitor: { name: '監視モニター', icon: '▣', solid: true, size: [3, 2] },
+  rack: { name: 'サーバーラック', icon: '▤', solid: true, size: [2, 2] },
   plant: { name: '鉢植え', icon: '♧', solid: true }, books: { name: '本の山', icon: '▤', solid: false },
   lamp: { name: 'フロアランプ', icon: '♙', solid: true }, mug: { name: 'マグカップ', icon: '☕', solid: false },
   cushion: { name: 'クッション', icon: '◇', solid: false }, flowers: { name: '花かご', icon: '✿', solid: true },

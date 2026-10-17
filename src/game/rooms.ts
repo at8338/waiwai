@@ -1,9 +1,9 @@
 import type { Furniture, Point } from './world.ts';
-export const ROOM_IDS = ['office', 'focus', 'meeting', 'cafe', 'library', 'garden', 'studio', 'arcade', 'wellness', 'workshop', 'sky'] as const;
+export const ROOM_IDS = ['office', 'focus', 'meeting', 'cafe', 'library', 'garden', 'studio', 'arcade', 'wellness', 'workshop', 'sky', 'ops'] as const;
 export type RoomId = typeof ROOM_IDS[number];
 export type Room = {
   id: RoomId; name: string; description: string; icon: string;
-  floor: number; grain: number; wall: number; rug: number; style: 'wood' | 'tile' | 'grass' | 'stars' | 'checker';
+  floor: number; grain: number; wall: number; rug: number; style: 'wood' | 'tile' | 'grass' | 'stars' | 'checker' | 'control';
   spawn: Point; door: Point; furniture: Furniture[];
 };
 const f = (kind: Furniture['kind'], x: number, y: number, w = 1, h = 1): Furniture => ({ kind, x, y, w, h });
@@ -14,6 +14,7 @@ export const officeFurniture: Furniture[] = [
   f('shelf', 1, 17, 3), f('sofa', 20, 15, 4, 2), f('plant', 26, 17),
 ];
 const common = { spawn: { x: 15, y: 17 }, door: { x: 15, y: 18 } };
+const tool = (kind: Furniture['kind'], label: string, x: number, y: number, w: number, h: number): Furniture => ({ ...f(kind, x, y, w, h), label });
 export const ROOMS: Room[] = [
   { id: 'office', name: 'ひだまりオフィス', description: '執務エリアと、ゆったりしたロビーのあるいつもの場所。', icon: '▦', floor: 0xead3a5, grain: 0xd8bc8c, wall: 0xede5bf, rug: 0xa6b18c, style: 'wood', spawn: { x: 15, y: 12 }, door: { x: 28, y: 18 }, furniture: officeFurniture },
   { id: 'focus', name: 'しずかな集中室', description: '青い絨毯と8台の個別デスク。集中したい時間に。', icon: '✎', floor: 0xc5d4dc, grain: 0xb0c3d1, wall: 0xe3e9e6, rug: 0x879eaf, style: 'tile', ...common,
@@ -36,6 +37,12 @@ export const ROOMS: Room[] = [
     furniture: [f('board', 12, 1, 6, 2), ...[3, 12, 22].flatMap((x) => [f('workbench', x, 6, 4, 2), f('table', x, 12, 4, 2)]), f('shelf', 2, 1, 6), f('shelf', 22, 1, 6)] },
   { id: 'sky', name: '星空ラウンジ', description: '星模様の床と望遠鏡。少し特別な夜の雑談。', icon: '✦', floor: 0x5b6787, grain: 0x4c5877, wall: 0xc6d0da, rug: 0x9d9ab8, style: 'stars', ...common,
     furniture: [f('telescope', 22, 3, 3, 3), f('sofa', 3, 5, 5, 2), f('sofa', 12, 5, 5, 2), f('table', 7, 11, 3, 2), f('sofa', 19, 12, 6, 2), f('plant', 3, 14)] },
+  { id: 'ops', name: 'システム管制室', description: 'モニターをクリックして稼働状況・ログ・アラートへ。運用ツールをみんなの手元に。', icon: '▣', floor: 0x566c75, grain: 0x4e626b, wall: 0xd0d6c7, rug: 0x7b9597, style: 'control', ...common,
+    furniture: [
+      tool('monitor', 'CloudWatch', 2, 2, 6, 3), tool('monitor', 'サービス稼働状況', 11, 1, 8, 3), tool('monitor', 'New Relic', 22, 2, 6, 3),
+      tool('monitor', 'ログ検索', 3, 8, 5, 2), tool('monitor', 'アラート', 11, 8, 8, 2), tool('monitor', 'デプロイ', 22, 8, 5, 2),
+      tool('rack', 'インフラ', 2, 13, 3, 3), tool('table', '障害対応', 10, 13, 9, 2), tool('shelf', '手順書', 23, 14, 4, 1),
+    ] },
 ];
 export function isRoomId(value: unknown): value is RoomId { return typeof value === 'string' && (ROOM_IDS as readonly string[]).includes(value); }
 export function getRoom(id: RoomId = 'office'): Room { return ROOMS.find((room) => room.id === id)!; }

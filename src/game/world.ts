@@ -7,9 +7,10 @@ export const SPAWN = { x: 15, y: 12 };
 export type Direction = 'up' | 'down' | 'left' | 'right';
 export type Point = { x: number; y: number };
 export type Furniture = Point & {
-  kind: 'desk' | 'workbench' | 'table' | 'sofa' | 'plant' | 'shelf' | 'board' | 'counter' | 'pond' | 'easel' | 'arcade' | 'bed' | 'telescope';
+  kind: 'desk' | 'workbench' | 'table' | 'sofa' | 'plant' | 'shelf' | 'board' | 'counter' | 'pond' | 'easel' | 'arcade' | 'bed' | 'telescope' | 'monitor' | 'rack';
   w: number;
   h: number;
+  label?: string;
 };
 
 export const furniture: Furniture[] = officeFurniture;

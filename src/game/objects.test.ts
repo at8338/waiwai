@@ -45,8 +45,8 @@ test('the entire furniture footprint is checked against walls, furniture, avatar
   assert.match(placementProblem({ ...desk, roomId: 'office', x: 5, y: 9, rotation: 1 }, [])!, /通り道/);
 });
 
-test('desk and chair messages and persisted bounds retain rotation and reject overflowing footprints', () => {
-  for (const kind of ['desk', 'chair'] as const) {
+test('furniture messages and persisted bounds retain rotation and reject overflowing footprints', () => {
+  for (const kind of ['desk', 'chair', 'monitor', 'rack'] as const) {
     const action = { type: 'object-place', kind, x: 8, y: 15, rotation: 3, editId: randomUUID() };
     assert.deepEqual(parseClientMessage(JSON.stringify(action)), action);
     assert.ok(validObject({ ...desk, kind, rotation: 3 }));
@@ -54,4 +54,21 @@ test('desk and chair messages and persisted bounds retain rotation and reject ov
   assert.equal(validObject({ ...desk, x: 27 }), false);
   assert.equal(validObject({ ...desk, y: 17, rotation: 1 }), false);
   assert.equal(validObject({ ...desk, x: 26, y: 17 }), true);
+});
+
+test('monitor and rack footprints rotate, block walking and protect the operations room entrance', () => {
+  for (const kind of ['monitor', 'rack'] as const) for (let rotation = 0; rotation < 4; rotation++) {
+    const item: RoomObject = { ...desk, kind, rotation, roomId: 'ops', x: 22, y: 16 };
+    const { w, h } = objectSize(kind, rotation);
+    assert.equal(placementProblem(item, []), undefined);
+    assert.equal(objectTiles(item).length, kind === 'monitor' ? 6 : 4);
+    for (const tile of objectTiles(item)) {
+      assert.equal(objectContains(item, tile.x, tile.y), true);
+      assert.equal(walkableWithObjects(tile.x, tile.y, 'ops', [item]), false);
+    }
+    assert.equal(validObject({ ...item, x: 29 - w + 1 }), false);
+    assert.equal(validObject({ ...item, y: 19 - h + 1 }), false);
+    assert.match(placementProblem({ ...item, x: 15, y: 16 }, [])!, /入口/);
+    assert.match(placementProblem({ ...item, x: 22, y: 2 }, [])!, /壁や家具/);
+  }
 });

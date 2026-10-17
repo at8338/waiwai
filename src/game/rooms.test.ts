@@ -8,11 +8,11 @@ import type { RoomObject } from './objects.ts';
 import { proximityGain } from '../audio/proximity.ts';
 import { parseClientMessage } from '../network/protocol.ts';
 
-test('work rooms have twelve desks, the lobby has none and ten additional rooms remain reachable', () => {
-  assert.equal(ROOMS.length, 11);
+test('twelve rooms remain reachable with twelve work desks and no lobby desks', () => {
+  assert.equal(ROOMS.length, 12);
   assert.equal(ROOMS.flatMap((room) => room.furniture).filter((o) => o.kind === 'desk').length, 12);
   assert.ok(ROOMS[0].furniture.every((o) => o.kind !== 'desk' || o.y < 10));
-  assert.equal(new Set(ROOMS.map((r) => r.name)).size, 11);
+  assert.equal(new Set(ROOMS.map((r) => r.name)).size, 12);
   for (const room of ROOMS) {
     assert.ok(canWalk(room.spawn.x, room.spawn.y, room.id));
     assert.ok(canWalk(room.door.x, room.door.y, room.id));

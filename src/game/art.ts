@@ -12,6 +12,31 @@ type Paint = Phaser.GameObjects.Graphics;
 const rect = (g: Paint, color: number, x: number, y: number, w: number, h: number) => {
   g.fillStyle(color).fillRect(x, y, w, h);
 };
+type PixelRect = (color: number, x: number, y: number, w: number, h: number) => void;
+
+// Decorative tool terminals. Live metrics are viewed at the configured links.
+function monitor(p: PixelRect, w: number, h: number): void {
+  p(0x283c47, 0, 0, w, h - 4); p(0x8aa0a2, 1, 1, w - 2, h - 7);
+  p(0x233b48, 3, 3, w - 6, h - 11); p(0x41616a, 4, 4, w - 8, 3);
+  p(0xbbcdb9, 6, 5, 9, 1); p(0x758f96, 6, 10, 1, h - 20);
+  p(0x758f96, 6, h - 12, w - 13, 1);
+  const heights = [3, 6, 4, 8, 6, 9, 5, 7];
+  for (let i = 0; i < Math.floor((w - 17) / 7); i++) {
+    const height = Math.min(heights[i % heights.length], h - 22);
+    p(i % 3 === 0 ? 0xd4bc83 : 0x8bbab1, 10 + i * 7, h - 13 - height, 4, height);
+  }
+  p(0x354c55, w / 2 - 3, h - 4, 6, 3); p(0xb1bda7, w / 2 - 11, h - 2, 22, 2);
+}
+
+function serverRack(p: PixelRect, w: number, h: number): void {
+  p(0x293b46, 0, 0, w, h); p(0x72878a, 1, 1, w - 2, h - 2);
+  p(0x344c57, 3, 3, w - 6, h - 6);
+  for (let row = 5; row < h - 7; row += 7) {
+    p(0x9cafa9, 5, row, w - 10, 5); p(0x45616c, 8, row + 1, w - 20, 3);
+    p(0xb9c9bc, w - 11, row + 1, 2, 2); p(0x7b999f, w - 8, row + 1, 1, 2);
+  }
+  p(0x293b46, 3, h - 2, 6, 2); p(0x293b46, w - 9, h - 2, 6, 2);
+}
 
 function rug(g: Paint, x: number, y: number, w: number, h: number, color: number): void {
   rect(g, 0xb69b71, x - 1, y - 1, w + 2, h + 2);
@@ -28,7 +53,10 @@ function drawFurniture(scene: Phaser.Scene, item: Furniture): void {
   const x = tx * TILE, y = ty * TILE, w = tw * TILE, h = th * TILE;
   const g = scene.add.graphics().setDepth(y + h);
   rect(g, 0xb59b74, x + 2, y + h - 2, w, 4);
-  if (kind === 'desk' || kind === 'workbench') {
+  if (kind === 'monitor' || kind === 'rack') {
+    const p: PixelRect = (color, px, py, pw, ph) => rect(g, color, x + px, y + py, pw, ph);
+    if (kind === 'monitor') monitor(p, w, h); else serverRack(p, w, h);
+  } else if (kind === 'desk' || kind === 'workbench') {
     rect(g, 0x694d3c, x, y, w, h - 4);
     rect(g, 0xb57f50, x + 2, y + 2, w - 4, h - 8);
     rect(g, 0xe5b574, x + 2, y + 2, w - 4, 3);
@@ -129,6 +157,9 @@ function drawFurniture(scene: Phaser.Scene, item: Furniture): void {
       rect(g, 0xe8cf86, x + w - 13, y + 15, 3, 3);
     }
   }
+  if (item.label) scene.add.text(x + w / 2, y + h + 3, item.label, {
+    fontFamily: 'sans-serif', fontSize: '8px', color: '#f4efd5', backgroundColor: '#314a55', padding: { x: 3, y: 2 },
+  }).setOrigin(0.5, 0).setResolution(1).setDepth(y + h + 4);
 }
 
 export function drawOffice(scene: Phaser.Scene, roomId: RoomId = 'office'): Phaser.GameObjects.GameObject[] {
@@ -150,7 +181,10 @@ export function drawOffice(scene: Phaser.Scene, roomId: RoomId = 'office'): Phas
       rect(floor, 0xf3d49e, x * TILE, 10 * TILE + 8, TILE, 1);
     }
   } else {
-    if (room.style !== 'grass') rug(floor, 9 * TILE, 5 * TILE, 12 * TILE, 9 * TILE, room.rug);
+    if (room.style === 'control') {
+      rug(floor, 9 * TILE, 6 * TILE, 12 * TILE, 10 * TILE, room.rug);
+      for (const x of [9, 20]) for (let y = 2; y < 18; y += 2) rect(floor, 0xb5c3b3, x * TILE + 7, y * TILE + 3, 2, 8);
+    } else if (room.style !== 'grass') rug(floor, 9 * TILE, 5 * TILE, 12 * TILE, 9 * TILE, room.rug);
     for (let y = 1; y < ROWS - 1; y++) for (let x = 1; x < COLS - 1; x++) {
       if (room.style === 'checker' && (x + y) % 2 === 0) rect(floor, room.grain, x * TILE + 1, y * TILE + 1, 14, 14);
       if (room.style === 'grass') {
@@ -209,7 +243,10 @@ export function drawRoomObject(scene: Phaser.Scene, object: RoomObject): Paint {
   const g = scene.add.graphics().setPosition((object.x + rotated.w / 2) * TILE, (object.y + rotated.h / 2) * TILE).setDepth((object.y + rotated.h) * TILE);
   g.setRotation(object.rotation * Math.PI / 2);
   const p = (color: number, x: number, y: number, w: number, h: number) => rect(g, color, x - base.w * TILE / 2, y - base.h * TILE / 2, w, h);
-  if (object.kind === 'desk') {
+  if (object.kind === 'monitor' || object.kind === 'rack') {
+    const { w, h } = objectSize(object.kind);
+    if (object.kind === 'monitor') monitor(p, w * TILE, h * TILE); else serverRack(p, w * TILE, h * TILE);
+  } else if (object.kind === 'desk') {
     p(0x694d3c, 0, 2, 48, 27); p(0xb57f50, 2, 4, 44, 21); p(0xe5b574, 2, 4, 44, 3);
     p(0x76513a, 4, 25, 4, 7); p(0x76513a, 40, 25, 4, 7);
     p(0x3e4846, 15, 0, 18, 13); p(0x8bb6a6, 17, 2, 14, 8);
