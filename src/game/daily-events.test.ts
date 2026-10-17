@@ -37,14 +37,14 @@ test('server-independent daily draws switch at JST midnight and cover each deck 
       assert.deepEqual(dailyEventAt(e.startsAt), dailyEventAt(e.endsAt - 1));
       assert.notEqual(dailyEventAt(e.endsAt).day, e.day);
       assert.equal(e.endsAt - e.startsAt, EVENT_DAY_MS);
-      if (episodeById(e.episodeId)!.theme === 'kaiju') assert.notEqual(getRoom(e.roomId).outlook, 'none');
+      if (episodeById(e.episodeId)!.direction.beat === 'outside') assert.notEqual(getRoom(e.roomId).outlook, 'none');
     }
   }
   assert.equal(dailyEventAt(Date.parse('2028-02-28T15:00:00Z')).day, '2028-02-29');
   assert.equal(dailyEventAt(Date.parse('2026-10-17T14:59:59.999Z')).day, '2026-10-17');
   assert.equal(dailyEventAt(Date.parse('2026-10-17T15:00:00Z')).day, '2026-10-18');
   const pinned = dailyEventAt(day('2026-10-17'));
-  assert.equal(pinned.episodeId, 'detective-02'); assert.equal(pinned.roomId, 'garden');
+  assert.equal(pinned.episodeId, 'detective-02'); assert.equal(pinned.roomId, 'library');
 });
 test('event placement stays off doors, furniture, seats and transport and all rooms have one calendar', () => {
   for (const room of ROOMS) {
@@ -91,8 +91,9 @@ test('calendar expands single, daily, weekday and weekly schedules on JST dates,
 });
 
 
-test('new project and canteen incidents join only after the historical launch-day room roster', () => {
+test('daily incidents use their authored rooms, including the project and canteen', () => {
   const rooms = new Set(Array.from({ length: 365 }, (_, index) => dailyEventAt(day('2026-10-18') + index * DAY).roomId));
   assert.ok(rooms.has('project') && rooms.has('canteen'));
-  assert.equal(dailyEventAt(day('2026-10-17')).roomId, 'garden');
+  assert.equal(dailyEventAt(day('2026-10-17')).roomId, 'library');
+  for(let i=0;i<365;i++){const event=dailyEventAt(day('2026-10-18')+i*DAY);assert.equal(event.roomId,episodeById(event.episodeId)!.direction.room);}
 });

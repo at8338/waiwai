@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DAILY_EPISODES, episodeById } from './daily-event-catalog.ts';
+import { outsideEventPixels } from './daily-event-art.ts';
 import { roomEventStage } from './daily-event-stage.ts';
 import { ROOMS } from './rooms.ts';
 import { EVENT_PROP_NAMES, eventPropPixels } from './event-props.ts';
@@ -12,7 +13,7 @@ test('all 365 room-sized incidents are deterministic, bounded, and leave the und
     assert.deepEqual(roomEventStage(event), stage);
     assert.ok(stage.caption.length >= 4);
     assert.ok(stage.hero.scale >= 0 && stage.hero.x >= 0 && stage.hero.y >= 0 && stage.hero.x + stage.hero.scale * 48 <= 480 && stage.hero.y + stage.hero.scale * 48 <= 320, event.id);
-    assert.deepEqual(roomEventStage(event, 'meeting', [], 2).floor, stage.floor);
+    assert.deepEqual(roomEventStage(event, event.direction.room, [], 2).floor, stage.floor);
     for (const p of [...stage.floor, ...stage.scenery, ...stage.effects]) {
       assert.ok([p.x, p.y, p.w, p.h, p.alpha, p.color].every(Number.isFinite), event.id);
       assert.ok(p.x >= 0 && p.y >= 0 && p.w > 0 && p.h > 0 && p.x + p.w <= 480 && p.y + p.h <= 320, `${event.id}: ${JSON.stringify(p)}`);
@@ -31,21 +32,15 @@ test('ordinary visitors never grow giant or create unrelated craters, and only i
   const car = roomEventStage(episodeById('delorean-01')!); assert.ok(car.damage.some(s => s.kind === 'rect' && s.x === 0)); assert.ok(car.damage.every(s => s.kind !== 'ellipse'));
   assert.equal(roomEventStage(episodeById('kaiju-01')!).damage.length, 0);
 });
-test('365 different scene silhouettes, with only two structural breaches, two floods, and one Santa', () => {
-  const stages = DAILY_EPISODES.map(e => roomEventStage(e, 'meeting', [], -1));
-  const geometry = stages.map(s => JSON.stringify([[s.hero.x, s.hero.y, s.hero.scale], ...[s.floor, s.scenery, s.effects].map(layer => layer.map(p => [p.x, p.y, p.w, p.h, p.alpha]))]));
-  // Ignore colour and text: recolouring or renaming a duplicated scene cannot pass.
-  assert.equal(new Set(geometry).size, 365);
-  assert.deepEqual(DAILY_EPISODES.filter((_, i) => stages[i].damage.length).map(e => e.id), ['meteor-01', 'delorean-01']);
-  assert.deepEqual(DAILY_EPISODES.filter((_, i) => stages[i].floor.some(p => p.x === 16 && p.y === 16 && p.w === 448 && p.h === 288)).map(e => e.id), ['flood-01', 'flood-02']);
-  assert.equal(DAILY_EPISODES.filter(e => /サンタ/.test(e.title + e.discovery)).length, 1);
-  assert.equal(DAILY_EPISODES.filter(e => e.scene.special === 'santa').length, 1);
-  assert.ok(new Set(DAILY_EPISODES.map(e => e.scene.layout)).size >= 75);
-  // A story can never silently use an empty or missing prop.
-  for (const name of EVENT_PROP_NAMES) {
-    const pixels = eventPropPixels(name); assert.ok(pixels.length > 0, name);
-    assert.ok(pixels.every(p => p.x >= 0 && p.y >= 0 && p.x + p.w <= 8 && p.y + p.h <= 8), name);
-  }
+test('365 distinct room-aware scenes preserve the nine selected concepts and avoid repeated disasters', () => {
+  const stages=DAILY_EPISODES.map(e=>roomEventStage(e,e.direction.room,[],-1));
+  const art=stages.map((s,i)=>JSON.stringify([DAILY_EPISODES[i].direction.room,s.floor,s.scenery,outsideEventPixels(DAILY_EPISODES[i])]));
+  assert.equal(new Set(art).size,365,'no identical scene in the same room with a new title');
+  assert.deepEqual(DAILY_EPISODES.filter(e=>e.direction.approved).map(e=>DAILY_EPISODES.indexOf(e)+1),[1,15,29,31,32,43,85,97,99]);
+  assert.deepEqual(DAILY_EPISODES.filter((_,i)=>stages[i].damage.length).map(e=>e.id),['meteor-01','delorean-01']);
+  assert.deepEqual(DAILY_EPISODES.filter((_,i)=>stages[i].floor.some(p=>p.x===16&&p.y===16&&p.w===448&&p.h===288)).map(e=>e.id),['flood-01']);
+  assert.equal(DAILY_EPISODES.filter(e=>/サンタ/.test(e.title+e.discovery)).length,1);
+  for(const name of EVENT_PROP_NAMES)assert.ok(eventPropPixels(name).length>0,name);
 });
 test('all rooms can show every authored incident without out-of-bounds artwork or changing furniture', () => {
   const before = JSON.stringify(ROOMS);

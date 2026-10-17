@@ -30,7 +30,7 @@ export class DailyEventsView {
   constructor(private scene: Phaser.Scene, inspect: () => void) {
     this.floor = scene.add.graphics().setDepth(-74);
     this.scenery = scene.add.graphics().setDepth(210);
-    this.scenery.setInteractive(new Phaser.Geom.Rectangle(0, 0, 480, 270), (_area: unknown, x: number, y: number) => [...this.damageZones, ...this.inspectAreas].some(shape => damageContains(shape, x, y))).on('pointerup', inspect);
+    this.scenery.setInteractive(new Phaser.Geom.Rectangle(0, 0, 480, 320), (_area: unknown, x: number, y: number) => [...this.damageZones, ...this.inspectAreas].some(shape => damageContains(shape, x, y))).on('pointerup', inspect);
     this.effects = scene.add.graphics().setDepth(330);
     this.art = scene.add.graphics();
     this.art.setInteractive(new Phaser.Geom.Rectangle(0, 0, 48, 48), Phaser.Geom.Rectangle.Contains).on('pointerup', inspect);
