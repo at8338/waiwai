@@ -53,7 +53,7 @@ export class DailyEventsUI {
     }, 1000);
   }
   private now(): number { return Date.now() + this.offset; }
-  setConnected(value: boolean): void { this.connected = value; this.renderBanner(); el<HTMLButtonElement>('calendar-schedule-edit').disabled = !value; }
+  setConnected(value: boolean): void { this.connected = value; this.renderBanner(); this.renderCalendar(); el<HTMLButtonElement>('calendar-schedule-edit').disabled = !value; }
   setRoom(room: RoomId): void { this.room = room; this.renderBanner(); }
   receive(snapshot: DailyEventSnapshot): void {
     this.snapshot = snapshot; this.offset = snapshot.serverNow - Date.now();
@@ -140,7 +140,13 @@ export class DailyEventsUI {
     const detail = el('calendar-day-detail'); detail.replaceChildren();
     const add = (tag: string, text: string) => { const node = document.createElement(tag); node.textContent = text; detail.append(node); return node; };
     const birthdays = this.birthdays.filter((entry) => birthdayOnDay(entry, this.selectedDay));
-    if (birthdays.length) { add('h4', '🎂 お誕生日'); for (const entry of birthdays) add('p', `${entry.name}さん、おめでとう！`); }
+    if (birthdays.length) {
+      add('h4', '🎂 お誕生日');
+      for (const entry of birthdays) {
+        add('p', `${entry.name}さん、おめでとう！`);
+        const button = document.createElement('button'); button.type = 'button'; button.dataset.birthdayComments = entry.id; button.dataset.birthdayDate = jstInput(this.selectedDay).slice(0, 10); button.textContent = `${entry.name}さんのお祝いコメントを見る・送る`; button.disabled = !this.connected; detail.append(button);
+      }
+    }
     const incident = recordedEvent(this.selectedDay, this.now());
     if (incident) {
       add('h4', `✦ ${episodeById(incident.episodeId)!.title}`);

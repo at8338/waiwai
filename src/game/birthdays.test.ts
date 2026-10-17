@@ -23,3 +23,9 @@ test('birthday messages validate real month/day and discard identity, name and b
   assert.equal(parseClientMessage(JSON.stringify({ type: 'birthday-cheer', id: '__proto__', actionId })), undefined);
   assert.equal(parseClientMessage(JSON.stringify({ ...action, expectedVersion: -1 })), undefined);
 });
+
+test('comment requests validate dates and text and discard forged author identity', () => {
+  const action = { type: 'birthday-comment', id: 'slack:T1:U1', date: '2026-10-17', text: 'Happy birthday!', actionId: randomUUID() };
+  assert.deepEqual(parseClientMessage(JSON.stringify({ ...action, authorId: 'slack:T1:U99', authorName: 'Forged' })), action);
+  for (const invalid of [{ date: '2026-02-30' }, { text: ' ' }, { text: 'x'.repeat(201) }, { text: '\u202etext' }, { id: '__proto__' }]) assert.equal(parseClientMessage(JSON.stringify({ ...action, ...invalid })), undefined);
+});

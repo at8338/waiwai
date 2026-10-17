@@ -1089,3 +1089,19 @@ test('dash moves up to five tiles, respects walls and its cooldown; ice recast i
   await new Promise(r => setTimeout(r, 2150));
   id = randomUUID(); a.send({ type: 'spell-cast', spell: 'blizzard', actionId: id }); assert.equal((await a.next('spell-result', m => m.actionId === id)).error, undefined);
 });
+
+test('birthday comments are shared across floors and read by late arrivals without bulk-broadcasting every thread', async (t) => {
+  const now = Date.parse('2026-10-18T12:00:00+09:00'), { connect } = await fixture(t, undefined, undefined, undefined, undefined, undefined, () => now);
+  const a = await connect(), b = await connect(); const owner = (await a.next('birthdays')).selfId;
+  b.send({ type: 'change-room', roomId: 'library', requestId: 1 }); await b.next('player', m => m.reason === 'room');
+  const saveId = randomUUID(); a.send({ type: 'birthday-save', month: 10, day: 18, expectedVersion: 0, actionId: saveId }); await a.next('birthday-result', m => m.actionId === saveId);
+  assert.equal((await b.next('birthdays', m => m.entries.length === 1)).entries[0].id, owner);
+  const view = { type: 'birthday-thread', id: owner, date: '2026-10-18', actionId: randomUUID() };
+  a.send(view); b.send({ ...view, actionId: randomUUID() }); await a.next('birthday-thread'); await b.next('birthday-thread');
+  const actionId = randomUUID(); b.send({ type: 'birthday-comment', id: owner, date: view.date, text: 'Happy birthday!', actionId, authorId: owner, authorName: 'Forged' });
+  assert.equal((await b.next('birthday-result', m => m.actionId === actionId)).error, undefined);
+  const thread = await a.next('birthday-thread', m => m.comments.length === 1); assert.equal(thread.comments[0].authorId, `guest:${b.welcome.id}`); assert.notEqual(thread.comments[0].authorName, 'Forged');
+  const late = await connect(); const snapshot = await late.next('birthdays'); assert.equal('comments' in snapshot, false);
+  late.send({ ...view, actionId: randomUUID() }); assert.equal((await late.next('birthday-thread')).comments[0].text, 'Happy birthday!');
+  b.ws.close(); assert.equal((await a.next('birthday-thread', m => m.comments.length === 0)).comments.length, 0);
+});

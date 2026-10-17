@@ -245,6 +245,7 @@ export class OfficeScene extends Phaser.Scene {
       dailyEvent: (state) => { this.dailyUI?.receive(state); this.dailyView?.receive(state); this.skyWindow?.setDailyEvent(state); },
       announcements: (state) => { this.announcementsUI?.snapshot(state); this.dailyUI?.receiveSchedules(state); },
       birthdays: (state) => { this.birthdaysUI?.receive(state); this.dailyUI?.receiveBirthdays(state); },
+      birthdayThread: (state) => this.birthdaysUI?.receiveThread(state),
       devWorld: (state) => this.devWorldUI?.receive(state),
       devWorldResult: (id, error) => this.devWorldUI?.result(id, error),
       ice: (state) => { this.combatUI?.receiveIce(state); this.spellsUI?.receiveIce(state.activeUntil, state.serverNow); },

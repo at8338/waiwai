@@ -29,6 +29,7 @@ export type ConnectionHandlers = {
   devWorld?: (message: Extract<ServerMessage, { type: 'dev-world-state' }>) => void;
   devWorldResult?: (id: string, error?: string) => void;
   birthdays?: (message: Extract<ServerMessage, { type: 'birthdays' }>) => void;
+  birthdayThread?: (message: Extract<ServerMessage, { type: 'birthday-thread' }>) => void;
   birthdayResult?: (id: string, error?: string) => void;
   lostItems?: (message: Extract<ServerMessage, { type: 'lost-items' }>) => void;
   arcadeState?: (message: Extract<ServerMessage, { type: 'arcade-state' }>) => void;
@@ -151,6 +152,7 @@ export class OfficeConnection {
       else if (message.type === 'dev-world-state') this.handlers.devWorld?.(message);
       else if (message.type === 'dev-world-result') this.handlers.devWorldResult?.(message.actionId, message.error);
       else if (message.type === 'birthdays') this.handlers.birthdays?.(message);
+      else if (message.type === 'birthday-thread') this.handlers.birthdayThread?.(message);
       else if (message.type === 'birthday-result') this.handlers.birthdayResult?.(message.actionId, message.error);
       else if (message.type === 'announcements') this.handlers.announcements?.(message);
       else if (message.type === 'announcement-result') this.handlers.announcementResult?.(message.actionId, message.error);
