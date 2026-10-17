@@ -3,6 +3,14 @@ import type { Pixel } from './avatar.ts';
 // Small, named props. An incident composes these into an authored scene; it does
 // not pick a random character and recolour the same disaster.
 const pictures = {
+  slime: ["....b...","...bbb..","..bbbbb.",".bbwwbbb","bbbkbkbb","bbbbbbbb",".bbrrbb.","..bbbb.."],
+  jelly: ["..pppp..",".pppppp.",".pwwppp.",".pppppp.",".pppppp.",".pppppp.","pppppppp","........"],
+  pumpkin: ["...GG...","..rrrr..",".rryrrr.","rrkrrkrr","rrrrrrrr","rrkrrkrr",".rrkkrr.","..rrrr.."],
+  dumpling: ["...ww...","..wwww..","..wwww..","...ww...","..wwww..","..wwww..",".wwwwww.","wwwwwwww"],
+  stapler: ["....rrrr","...rrrrr","..rrrr..",".rrrr...","rrr.....","gggggggg",".gggggg.","........"],
+  unicorn: [".....y..","....yyy.","....wkw.","..wwwwww",".wwwwww.","wwwwwww.","..w..w..",".ww..ww."],
+  seedling: ["...G....","..GGGG..","...G....","...G....","...G....","..yyyy..",".yyyyyy.","........"],
+  dinosaurEgg: ["...ww...","..wwww..",".wwGwww.",".wGGwww.","wwwGwwww","wwwwwGww",".wwwwww.","..wwww.."],
   coin: ["..yyyy..",".yyyyyy.","yyywyyyy","yywwwyyy","yyywyyyy",".yyyyyy.","..yyyy..","........"],
   plate: ["........","..wwww..",".wwbbww.","wwbbbbww",".wwbbww.","..wwww..","........","........"],
   shell: ["..yyyy..",".ywywyy.","yywywyyy","yywywyyy",".yyyyyy.","..yyyy..","...yy...","........"],

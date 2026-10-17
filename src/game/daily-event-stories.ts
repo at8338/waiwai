@@ -23,8 +23,8 @@ thief: `泥棒が入ったらしい|開いた金庫と足跡。でも盗まれ�
 デスクが整列して朝礼|机が前を向いて並んでいる。挨拶係の引き出しが開け閉め中。|assembly|desk mic bell
 マグカップの家系図|壁いっぱいにカップの系譜。どの枝をたどっても最後は販促品。|tree|cup paper pin
 ケーブルが編み物を始めた|床に立派なセーター。ほどこうとすると差込口が一つ増える。|weave|cable shirt scissors
-ホチキスの結婚式|クリップたちが参列。誓いの言葉は「離れるときはリムーバーで」。|aisle|clip heart paper
-消しゴムが文字を養殖|削りかすの畑から小さな文字が発芽。誤字だけよく育つ。|garden|eraser pencil seed
+ホチキスの結婚式|クリップたちが参列。誓いの言葉は「離れるときはリムーバーで」。|aisle|stapler heart clip
+消しゴムが文字を養殖|削りかすの畑から小さな文字が発芽。誤字だけよく育つ。|garden|seedling eraser pencil
 壁時計が全員別の時差|時計が壁を埋め尽くす。どこを見ても昼休みだけは同じ。|wall|clock cup sun
 引き出しの中に商店街|小さな店がずらり。店長は使い切れなかった輪ゴム。|market|desk sign basket
 観葉植物の人事面談|鉢が椅子に座り、葉を広げて自己評価。成長率は申し分ない。|interview|tree chair paper
@@ -48,10 +48,10 @@ santa: `季節外れのサンタ出勤|ソリとプレゼントが到着。袋�
 こいのぼりが会議室を泳ぐ|空気の中を鯉が一列。長男だけ空調の向きに逆らっている。|hanging|fish flag fan
 巨大な恵方巻コンパス|巻きずしが方角を指す。方位磁針より、お腹の音が正確。|compass|sushi magnet fork
 ひな人形の席替え|段飾りが机を占領。五人囃子が音声ミュートを解除できない。|steps|crown drum fan
-お月見団子のピラミッド|うさぎたちが積んだ団子。最上段は月に返却する予定。|tower|rabbit moon pudding
+お月見団子のピラミッド|うさぎたちが積んだ団子。最上段は月に返却する予定。|tower|dumpling rabbit moon
 節分の豆が発芽した|鬼を追うはずの豆から小さな森。鬼がじょうろ係に採用された。|garden|seed tree mask
 七夕の短冊が自動承認|笹の前に判子の行列。願いは叶うが、経費申請は差し戻される。|queue|bamboo paper stamp
-ハロウィンのかぼちゃ裁判|怖がらせ方をめぐって審議中。判決は全員お菓子一個。|court|mask cake gavel
+ハロウィンのかぼちゃ裁判|怖がらせ方をめぐって審議中。判決は全員お菓子一個。|court|pumpkin cake gavel
 鏡餅が二段ベッドを注文|上下関係を解消したいそうだ。みかんは独立して個室を希望。|pair|pudding ladder apple
 年越しそばの長すぎる一口|一本の麺が部屋を横断。すすり終える頃には来年になりそう。|trail|noodle fork clock
 花見の場所取りは根っこから|桜の木が敷物を持参。自分の花を見るために鏡も用意した。|picnic|tree carpet mirror
@@ -213,7 +213,7 @@ ninja: `忍者の手裏剣修行|壁の的に小さな手裏剣。的の真ん�
 盆踊りの輪が会議を囲む|櫓の周りを静かに一周。議題も踊りも次の人へ回っていく。|ring|lantern drum paper
 手ぬぐいの旗信号教室|柄ごとに意味が違う。豆絞りだけは「おやつあります」。|parade|flag shirt sign`,
 dragon: `ドラゴンのくしゃみ対策|火ではなく紙吹雪が出る体質。鼻の前のティッシュが山になった。|sneeze|dragon paper flower
-ユニコーンの角磨き|角の先で虹が反射。磨き終わると鉛筆削りの列ができた。|interview|horse rainbow pencil
+ユニコーンの角磨き|角の先で虹が反射。磨き終わると鉛筆削りの列ができた。|interview|unicorn rainbow pencil
 フェニックスの灰皿掃除|復活するたび灰が増える。本人が掃除当番なので何度でもやり直す。|spiral|fire broom feather
 グリフォンの宅配センター|翼と足の役割で配送相談。速達便は風向き次第。|platform|horse feather gift
 ケルベロスの三者面談|三つの顔が別々の志望動機。おやつだけは全員一致。|interview|dog dog dog bread
@@ -226,8 +226,8 @@ dragon: `ドラゴンのくしゃみ対策|火ではなく紙吹雪が出る体�
 妖精のペン先管制塔|小さな羽が文具を誘導。インク漏れ注意の旗だけは大きい。|runway|feather pencil flag
 ミノタウロスの迷路監修|廊下の設計図を前に腕組み。非常口だけはまっすぐに直された。|maze|cow scroll door
 伝説の剣が抜けないコピー台|剣より先に紙が詰まる。勇者の条件は保守手順を読めること。|focus|sword printer book`,
-slime: `スライムの組体操|ぷるぷるした生き物がピラミッド。床は乾いたまま、最下段が少し不満。|tower|potion crystal crown
-ゼリーが透明会議|色つきの四角が円卓を囲む。議論は透けて見えても結論は見えない。|ring|crystal chair paper
+slime: `スライムの組体操|ぷるぷるした生き物がピラミッド。床は乾いたまま、最下段が少し不満。|tower|slime crown flag
+ゼリーが透明会議|色つきの四角が円卓を囲む。議論は透けて見えても結論は見えない。|ring|jelly chair paper
 石鹸の泡の建築現場|ふわふわの壁を積み上げ中。検査員のくしゃみだけは出入り禁止。|bubbles|cloud ladder helmet
 グミの救急隊|伸びた仲間を担架で運ぶ。急がなくても元に戻るまで待つらしい。|parade|heart rope flag
 粘土の社員証撮影会|顔を作り直してばかりで列が進まない。撮影係も粘土だった。|queue|statue camera paper
@@ -274,7 +274,7 @@ dinosaur: `恐竜の散歩許可申請|小さな恐竜が足跡を残す。大�
 マンモスの毛糸屋|ふわふわの糸が山積み。暑くなると全品セールを始める。|weave|elephant rope shirt
 アンモナイトの巻尺店|ぐるぐるの長さに自信あり。伸ばしきれないので実演は控えめ。|spiral|shell ruler sign
 三葉虫の点字図書館|背中の凹凸で本を読む。静かに歩くだけで物語が進む。|shelf|fossil book glasses
-恐竜の卵の保育園|番号札付きの卵が整列。保育士のヘルメットが先に届いた。|nest|egg helmet bottle
+恐竜の卵の保育園|番号札付きの卵が整列。保育士のヘルメットが先に届いた。|nest|dinosaurEgg helmet bottle
 首長竜のネクタイ売り場|見本の布が部屋を横断。結び目の位置はまだ検討中。|trail|dinosaur shirt ruler
 ステゴサウルスの太陽光点検|背板に小さな発電計。晴れていると少し誇らしげ。|power|dinosaur sun battery
 翼竜の航空郵便受付|軽い封筒だけが対象。速達の条件は向かい風でないこと。|platform|plane egg envelope
