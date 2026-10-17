@@ -50,12 +50,19 @@ function rug(g: Paint, x: number, y: number, w: number, h: number, color: number
   }
 }
 
-function drawFurniture(scene: Phaser.Scene, item: Furniture): void {
+function drawFurniture(scene: Phaser.Scene, item: Furniture, openCalendar?: () => void): void {
   const { x: tx, y: ty, w: tw, h: th, kind } = item;
   const x = tx * TILE, y = ty * TILE, w = tw * TILE, h = th * TILE;
   const g = scene.add.graphics().setDepth(y + h);
-  rect(g, 0xb59b74, x + 2, y + h - 2, w, 4);
-  if (kind === 'parking') {
+  if (kind !== 'calendar') rect(g, 0xb59b74, x + 2, y + h - 2, w, 4);
+  if (kind === 'calendar') {
+    rect(g, 0x816d59, x, y + 1, w, h - 1); rect(g, 0xfff3d8, x + 2, y + 2, w - 4, h - 3);
+    rect(g, 0xbb6559, x + 2, y + 2, w - 4, 4);
+    for (let row = 0; row < 2; row++) for (let col = 0; col < 7; col++) rect(g, col === 0 ? 0xc06a5b : 0x84918b, x + 3 + col * 4, y + 8 + row * 4, 2, 2);
+    rect(g, 0xe5b556, x + 19, y + 8, 3, 3);
+    for (const hook of [7, w - 9]) { rect(g, 0x5c665c, x + hook, y, 2, 4); rect(g, 0xe9e0bd, x + hook, y + 1, 1, 2); }
+    if (openCalendar) g.setInteractive(new Phaser.Geom.Rectangle(x, y, w, h), Phaser.Geom.Rectangle.Contains).on('pointerup', openCalendar);
+  } else if (kind === 'parking') {
     rect(g, 0xa8b3a2, x, y, w, h); rect(g, 0xd7dcc3, x + 1, y + 1, w - 2, h - 2);
     rect(g, 0x789083, x, y, w, 2);
     for (let slot = 0; slot < 3; slot++) { rect(g, 0x8a998e, x + slot * 16 + 3, y + 3, 2, 10); rect(g, 0x8a998e, x + slot * 16 + 3, y + 12, 9, 2); }
@@ -173,12 +180,15 @@ function drawFurniture(scene: Phaser.Scene, item: Furniture): void {
       rect(g, 0xe8cf86, x + w - 13, y + 15, 3, 3);
     }
   }
-  if (item.label && kind !== 'parking') scene.add.text(x + w / 2, y + h + 3, item.label, {
+  if (item.label && kind !== 'parking') {
+    const label = scene.add.text(x + w / 2, y + h + 3, item.label, {
     fontFamily: 'sans-serif', fontSize: '8px', color: '#f4efd5', backgroundColor: '#314a55', padding: { x: 3, y: 2 },
-  }).setOrigin(0.5, 0).setResolution(1).setDepth(y + h + 4);
+  }).setOrigin(0.5, 0).setResolution(1).setDepth(kind === 'calendar' ? ROWS * TILE + 18 : y + h + 4);
+    if (kind === 'calendar' && openCalendar) label.setInteractive({ useHandCursor: true }).on('pointerup', openCalendar);
+  }
 }
 
-export function drawOffice(scene: Phaser.Scene, roomId: RoomId = 'office'): Phaser.GameObjects.GameObject[] {
+export function drawOffice(scene: Phaser.Scene, roomId: RoomId = 'office', openCalendar?: () => void): Phaser.GameObjects.GameObject[] {
   const before = new Set(scene.children.list);
   const room = getRoom(roomId);
   const floor = scene.add.graphics().setDepth(-100);
@@ -223,7 +233,7 @@ export function drawOffice(scene: Phaser.Scene, roomId: RoomId = 'office'): Phas
       rect(g, 0xe8edd0, x * TILE + 3, 3, 2, 6);
     }
   }
-  room.furniture.forEach((item) => drawFurniture(scene, item));
+  room.furniture.forEach((item) => drawFurniture(scene, item, openCalendar));
   const door = scene.add.graphics().setDepth(-90);
   rect(door, 0x526e65, room.door.x * TILE, room.door.y * TILE, TILE, TILE);
   rect(door, 0xebe3ba, room.door.x * TILE + 3, room.door.y * TILE + 3, 10, 10);

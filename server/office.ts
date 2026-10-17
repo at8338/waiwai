@@ -1,3 +1,4 @@
+import { dailyEventAt } from '../src/game/daily-events.ts';
 import { AnnouncementStore, AnnouncementError } from './announcements.ts';
 import { vendingInReach } from '../src/game/amenities.ts';
 import { VehicleFleet } from './vehicles.ts';
@@ -27,7 +28,7 @@ import { REACTION_COOLDOWN_MS } from '../src/game/reactions.ts';
 
 class EditError extends Error {}
 
-export function attachOffice(server: Server, auth?: SlackAuth, options: { objectsFile?: string; membersFile?: string; linksFile?: string; announcementsFile?: string } = {}): () => void {
+export function attachOffice(server: Server, auth?: SlackAuth, options: { objectsFile?: string; membersFile?: string; linksFile?: string; announcementsFile?: string; eventClock?: () => number } = {}): () => void {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 });
   const players = new Map<WebSocket, Player>();
   const store = new ObjectStore(options.objectsFile);
@@ -49,6 +50,17 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     const serialized = JSON.stringify(message);
     for (const ws of players.keys()) if (ws !== except) sendRaw(ws, serialized);
   };
+  const eventClock = options.eventClock ?? Date.now;
+  let eventDay = dailyEventAt(eventClock()).day;
+  const sendDailyEvent = (ws?: WebSocket) => {
+    const serverNow = eventClock(), currentEvent = dailyEventAt(serverNow);
+    const message: ServerMessage = { type: 'daily-event', event: currentEvent, serverNow };
+    if (ws) send(ws, message); else { eventDay = currentEvent.day; broadcast(message); }
+  };
+  const dailyEventTimer = setInterval(() => {
+    if (dailyEventAt(eventClock()).day !== eventDay) sendDailyEvent();
+  }, 1000);
+  dailyEventTimer.unref();
   const sendAnnouncements = (ws?: WebSocket) => {
     const message: ServerMessage = { type: 'announcements', ...announcements.snapshot(), ...(announcementWarning ? { warning: announcementWarning } : {}) };
     if (ws) send(ws, message); else broadcast(message);
@@ -129,6 +141,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     sendLinks(ws, player.roomId);
     sendFleet(ws);
     sendAnnouncements(ws);
+    sendDailyEvent(ws);
     let lastMove = -Infinity;
     let windowStart = Date.now();
     let messages = 0;
@@ -350,6 +363,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
   }, 15_000);
   heartbeat.unref();
   return () => {
+    clearInterval(dailyEventTimer);
     clearInterval(announcementTimer);
     clearInterval(heartbeat);
     clearInterval(frame);

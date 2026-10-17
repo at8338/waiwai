@@ -14,6 +14,7 @@ import type { ReactionKind } from '../game/reactions.ts';
 
 export type ConnectionState = 'connecting' | 'online' | 'reconnecting';
 export type ConnectionHandlers = {
+  dailyEvent?: (message: Extract<ServerMessage, { type: 'daily-event' }>) => void;
   announcements?: (message: Extract<ServerMessage, { type: 'announcements' }>) => void;
   announcementResult?: (actionId: string, error?: string) => void;
   state: (state: ConnectionState) => void;
@@ -112,6 +113,7 @@ export class OfficeConnection {
         if (player) this.slots.delete(player.slot);
         this.players.delete(message.id); this.handlers.left(message.id);
       }
+      else if (message.type === 'daily-event') this.handlers.dailyEvent?.(message);
       else if (message.type === 'announcements') this.handlers.announcements?.(message);
       else if (message.type === 'announcement-result') this.handlers.announcementResult?.(message.actionId, message.error);
       else if (message.type === 'vehicles') this.handlers.vehicles?.(message.units);

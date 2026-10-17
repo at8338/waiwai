@@ -1,3 +1,5 @@
+import { DailyEventsUI } from './daily-events-ui.ts';
+import { DailyEventsView } from './daily-events-view.ts';
 import { AnnouncementsUI } from './announcements-ui.ts';
 import { LOST_ITEM_CATALOG } from './lost-items.ts';
 import { LostItemsView } from './lost-items-view.ts';
@@ -47,6 +49,8 @@ type AvatarView = {
 type Peer = { player: Player; walker: Walker; view: AvatarView };
 
 export class OfficeScene extends Phaser.Scene {
+  private dailyUI?: DailyEventsUI;
+  private dailyView?: DailyEventsView;
   private announcementsUI?: AnnouncementsUI;
   private lostItems?: LostItemsView;
   private seats = new Map<string, SeatSpot>();
@@ -115,7 +119,7 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.mapViews = drawOffice(this, this.roomId);
+    this.mapViews = drawOffice(this, this.roomId, () => { if (this.editMode === 'none') this.dailyUI?.openCalendar(); });
     this.lostItems = new LostItemsView(this, this.inputController.signal, (item) => {
       if (this.editMode !== 'none' || document.querySelector('dialog[open]')) return;
       this.controls.clear();
@@ -125,6 +129,11 @@ export class OfficeScene extends Phaser.Scene {
       document.querySelector<HTMLDialogElement>('#lost-item-info')!.showModal();
     });
     document.querySelector('#lost-item-close')!.addEventListener('click', () => document.querySelector<HTMLDialogElement>('#lost-item-info')!.close(), { signal: this.inputController.signal });
+    this.dailyUI = new DailyEventsUI(this.inputController.signal, (room) => this.connection?.changeRoom(room), () => {
+      if (document.querySelector('dialog[open]')) return false;
+      this.controls.clear(); this.setEditMode('none'); return true;
+    });
+    this.dailyView = new DailyEventsView(this, () => { if (this.editMode === 'none') this.dailyUI?.inspect(); });
     this.lighting = new RoomLighting(this);
     this.skyWindow = new SkyWindowView(document.querySelector<HTMLCanvasElement>('#sky-window')!);
     createAvatarTextures(this);
@@ -182,7 +191,8 @@ export class OfficeScene extends Phaser.Scene {
         this.showRoom(players.find((p) => p.id === id)?.roomId ?? 'office');
         for (const player of players) this.receivePlayer(player, true);
       },
-      announcements: (state) => this.announcementsUI?.snapshot(state),
+      dailyEvent: (state) => { this.dailyUI?.receive(state); this.dailyView?.receive(state); this.skyWindow?.setDailyEvent(state); },
+      announcements: (state) => { this.announcementsUI?.snapshot(state); this.dailyUI?.receiveSchedules(state); },
       announcementResult: (id, error) => this.announcementsUI?.result(id, error),
       vehicles: (units) => { this.vehicleUI?.inventory(units); this.vehicleDocks?.receive(units); },
       vehicleResult: (id, error) => this.vehicleUI?.result(id, error),
@@ -204,7 +214,7 @@ export class OfficeScene extends Phaser.Scene {
       travelError: (error) => this.directoryUI?.fail(error),
       objects: (roomId, objects) => {
         if (roomId !== this.roomId) return;
-        this.objects = objects; this.lostItems?.setObjects(objects); this.seats = seatSpots(roomId, objects); this.participantsDirty = true; this.lighting?.setObjects(objects); this.objectsReady = true; this.drawObjects(); this.updateObjectTools();
+        this.objects = objects; this.lostItems?.setObjects(objects); this.dailyView?.setObjects(objects); this.seats = seatSpots(roomId, objects); this.participantsDirty = true; this.lighting?.setObjects(objects); this.objectsReady = true; this.drawObjects(); this.updateObjectTools();
         this.linksUI?.refreshTarget(); this.linksUI?.setReady(this.connected);
       },
       objectLinks: (snapshot) => { if (snapshot.roomId === this.roomId) { this.linksUI?.snapshot(snapshot); this.linksUI?.setReady(this.connected && this.objectsReady); } },
@@ -232,7 +242,7 @@ export class OfficeScene extends Phaser.Scene {
       this.connection?.destroy();
       this.companions?.clear();
       this.lighting?.destroy();
-      this.vehicleDocks?.destroy(); this.vehicleUI?.destroy(); this.announcementsUI?.destroy(); this.lostItems?.destroy();
+      this.vehicleDocks?.destroy(); this.vehicleUI?.destroy(); this.announcementsUI?.destroy(); this.dailyUI?.destroy(); this.dailyView?.destroy(); this.lostItems?.destroy();
     };
     this.events.once('shutdown', cleanup);
     this.events.once('destroy', cleanup);
@@ -243,7 +253,7 @@ export class OfficeScene extends Phaser.Scene {
 
   private setConnectionState(state: ConnectionState): void {
     this.connected = state === 'online';
-    this.announcementsUI?.setConnected(this.connected);
+    this.announcementsUI?.setConnected(this.connected); this.dailyUI?.setConnected(this.connected);
     this.vehicleUI?.setConnected(this.connected);
     this.voice?.setConnected(this.connected);
     this.linksUI?.setReady(this.connected && this.objectsReady);
@@ -484,7 +494,7 @@ export class OfficeScene extends Phaser.Scene {
     this.companions?.setRoom(id);
     this.lighting?.setRoom(id);
     this.vehicleDocks?.setRoom(id);
-    this.skyWindow?.setRoom(id);
+    this.skyWindow?.setRoom(id); this.dailyView?.setRoom(id); this.dailyUI?.setRoom(id);
     this.game.canvas.dataset.roomPets = '[]';
     this.frontBoard = undefined; this.linksUI?.reset();
     this.atDoor = false;
@@ -495,7 +505,7 @@ export class OfficeScene extends Phaser.Scene {
     this.seats.clear(); this.objects = []; this.objectsReady = false; this.pendingEdit = undefined;
     for (const view of [...this.mapViews, ...this.objectViews]) view.destroy();
     this.objectViews = [];
-    this.mapViews = drawOffice(this, id);
+    this.mapViews = drawOffice(this, id, () => { if (this.editMode === 'none') this.dailyUI?.openCalendar(); });
     const room = getRoom(id);
     this.game.canvas.setAttribute('aria-label', `${room.name}。矢印キーまたはWASDで移動。Tabキーでマップから移動できます。`);
     document.querySelectorAll('[data-room-name]').forEach((node) => { node.textContent = room.name; });
@@ -613,7 +623,7 @@ export class OfficeScene extends Phaser.Scene {
     if (this.editMode === 'none') {
       const door = getRoom(this.roomId).door;
       if (x === door.x && y === door.y) this.openRoomPicker();
-      else if (this.connected && this.objectsReady) { const target = targetAt(this.roomId, this.objects, { x, y }); if (target) this.linksUI?.open(target); }
+      else if (this.connected && this.objectsReady) { const target = targetAt(this.roomId, this.objects, { x, y }); if (target?.kind === 'calendar') this.dailyUI?.openCalendar(); else if (target) this.linksUI?.open(target); }
       return;
     }
     if (!this.connected || !this.objectsReady || this.pendingEdit) return;
@@ -680,7 +690,7 @@ export class OfficeScene extends Phaser.Scene {
 
   update(time: number, delta: number): void {
     const now = Date.now();
-    this.lostItems?.update(now);
+    this.lostItems?.update(now); this.dailyView?.update(now, this.reducedMotion);
     this.lighting?.update(now);
     this.skyWindow?.update(now, this.reducedMotion);
     if (this.reactionBlocked !== (!this.connected || performance.now() < this.nextReactionAt)) this.updateReactionTools();

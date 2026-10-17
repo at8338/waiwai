@@ -19,7 +19,7 @@ test('twelve rooms remain reachable with twelve work desks and no lobby desks', 
     const occupied = new Set<string>();
     for (const f of room.furniture) for (let y = f.y; y < f.y + f.h; y++) for (let x = f.x; x < f.x + f.w; x++) {
       assert.ok(!occupied.has(`${x},${y}`), `${room.id} overlapping furniture`); occupied.add(`${x},${y}`);
-      assert.ok(x > 0 && x < COLS - 1 && y > 0 && y < ROWS - 1);
+      assert.ok(x > 0 && x < COLS - 1 && (f.kind === 'calendar' ? y === 0 : y > 0) && y < ROWS - 1);
     }
     const seen = new Set<string>(), queue = [room.spawn];
     for (let i = 0; i < queue.length; i++) {

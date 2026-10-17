@@ -20,9 +20,9 @@ import { MAX_VOICE_MEMBERS, MAX_VOICE_PEERS } from '../src/audio/proximity.ts';
 import { STEP_MS, canWalk } from '../src/game/world.ts';
 import { REACTION_COOLDOWN_MS } from '../src/game/reactions.ts';
 
-async function fixture(t: TestContext, objectsFile?: string, linksFile?: string, announcementsFile?: string) {
+async function fixture(t: TestContext, objectsFile?: string, linksFile?: string, announcementsFile?: string, eventClock?: () => number) {
   const server = createServer((_request, response) => response.end('ok'));
-  const dispose = attachOffice(server, undefined, { objectsFile, linksFile, announcementsFile });
+  const dispose = attachOffice(server, undefined, { objectsFile, linksFile, announcementsFile, eventClock });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const clients: WebSocket[] = [];
@@ -756,4 +756,22 @@ test('room changes never clone roaming residents and Pokemon buddies synchronize
   }
   const c = await connect(); assert.equal(c.welcome.players.find((p) => p.id === a.welcome.id)?.buddy, 'vacuum');
   assert.ok(b.seen.filter((m) => m.type === 'pets').every((m) => m.roomId === 'office'));
+});
+
+
+test('daily incidents agree across rooms and late joins; JST midnight updates existing clients even if a newcomer joins first', async (t) => {
+  let now = Date.parse('2026-10-17T14:59:59.000Z');
+  const { connect } = await fixture(t, undefined, undefined, undefined, () => now);
+  const a = await connect(), b = await connect();
+  const first = await a.next('daily-event'); assert.deepEqual(await b.next('daily-event'), first);
+  b.send({ type: 'change-room', roomId: 'library', requestId: 1 });
+  await b.next('player', (m) => m.reason === 'room');
+  assert.equal(first.event.day, '2026-10-17');
+  now = Date.parse('2026-10-17T15:00:00.000Z');
+  const late = await connect(), next = await late.next('daily-event');
+  assert.equal(next.event.day, '2026-10-18'); assert.equal(next.serverNow, now);
+  assert.deepEqual(await a.next('daily-event', (m) => m.event.day === '2026-10-18'), next);
+  assert.deepEqual(await b.next('daily-event', (m) => m.event.day === '2026-10-18'), next);
+  a.send({ type: 'daily-event', event: { ...next.event, episodeId: 'kaiju-01' } });
+  assert.equal(parseClientMessage(JSON.stringify({ type: 'daily-event', event: next.event })), undefined);
 });
