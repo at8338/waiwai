@@ -47,5 +47,7 @@ export const ROOMS: Room[] = [
       tool('rack', 'インフラ', 2, 13, 3, 3), tool('table', '障害対応', 10, 13, 9, 2), tool('shelf', '手順書', 23, 14, 4, 1),
     ] },
 ];
+// A hanging calendar on the north wall, away from the window panes.
+for (const room of ROOMS) room.furniture.push({ kind: 'calendar', x: 27, y: 0, w: 2, h: 1, label: '館内カレンダー' });
 export function isRoomId(value: unknown): value is RoomId { return typeof value === 'string' && (ROOM_IDS as readonly string[]).includes(value); }
 export function getRoom(id: RoomId = 'office'): Room { return ROOMS.find((room) => room.id === id)!; }

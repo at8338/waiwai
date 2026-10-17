@@ -1,3 +1,4 @@
+import type { DailyEventSnapshot } from '../game/daily-events.ts';
 import { parseAnnouncementAction } from '../game/announcements.ts';
 import type { AnnouncementAction, AnnouncementSnapshot } from '../game/announcements.ts';
 import { isVehicleKind } from '../game/transport.ts';
@@ -46,6 +47,7 @@ export type ClientMessage =
   | { type: 'move'; direction: Direction; requestId: number }
   | { type: 'reset'; requestId: number };
 export type ServerMessage =
+  | ({ type: 'daily-event' } & DailyEventSnapshot)
   | ({ type: 'announcements'; warning?: string } & AnnouncementSnapshot)
   | { type: 'announcement-result'; actionId: string; error?: string }
   | { type: 'vehicles'; units: VehicleUnit[] }

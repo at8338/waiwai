@@ -1,3 +1,6 @@
+import type { DailyEventSnapshot } from './daily-events.ts';
+import { episodeById } from './daily-event-catalog.ts';
+import { outsideEventPixels } from './daily-event-art.ts';
 import { tokyoBayPixels } from './tokyo-bay.ts';
 import { lightingAt } from './lighting.ts';
 import { getRoom } from './rooms.ts';
@@ -9,6 +12,9 @@ export class SkyWindowView {
   private canvas: HTMLCanvasElement;
   private roomId: RoomId = 'office';
   private key = '';
+  private incident?: DailyEventSnapshot;
+  private offset = 0;
+  setDailyEvent(state: DailyEventSnapshot): void { this.incident = state; this.offset = state.serverNow - Date.now(); this.key = ''; this.tick = -1; }
   private tick = -1;
   private reduced?: boolean;
   constructor(canvas: HTMLCanvasElement) { this.canvas = canvas; }
@@ -25,13 +31,16 @@ export class SkyWindowView {
   update(now: number, reducedMotion: boolean, previewWeather?: WeatherKind): void {
     const outlook = getRoom(this.roomId).outlook;
     if (outlook === 'none') return;
+    const incident = this.incident?.event;
+    const episode = incident && incident.roomId === this.roomId && now + this.offset < incident.endsAt ? episodeById(incident.episodeId) : undefined;
+    const outside = episode?.theme === 'kaiju' ? episode : undefined;
     const elevated = outlook === 'open';
     const tick = Math.floor(now / 120);
     if (this.tick === tick && this.reduced === reducedMotion && !previewWeather) return;
     this.tick = tick; this.reduced = reducedMotion;
     const weather = previewWeather ?? weatherAt(now);
     const state = lightingAt(now, weather), { phase, time } = state;
-    const key = `${this.roomId}:${weather}:${reducedMotion}:${weather === 'clear' || reducedMotion ? Math.floor(now / 60_000) : tick}`;
+    const key = `${outside ? outside.id + (reducedMotion ? 0 : Math.floor(now / 1400)) : ''}:${this.roomId}:${weather}:${reducedMotion}:${weather === 'clear' || reducedMotion ? Math.floor(now / 60_000) : tick}`;
     if (key === this.key) return;
     this.key = key;
     const ctx = this.canvas.getContext('2d')!;
@@ -74,6 +83,8 @@ export class SkyWindowView {
       }
     }
     for (const pixel of tokyoBayPixels(night, weather !== 'clear', elevated)) rect('#' + pixel.color.toString(16).padStart(6, '0'), pixel.x, pixel.y, pixel.w, pixel.h);
+    if (outside) for (const pixel of outsideEventPixels(outside, w, h, reducedMotion ? 0 : Math.floor(now / 1400))) rect('#' + pixel.color.toString(16).padStart(6, '0'), pixel.x, pixel.y, pixel.w, pixel.h);
+    this.canvas.dataset.dailyIncident = outside?.id ?? '';
     if (weather !== 'clear') {
       ctx.globalAlpha = night ? 0.4 : 0.6;
       for (let i = 0; i < (weather === 'storm' ? 85 : 45); i++) {
@@ -104,7 +115,7 @@ export class SkyWindowView {
       rect('#6e8678', 0, h - 4, w, 4); rect('#d0d8b5', 0, h - 4, w, 2);
     }
     this.canvas.dataset.weather = weather; this.canvas.dataset.lightingPhase = phase; this.canvas.dataset.jstTime = time;
-    const label = `${elevated ? '屋上から見下ろす東京湾' : '窓の外'}：お台場・レインボーブリッジ・東京タワー。${night ? '夜景' : phase === 'morning' ? '朝日' : phase === 'evening' ? '夕日' : '太陽'}・${WEATHER_LABELS[weather]}。${time} JST`;
+    const label = `${elevated ? '屋上から見下ろす東京湾' : '窓の外'}：お台場・レインボーブリッジ・東京タワー。${night ? '夜景' : phase === 'morning' ? '朝日' : phase === 'evening' ? '夕日' : '太陽'}・${WEATHER_LABELS[weather]}。${time} JST${outside ? `。今日の事件：${outside.title}` : ''}`;
     if (this.canvas.getAttribute('aria-label') !== label) this.canvas.setAttribute('aria-label', label);
   }
 }
