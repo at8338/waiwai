@@ -1,4 +1,5 @@
-import { BUDDIES, BUDDY_KINDS, buddyPixels, isBuddyKind } from './buddies.ts';
+import { buddyThumbnails } from './buddy-thumbnails.ts';
+import { BUDDIES, BUDDY_KINDS, isBuddyKind } from './buddies.ts';
 import type { BuddyKind } from './buddies.ts';
 import type { OfficeScene } from './OfficeScene.ts';
 import { isPokemonKind, pokemonMatches, pokemonQuery } from './pokemon.ts';
@@ -16,13 +17,15 @@ export function setupBuddyEditor(scene: OfficeScene): void {
   const cards = document.querySelector('#buddy-cards')!;
   const only = document.querySelector<HTMLInputElement>('#buddy-favorites-only')!;
   const searchLabel = document.createElement('label'); searchLabel.htmlFor = 'buddy-query'; searchLabel.textContent = '名前・ポケモンの図鑑番号で探す';
-  const query = document.createElement('input'); query.id = 'buddy-query'; query.type = 'search'; query.maxLength = 40; query.placeholder = '例：ぴかちゅう、ルギア、300'; searchLabel.append(query); cards.before(searchLabel);
+  const query = document.createElement('input'); query.id = 'buddy-query'; query.type = 'search'; query.maxLength = 40; query.placeholder = '例：ぴかちゅう、ルギア、1025'; searchLabel.append(query); cards.before(searchLabel);
   const save = () => { try { localStorage.setItem(STORAGE, JSON.stringify({ selected, favorites: [...favorites] })); } catch { /* Keep preferences in memory. */ } };
   const apply = () => {
     scene.setBuddy(selected);
     document.querySelector('#buddy-current')!.textContent = selected ? `${BUDDIES[selected].icon} ${BUDDIES[selected].name}` : 'お供を見つけよう';
   };
+  const thumbnails = buddyThumbnails();
   const render = () => {
+    thumbnails.reset();
     cards.replaceChildren();
     const none = document.createElement('label'); none.className = 'buddy-none';
     const input = document.createElement('input'); input.type = 'radio'; input.name = 'buddy'; input.value = ''; input.checked = draft === null;
@@ -35,8 +38,7 @@ export function setupBuddyEditor(scene: OfficeScene): void {
       const radio = document.createElement('input'); radio.type = 'radio'; radio.name = 'buddy'; radio.value = kind; radio.checked = draft === kind;
       radio.addEventListener('change', () => { draft = kind; });
       const canvas = document.createElement('canvas'); canvas.width = 20; canvas.height = 22; canvas.setAttribute('aria-hidden', 'true');
-      const ctx = canvas.getContext('2d')!;
-      for (const p of buddyPixels(kind)) { ctx.fillStyle = '#' + p.color.toString(16).padStart(6, '0'); ctx.fillRect(p.x, p.y, p.w, p.h); }
+      thumbnails.observe(canvas, kind);
       const title = document.createElement('strong'); title.textContent = data.name;
       const detail = document.createElement('span'); detail.textContent = data.description;
       label.append(radio, canvas, title, detail);

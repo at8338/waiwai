@@ -1,6 +1,6 @@
 import { extraBuddyPixels } from './extra-buddy-art.ts';
-import { catalogPokemonPixels } from './pokemon-sprites.ts';
-import { POKEMON } from './pokemon.ts';
+import { catalogPokemonPixels, mapPokemonPixels } from './pokemon-sprites.ts';
+import { POKEMON, isPokemonKind } from './pokemon.ts';
 import type { PokemonKind } from './pokemon.ts';
 import type { Pixel } from './avatar.ts';
 import type { Direction, Point } from './world.ts';
@@ -97,4 +97,21 @@ export function buddyPixels(kind: BuddyKind, direction: Direction = 'down', fram
     if (direction !== 'up') p(0xb87c61, 9, 15, 2, 1);
   }
   return pixels;
+}
+
+/** Map art follows species height; menu thumbnails keep their original 20×22 size. */
+export function buddyMapSize(kind: BuddyKind): { width: number; height: number } {
+  const width = isPokemonKind(kind) ? POKEMON[kind].mapSize : BUDDY_WIDTH;
+  return { width, height: width + 2 };
+}
+export function buddyMapPixels(kind: BuddyKind, direction: Direction = 'down', frame = 0): Pixel[] {
+  const extra = extraBuddyPixels(kind, direction, frame);
+  if (extra) {
+    const { width, height } = buddyMapSize(kind);
+    return extra.map(p => {
+      const x = Math.round(p.x * width / BUDDY_WIDTH), y = Math.round(p.y * height / BUDDY_HEIGHT);
+      return { ...p, x, y, w: Math.max(1, Math.round((p.x + p.w) * width / BUDDY_WIDTH) - x), h: Math.max(1, Math.round((p.y + p.h) * height / BUDDY_HEIGHT) - y) };
+    });
+  }
+  return mapPokemonPixels(kind, direction, frame) ?? buddyPixels(kind, direction, frame);
 }

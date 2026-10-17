@@ -1,0 +1,18 @@
+{
+  "asOf": "2026-10-18",
+  "nationalSpecies": 1025,
+  "announced": [
+    "browt",
+    "pombon",
+    "gecqua"
+  ],
+  "dataRevision": "5ee47a9a9c1229632ec4b473a9c1c53026e005dd",
+  "artRevision": "289e842364648ec0495ae4ba12f48d5cbfbf670b",
+  "frontReusedForBack": [],
+  "officialArtworkFallback": [],
+  "announcedSha256": {
+    "browt": "c7a0972c3e501e90c2001d405b29bfb95bf7c4ca03542e8761c1ad49948289e9",
+    "pombon": "9a0e47ff6e9e35dace1578a2723af821a6fe025f33d551249b5d580a9d36a606",
+    "gecqua": "f613efd3a07f275fdfef4a0cdb12097650c7023b1d1a5f0cc0eb45427d713fd3"
+  }
+}

@@ -1,7 +1,8 @@
-import { BUDDIES, buddyPixels, BUDDY_WIDTH, BUDDY_HEIGHT } from './buddies.ts';
+import { buddyThumbnails } from './buddy-thumbnails.ts';
+import { BUDDIES, BUDDY_WIDTH, BUDDY_HEIGHT } from './buddies.ts';
 import { PokemonJournal, POKEMON_JOURNAL_KEY, POKEMON_KINDS } from './pokemon-journal.ts';
 import type { PokemonKind } from './pokemon-journal.ts';
-import { POKEMON, pokemonMatches } from './pokemon.ts';
+import { POKEMON, pokemonMatches, pokemonNumber } from './pokemon.ts';
 import { getRoom } from './rooms.ts';
 import type { RoomId } from './rooms.ts';
 
@@ -9,6 +10,7 @@ const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElem
 const foundDate = new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 export class PokemonJournalUI {
   private journal = new PokemonJournal({ getItem: (key) => localStorage.getItem(key), setItem: (key, value) => localStorage.setItem(key, value) });
+  private thumbnails = buddyThumbnails();
   private selected?: PokemonKind;
   constructor(signal: AbortSignal, private beforeOpen: () => boolean) {
     const filters = document.createElement('div'); filters.className = 'pokemon-filters';
@@ -23,12 +25,13 @@ export class PokemonJournalUI {
       if (event.key !== POKEMON_JOURNAL_KEY || event.storageArea !== localStorage) return;
       this.journal.merge(event.newValue); this.render();
     }, { signal });
+    signal.addEventListener('abort', () => this.thumbnails.reset(), { once: true });
     this.render();
   }
   inspect(kind: PokemonKind, roomId: RoomId): void {
     if (!this.beforeOpen()) return;
     const fresh = this.journal.discover(kind, roomId); this.selected = kind;
-    el<HTMLInputElement>('pokemon-query').value = String(POKEMON[kind].id).padStart(3, '0'); el<HTMLInputElement>('pokemon-found-only').checked = false;
+    el<HTMLInputElement>('pokemon-query').value = POKEMON[kind].id === null ? POKEMON[kind].name : String(POKEMON[kind].id).padStart(3, '0'); el<HTMLInputElement>('pokemon-found-only').checked = false;
     el('pokemon-journal-notice').textContent = fresh ? `✦ ${BUDDIES[kind].name}を発見！ 図鑑に追加しました。` : `✓ ${BUDDIES[kind].name}は発見済みです。`;
     this.render(); el<HTMLDialogElement>('pokemon-journal-dialog').showModal();
   }
@@ -45,6 +48,7 @@ export class PokemonJournalUI {
     el<HTMLProgressElement>('pokemon-journal-meter').value = count;
     el<HTMLProgressElement>('pokemon-journal-meter').max = POKEMON_KINDS.length;
     el('pokemon-journal-storage').textContent = this.journal.stored ? '発見記録はこのブラウザに保存します。同じURLのタブで共有されます。別の端末・ブラウザには同期されません。' : 'ブラウザに保存できません。この画面を開いている間だけ記録します。';
+    this.thumbnails.reset();
     const cards = el('pokemon-journal-cards'); cards.replaceChildren();
     const query = el<HTMLInputElement>('pokemon-query').value, foundOnly = el<HTMLInputElement>('pokemon-found-only').checked;
     let visible = 0;
@@ -54,10 +58,9 @@ export class PokemonJournalUI {
       visible++;
       const card = document.createElement('li'); card.className = `pokemon-card${entry ? ' is-found' : ''}${this.selected === kind ? ' is-selected' : ''}`;
       card.dataset.pokemon = kind; card.dataset.discovered = String(!!entry);
-      const number = document.createElement('span'); number.className = 'pokemon-number'; number.textContent = `No.${String(POKEMON[kind].id).padStart(3, '0')}`;
+      const number = document.createElement('span'); number.className = 'pokemon-number'; number.textContent = pokemonNumber(kind);
       const art = document.createElement('canvas'); art.width = BUDDY_WIDTH; art.height = BUDDY_HEIGHT; art.setAttribute('aria-hidden', 'true');
-      const ctx = art.getContext('2d')!;
-      for (const pixel of buddyPixels(kind)) { ctx.fillStyle = entry ? `#${pixel.color.toString(16).padStart(6, '0')}` : '#b6b9aa'; ctx.fillRect(pixel.x, pixel.y, pixel.w, pixel.h); }
+      this.thumbnails.observe(art, kind, !entry);
       const name = document.createElement('h3'); name.textContent = entry ? data.name : '？？？';
       const description = document.createElement('p'); description.textContent = entry ? data.description : 'どこかの部屋で、あなたを待っています。見つけたらクリック！';
       const stamp = document.createElement('p'); stamp.className = 'pokemon-stamp'; stamp.textContent = entry ? `✓ はじめての発見\n${getRoom(entry.roomId).name}\n${foundDate.format(entry.foundAt)} JST` : 'まだ出会っていません';
