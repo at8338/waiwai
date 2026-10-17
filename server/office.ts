@@ -33,7 +33,7 @@ export function attachOffice(server: Server): () => void {
   };
 
   wss.on('connection', (ws) => {
-    const player: Player = { id: randomUUID(), name: 'ゲスト', outfit: 0, ...spawn(), facing: 'down' };
+    const player: Player = { id: randomUUID(), name: 'ゲスト', outfit: 0, slack: null, ...spawn(), facing: 'down' };
     players.set(ws, player);
     alive.add(ws);
     send(ws, { type: 'welcome', id: player.id, players: [...players.values()] });
@@ -56,6 +56,7 @@ export function attachOffice(server: Server): () => void {
       if (message.type === 'profile') {
         player.name = message.name;
         player.outfit = message.outfit;
+        player.slack = message.slack ?? null;
       } else if (message.type === 'reset') {
         Object.assign(player, spawn(ws), { facing: 'down' });
         lastMove = now;

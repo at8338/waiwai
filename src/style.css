@@ -117,3 +117,23 @@ button:disabled { cursor: default; opacity: .5; }
 #mic-toggle[aria-pressed='true'] { background: #b66d4f; color: #fff8df; border-color: #b66d4f; }
 #participants [data-speaking='true'] strong::before { content: '♪ '; color: #517f51; }
 @media (max-width: 760px) { .voice-controls { padding: 14px; }.voice-buttons { width: 100%; }.voice-buttons button { flex: 1; } }
+[hidden] { display: none !important; }
+.slack-settings { border-top: 1px solid var(--border); padding-top: 22px; margin-top: 25px; }
+.slack-settings input { font: 11px monospace; margin-bottom: 12px; }
+.slack-settings p { font-size: 9px; line-height: 1.9; color: #8b9680; margin: 0 0 10px; }
+.slack-settings input[aria-invalid='true'] { border-color: #b66d4f; }
+.slack-settings-buttons { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 10px; }
+.slack-settings button { border: 1px solid #c9d3bd; background: #fffdf5; padding: 8px; border-radius: 4px; font-size: 10px; }
+.slack-map-hint { font-size: 10px; color: #839175; line-height: 1.9; margin: 15px 0 0; }
+.slack-target { background: #f0eee1; border: 1px solid #d6d2b9; border-radius: 5px; padding: 16px; margin-top: 12px; }
+.slack-target h2 { font-family: 'DotGothic16', monospace; font-size: 16px; font-weight: 400; margin: 0 0 8px; }
+.slack-target p { font-size: 11px; line-height: 1.9; color: #78836e; }
+.slack-target code { display: block; overflow-wrap: anywhere; font-size: 10px; color: #8b8b70; }
+.slack-target a { display: inline-block; margin-top: 12px; padding: 10px 14px; background: #355b49; color: #fff8df; border-radius: 4px; font-size: 11px; text-decoration: none; }
+#participants .participant-name { display: block; font-size: 10px; color: inherit; }
+#participants button.participant-name { border: none; background: none; padding: 0; text-align: left; text-decoration: underline; text-decoration-color: #bdc8ad; text-underline-offset: 3px; line-height: 1.8; overflow-wrap: anywhere; }
+#participants button.participant-name:hover { color: #467445; }
+#participants .participant-slack { color: #98a18c; }
+#participants [data-speaking='true'] .participant-name::before { content: '♪ '; color: #517f51; }
+#participants [data-speaking='true'] strong::before { content: none; }
+@media (max-width: 760px) { .slack-settings { grid-column: 1 / -1; }.slack-settings .section-label { margin-bottom: 12px; }.slack-map-hint { text-align: center; } }
