@@ -808,3 +808,82 @@ test('cockpit play synchronizes only inside the simulator, reaches late entrants
   assert.equal(outside.seen.some((m) => m.type === 'robot-state'), false);
   assert.equal(started.state.operator, '操縦テスト'); assert.notEqual(started.state.startedAt, 1);
 });
+
+test('arcade games synchronize players and spectators, reject outsiders and stale moves, and clean up travel/disconnects', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'waiwai-arcade-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const { connect } = await fixture(t, join(dir, 'objects.json'), join(dir, 'links.json'), join(dir, 'announcements.json'));
+  const a = await connect(), b = await connect(), spectator = await connect(), outsider = await connect();
+  for (const client of [a, b, spectator]) { client.send({ type: 'change-room', roomId: 'arcade', requestId: 1 }); await client.next('arcade-state'); }
+  let snapshot = a.seen.filter((m) => m.type === 'arcade-state').at(-1)!;
+  const table = () => snapshot.tables.find((s) => s.game === 'four')!;
+  const action = async (client: typeof a, command: string, value?: number, roundId = table().roundId) => {
+    await new Promise((resolve) => setTimeout(resolve, 90));
+    const actionId = randomUUID(); client.send({ type: 'arcade-action', game: 'four', command, value, roundId, actionId });
+    const result = await client.next('arcade-result', (r) => r.actionId === actionId);
+    if (!result.error) snapshot = await a.next('arcade-state', (s) => command === 'join' ? s.tables[0].members.length > table().members.length : command === 'start' ? s.tables[0].phase === 'playing' : command === 'drop' ? s.tables[0].board.filter(Boolean).length > table().board.filter(Boolean).length : true);
+    return result;
+  };
+  assert.ok((await action(outsider, 'join')).error);
+  assert.equal((await action(a, 'join')).error, undefined);
+  assert.equal((await action(b, 'join')).error, undefined);
+  assert.equal((await action(a, 'start')).error, undefined);
+  assert.ok((await action(spectator, 'drop', 1)).error);
+  assert.ok((await action(b, 'drop', 1)).error);
+  assert.equal((await action(a, 'drop', 1)).error, undefined);
+  await spectator.next('arcade-state', (s) => s.tables[0].board[36] === 1);
+  assert.equal(outsider.seen.some((m) => m.type === 'arcade-state'), false);
+  assert.ok((await action(b, 'drop', 1, randomUUID())).error);
+  // Identical action ids must not place another stone on a later turn.
+  await new Promise((resolve) => setTimeout(resolve, 90));
+  const replay = { type: 'arcade-action', game: 'four', command: 'drop', value: 2, roundId: table().roundId, actionId: randomUUID() };
+  b.send(replay); await b.next('arcade-result', (r) => r.actionId === replay.actionId);
+  snapshot = await a.next('arcade-state', (s) => s.tables[0].board[37] === 2);
+  await action(a, 'drop', 3); b.send(replay);
+  a.send({ type: 'change-room', roomId: 'library', requestId: 2 });
+  const ended = await b.next('arcade-state', (s) => s.tables[0].phase === 'done');
+  assert.equal(ended.tables[0].members.length, 1); assert.equal(ended.tables[0].board.filter(Boolean).length, 3);
+  const late = await connect(); late.send({ type: 'change-room', roomId: 'arcade', requestId: 1 });
+  assert.equal((await late.next('arcade-state')).tables[0].phase, 'done');
+  b.ws.close(); await spectator.next('arcade-state', (s) => s.tables[0].members.length === 0);
+  // Warp out follows the same automatic departure rules as room switching.
+  snapshot = spectator.seen.filter((m) => m.type === 'arcade-state').at(-1)!;
+  const actionId = randomUUID(); spectator.send({ type: 'arcade-action', game: 'four', command: 'join', roundId: table().roundId, actionId });
+  await spectator.next('arcade-result', (r) => r.actionId === actionId);
+  spectator.send({ type: 'warp-to', targetId: outsider.welcome.id, requestId: 3 });
+  await late.next('arcade-state', (s) => s.tables[0].members.length === 0);
+  const traveled = await spectator.next('player', (m) => m.player.id === spectator.welcome.id && m.reason === 'warp');
+  assert.equal(traveled.player.roomId, 'office');
+});
+
+test('solo rhythm play and independent cabinets share only changed tables, including prompts and judged scores', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'waiwai-rhythm-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const { connect } = await fixture(t, join(dir, 'objects.json'), join(dir, 'links.json'), join(dir, 'announcements.json'));
+  const a = await connect(), b = await connect();
+  for (const client of [a, b]) { client.send({ type: 'change-room', roomId: 'arcade', requestId: 1 }); await client.next('arcade-state'); }
+  const send = async (client: typeof a, game: 'clap' | 'star', command: string, roundId: string, beatId?: number, value?: number) => {
+    await new Promise((resolve) => setTimeout(resolve, 90));
+    const actionId = randomUUID(); client.send({ type: 'arcade-action', game, command, roundId, actionId, beatId, value });
+    return client.next('arcade-result', (m) => m.actionId === actionId);
+  };
+  const initial = a.seen.find((m) => m.type === 'arcade-state')!;
+  const clap = initial.tables.find((table) => table.game === 'clap')!;
+  assert.equal((await send(a, 'clap', 'join', clap.roundId)).error, undefined);
+  assert.equal((await send(a, 'clap', 'start', clap.roundId)).error, undefined);
+  const started = await a.next('arcade-state', (s) => s.tables.some((table) => table.game === 'clap' && table.phase === 'playing'));
+  const playing = started.tables.find((table) => table.game === 'clap')!;
+  assert.equal(playing.members.length, 1); assert.equal(playing.beats.length, 20);
+  const star = initial.tables.find((table) => table.game === 'star')!;
+  assert.equal((await send(b, 'star', 'join', star.roundId)).error, undefined);
+  const starUpdate = await a.next('arcade-state', (s) => s.tables.some((table) => table.game === 'star' && table.members.length === 1));
+  assert.deepEqual(starUpdate.tables.map((table) => table.game), ['star']);
+  await new Promise((resolve) => setTimeout(resolve, Math.max(0, playing.beats[0].at - Date.now() - 90)));
+  assert.equal((await send(a, 'clap', 'beat', playing.roundId, 0, 0)).error, undefined);
+  const scored = await b.next('arcade-state', (s) => s.tables.some((table) => table.game === 'clap' && table.members[0]?.score === 30));
+  assert.deepEqual(scored.tables.map((table) => table.game), ['clap']);
+  const late = await connect(); late.send({ type: 'change-room', roomId: 'arcade', requestId: 1 });
+  const full = await late.next('arcade-state'); assert.equal(full.tables.length, 8);
+  assert.equal(full.tables.find((table) => table.game === 'clap')!.members[0].score, 30); assert.equal(full.tables.find((table) => table.game === 'star')!.members.length, 1);
+  a.ws.close(); await b.next('arcade-state', (s) => s.tables.some((table) => table.game === 'clap' && table.members.length === 0));
+});

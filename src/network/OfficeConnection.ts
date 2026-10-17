@@ -1,3 +1,4 @@
+import type { ArcadeAction } from '../game/arcade.ts';
 import type { RobotAction } from '../game/robot.ts';
 import type { AnnouncementAction } from '../game/announcements.ts';
 import type { RoomPet } from '../game/buddies.ts';
@@ -15,6 +16,8 @@ import type { ReactionKind } from '../game/reactions.ts';
 
 export type ConnectionState = 'connecting' | 'online' | 'reconnecting';
 export type ConnectionHandlers = {
+  arcadeState?: (message: Extract<ServerMessage, { type: 'arcade-state' }>) => void;
+  arcadeResult?: (message: Extract<ServerMessage, { type: 'arcade-result' }>) => void;
   robotState?: (message: Extract<ServerMessage, { type: 'robot-state' }>) => void;
   robotResult?: (message: Extract<ServerMessage, { type: 'robot-result' }>) => void;
   dailyEvent?: (message: Extract<ServerMessage, { type: 'daily-event' }>) => void;
@@ -116,6 +119,8 @@ export class OfficeConnection {
         if (player) this.slots.delete(player.slot);
         this.players.delete(message.id); this.handlers.left(message.id);
       }
+      else if (message.type === 'arcade-state') this.handlers.arcadeState?.(message);
+      else if (message.type === 'arcade-result') this.handlers.arcadeResult?.(message);
       else if (message.type === 'robot-state') this.handlers.robotState?.(message);
       else if (message.type === 'robot-result') this.handlers.robotResult?.(message);
       else if (message.type === 'daily-event') this.handlers.dailyEvent?.(message);
@@ -189,6 +194,7 @@ export class OfficeConnection {
     this.send({ type: 'reaction', kind }); return true;
   }
 
+  arcade(action: ArcadeAction): boolean { if (!this.online) return false; this.send(action); return true; }
   robot(action: RobotAction, actionId: string): boolean { if (!this.online) return false; this.send({ type: 'robot-action', action, actionId }); return true; }
 
   announcement(action: AnnouncementAction): boolean { if (!this.online) return false; this.send(action); return true; }

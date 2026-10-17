@@ -1,3 +1,4 @@
+import { ARCADE_GAMES, ARCADE_IDS } from './arcade.ts';
 import { VEHICLE_DOCKS, VEHICLES } from './transport.ts';
 import type { Furniture, Point } from './world.ts';
 export const ROOM_IDS = ['office', 'focus', 'meeting', 'cafe', 'library', 'garden', 'studio', 'arcade', 'wellness', 'workshop', 'sky', 'ops', 'cockpit'] as const;
@@ -32,8 +33,8 @@ export const ROOMS: Room[] = [
     furniture: [f('pond', 11, 5, 8, 5), f('sofa', 4, 5, 4, 2), f('sofa', 22, 10, 4, 2), ...[3, 7, 22, 26].map((x) => f('plant', x, 2)), f('plant', 4, 13), f('plant', 25, 14)] },
   { id: 'studio', name: 'いろどりアトリエ', description: 'キャンバスと色見本。創作とデザインの相談に。', icon: '✳', floor: 0xe9c4bf, grain: 0xd6ada9, wall: 0xf3dfd0, rug: 0xc59caa, style: 'wood', outlook: 'window', ...common,
     furniture: [f('easel', 4, 3, 3, 3), f('easel', 13, 3, 3, 3), f('easel', 23, 3, 3, 3), f('table', 7, 10, 6, 2), f('table', 18, 10, 5, 2), f('shelf', 2, 14, 4), f('plant', 26, 15)] },
-  { id: 'arcade', name: 'ピクセルゲーム室', description: 'ネオンとゲーム筐体。仕事の合間の遊び場。', icon: '✚', floor: 0x69677d, grain: 0x59596f, wall: 0xc1b7cf, rug: 0xa17ea3, style: 'checker', outlook: 'window', ...common,
-    furniture: [...[3, 8, 18, 23].map((x) => f('arcade', x, 3, 3, 3)), f('table', 12, 9, 5, 3), f('sofa', 3, 13, 4, 2), f('sofa', 23, 13, 4, 2)] },
+  { id: 'arcade', name: 'ワイワイゲームセンター', description: '8つの小さなゲーム。ひとりでも、みんなでも、リズムにのってひと休み。', icon: '✚', floor: 0x69677d, grain: 0x59596f, wall: 0xc1b7cf, rug: 0xa17ea3, style: 'checker', outlook: 'window', ...common,
+    furniture: [...ARCADE_IDS.map((id) => f('arcade', ARCADE_GAMES[id].x, ARCADE_GAMES[id].y, 3, 3)), f('table', 12, 14, 5, 2), f('sofa', 3, 14, 4, 2), f('sofa', 23, 14, 4, 2)] },
   { id: 'wellness', name: 'うたたね休憩室', description: 'やわらかな色のベッドと緑。ゆっくり休もう。', icon: '☾', floor: 0xd8e1d4, grain: 0xc2d0c0, wall: 0xf1e8d7, rug: 0xafc6bf, style: 'tile', outlook: 'window', ...common,
     furniture: [f('bed', 3, 3, 4, 4), f('bed', 12, 3, 4, 4), f('bed', 22, 3, 4, 4), f('sofa', 5, 12, 5, 2), f('sofa', 20, 12, 5, 2), f('plant', 9, 3), f('plant', 18, 3), tool('vending', 'ドリンク', 27, 10, 2, 3)] },
   { id: 'workshop', name: 'ものづくり工房', description: '作業台と道具の棚。試作やペア作業の拠点。', icon: '⚒', floor: 0xd4c2a3, grain: 0xbca584, wall: 0xe9d8bb, rug: 0xb49c72, style: 'checker', outlook: 'window', ...common,
