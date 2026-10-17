@@ -1,3 +1,4 @@
+import type { AnnouncementAction } from '../game/announcements.ts';
 import type { RoomPet } from '../game/buddies.ts';
 import type { RoomId } from '../game/rooms.ts';
 import type { RoomObject } from '../game/objects.ts';
@@ -13,6 +14,8 @@ import type { ReactionKind } from '../game/reactions.ts';
 
 export type ConnectionState = 'connecting' | 'online' | 'reconnecting';
 export type ConnectionHandlers = {
+  announcements?: (message: Extract<ServerMessage, { type: 'announcements' }>) => void;
+  announcementResult?: (actionId: string, error?: string) => void;
   state: (state: ConnectionState) => void;
   welcome: (id: string, players: Player[]) => void;
   player: (player: Player, snap: boolean, reason?: Extract<ServerMessage, { type: 'player' }>['reason']) => void;
@@ -109,6 +112,8 @@ export class OfficeConnection {
         if (player) this.slots.delete(player.slot);
         this.players.delete(message.id); this.handlers.left(message.id);
       }
+      else if (message.type === 'announcements') this.handlers.announcements?.(message);
+      else if (message.type === 'announcement-result') this.handlers.announcementResult?.(message.actionId, message.error);
       else if (message.type === 'vehicles') this.handlers.vehicles?.(message.units);
       else if (message.type === 'vehicle-result') this.handlers.vehicleResult?.(message.actionId, message.error);
       else if (message.type === 'pets') this.handlers.pets?.(message.roomId, message.pets);
@@ -176,6 +181,8 @@ export class OfficeConnection {
     if (!this.online || this.socket?.readyState !== WebSocket.OPEN) return false;
     this.send({ type: 'reaction', kind }); return true;
   }
+
+  announcement(action: AnnouncementAction): boolean { if (!this.online) return false; this.send(action); return true; }
 
   vehicle(kind: VehicleKind | null, actionId: string): boolean {
     if (!this.online) return false;

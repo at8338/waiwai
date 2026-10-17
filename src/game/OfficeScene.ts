@@ -1,3 +1,4 @@
+import { AnnouncementsUI } from './announcements-ui.ts';
 import { LOST_ITEM_CATALOG } from './lost-items.ts';
 import { LostItemsView } from './lost-items-view.ts';
 import { seatSpots, restingSeat } from './seating.ts';
@@ -46,6 +47,7 @@ type AvatarView = {
 type Peer = { player: Player; walker: Walker; view: AvatarView };
 
 export class OfficeScene extends Phaser.Scene {
+  private announcementsUI?: AnnouncementsUI;
   private lostItems?: LostItemsView;
   private seats = new Map<string, SeatSpot>();
   private vehicleUI?: TransportUI;
@@ -138,6 +140,7 @@ export class OfficeScene extends Phaser.Scene {
     this.controls.attach(this.game.canvas);
     this.setupRoomTools();
     this.setupReactions();
+    this.announcementsUI = new AnnouncementsUI(this.inputController.signal, (action) => this.connection?.announcement(action) ?? false, () => { this.controls.clear(); this.setEditMode('none'); });
     this.vehicleUI = new TransportUI(this.inputController.signal, (kind, id) => this.connection?.vehicle(kind, id) ?? false, () => { this.controls.clear(); this.setEditMode('none'); });
     this.vehicleDocks = new VehicleDocksView(this, () => { if (this.editMode === 'none') this.vehicleUI?.open(); });
     this.linksUI = new ObjectLinksEditor({ signal: this.inputController.signal, owner: () => this.owner(),
@@ -179,6 +182,8 @@ export class OfficeScene extends Phaser.Scene {
         this.showRoom(players.find((p) => p.id === id)?.roomId ?? 'office');
         for (const player of players) this.receivePlayer(player, true);
       },
+      announcements: (state) => this.announcementsUI?.snapshot(state),
+      announcementResult: (id, error) => this.announcementsUI?.result(id, error),
       vehicles: (units) => { this.vehicleUI?.inventory(units); this.vehicleDocks?.receive(units); },
       vehicleResult: (id, error) => this.vehicleUI?.result(id, error),
       pets: (roomId, pets) => this.companions?.pets(roomId, pets),
@@ -227,7 +232,7 @@ export class OfficeScene extends Phaser.Scene {
       this.connection?.destroy();
       this.companions?.clear();
       this.lighting?.destroy();
-      this.vehicleDocks?.destroy(); this.vehicleUI?.destroy(); this.lostItems?.destroy();
+      this.vehicleDocks?.destroy(); this.vehicleUI?.destroy(); this.announcementsUI?.destroy(); this.lostItems?.destroy();
     };
     this.events.once('shutdown', cleanup);
     this.events.once('destroy', cleanup);
@@ -238,6 +243,7 @@ export class OfficeScene extends Phaser.Scene {
 
   private setConnectionState(state: ConnectionState): void {
     this.connected = state === 'online';
+    this.announcementsUI?.setConnected(this.connected);
     this.vehicleUI?.setConnected(this.connected);
     this.voice?.setConnected(this.connected);
     this.linksUI?.setReady(this.connected && this.objectsReady);

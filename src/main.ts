@@ -1,3 +1,4 @@
+import { DURATIONS, LEADS, REPEATS } from './game/announcements.ts';
 import { VEHICLES, VEHICLE_KINDS } from './game/transport.ts';
 import { setupBuddyEditor } from './game/buddy-editor.ts';
 import { setupAvatarEditor } from './game/avatar-editor.ts';
@@ -71,6 +72,11 @@ app.innerHTML = `
       <div class="map-heading"><div><span class="eyebrow">LET’S TAKE A LITTLE WALK</span><h2 id="map-title">小さなオフィスへ、ようこそ。</h2></div><button type="button" class="help-button" id="help-button" aria-label="操作方法を表示">?</button></div>
       <section class="room-switcher" aria-label="フロア移動"><div><span class="eyebrow">${ROOMS.length} ROOMS TO EXPLORE</span><strong data-room-name>ひだまりオフィス</strong><p id="room-description"></p></div><div class="room-switcher-actions"><button type="button" id="people-open">人を探す</button><button type="button" id="room-picker-open">部屋を移動 <span aria-hidden="true">↗</span></button></div></section>
       <p id="people-travel-status" role="status"></p>
+      <section class="broadcast-panel" aria-label="全フロアの館内放送">
+        <div class="broadcast-heading"><div><span class="eyebrow">OFFICE ANNOUNCEMENTS</span><strong>館内放送 <small>全フロア共通</small></strong></div><div class="broadcast-actions"><button type="button" id="broadcast-open" disabled>館内放送を出す</button><button type="button" id="schedule-open" disabled>予定・定例を設定</button></div></div>
+        <div id="broadcast-banner" role="log" aria-label="現在の館内放送" aria-live="polite" aria-relevant="additions text"></div>
+        <p id="broadcast-quiet">ただいま放送はありません。</p><p id="broadcast-warning" role="status"></p>
+      </section>
       <div class="game-frame">
         <div class="game-topline"><span><i></i> <span data-current-area>エントランス</span></span><span><span data-room-name>ひだまりオフィス</span> <b id="room-number">01</b></span></div>
         <div class="map-surround"><div class="window-wall"><canvas id="sky-window" width="480" height="56" role="img" aria-label="日本時間に合わせて変わる窓の風景"></canvas></div><div id="game" aria-describedby="map-instructions"><p class="loading">オフィスを準備しています…</p></div></div>
@@ -98,6 +104,13 @@ app.innerHTML = `
     </section>
   </main>
   <footer class="page-footer"><span>離れていても、おなじ場所に。</span><span>MADE FOR LITTLE ENCOUNTERS <span aria-hidden="true">✦</span></span></footer>
+  <dialog id="broadcast-dialog" class="announcement-dialog" aria-labelledby="broadcast-title"><span class="eyebrow">A MESSAGE FOR EVERY FLOOR</span><h2 id="broadcast-title">みんなに、ひとこと。</h2><p>全フロアのマップ上部に表示します。だれでも放送できます。</p>
+    <form id="broadcast-form"><label>放送のタイトル<input name="title" maxlength="60" placeholder="例：全体会議のお知らせ" required></label><label>伝えたいこと<textarea name="message" maxlength="240" rows="3" placeholder="全体会議が始まります。作戦室に集まってください。" required></textarea></label><label>表示する時間<select name="durationMinutes">${DURATIONS.map((n) => `<option value="${n}" ${n === 3 ? 'selected' : ''}>${n}分</option>`).join('')}</select></label><p id="broadcast-form-status" role="status"></p><div class="dialog-actions"><button type="button" id="broadcast-close">閉じる</button><button type="submit">全フロアに放送</button></div></form>
+  </dialog>
+  <dialog id="schedule-dialog" class="schedule-dialog" aria-labelledby="schedule-title"><span class="eyebrow">MEETINGS &amp; LITTLE REMINDERS</span><h2 id="schedule-title">予定と定例の放送</h2><p>日本時間（JST）で設定します。だれでも追加・編集・停止できます。</p>
+    <div class="schedule-body"><section aria-label="登録した予定"><div class="schedule-list-heading"><h3>みんなの予定</h3><button type="button" id="schedule-new">予定を追加</button></div><p id="schedule-empty">まだ予定がありません。</p><ul id="schedule-list"></ul></section>
+    <form id="schedule-form"><h3 id="schedule-editor-title">新しい予定</h3><label>予定の名前<input name="title" maxlength="60" placeholder="例：毎週の全体会議" required></label><label>放送するメッセージ<textarea name="message" maxlength="240" rows="3" placeholder="全体会議が始まります。作戦室へどうぞ。" required></textarea></label><label>最初の開始日時（JST）<input name="startsAt" type="datetime-local" required></label><div class="schedule-fields"><label>繰り返し<select name="repeat">${Object.entries(REPEATS).map(([v, label]) => `<option value="${v}">${label}</option>`).join('')}</select></label><label>告知を始めるタイミング<select name="leadMinutes">${LEADS.map((n) => `<option value="${n}">${n === 0 ? '開始時刻' : `開始${n}分前`}</option>`).join('')}</select></label><label>開始後の表示時間<select name="displayMinutes">${DURATIONS.map((n) => `<option value="${n}" ${n === 3 ? 'selected' : ''}>${n}分</option>`).join('')}</select></label></div><label class="schedule-enabled"><input name="enabled" type="checkbox" checked> 自動放送を有効にする</label><p class="field-hint">告知開始から、会議開始後の表示時間まで掲示します。毎週の曜日は最初の開始日から決まります。</p><div class="dialog-actions"><button type="button" id="schedule-cancel-edit">入力をリセット</button><button type="submit" id="schedule-save">この予定を保存</button></div></form></div><p id="schedule-form-status" role="status"></p><button type="button" id="schedule-close" class="dialog-close">閉じる</button>
+  </dialog>
   <dialog id="object-links-dialog" class="object-links-dialog" aria-labelledby="object-links-title">
     <span class="eyebrow">OPEN TOGETHER</span><h2 id="object-links-title">オブジェクトのリンク</h2>
     <div class="object-links-body">
@@ -129,7 +142,7 @@ app.innerHTML = `
   <dialog id="buddy-info" aria-labelledby="buddy-info-title"><h2 id="buddy-info-title"></h2><p id="buddy-info-owner"></p><p id="buddy-info-description"></p><p>今は一緒に歩く、小さな仲間です。</p><div class="dialog-actions"><button type="button" id="buddy-info-close">閉じる</button></div></dialog>
   <dialog id="avatar-dialog" class="avatar-dialog" aria-labelledby="avatar-title"><form id="avatar-form"><span class="eyebrow">MAKE YOUR OWN CHARACTER</span><h2 id="avatar-title">あなたらしい姿に。</h2><div class="avatar-editor-layout"><div class="avatar-draft-backdrop"><canvas id="avatar-draft" width="20" height="28" aria-label="変更中のアバター"></canvas><p>性別や体型にかかわらず<br>すべての服と髪型を選べます。</p></div><div id="avatar-fields"></div></div><div class="dialog-actions"><button type="button" id="avatar-cancel">キャンセル</button><button type="submit">この見た目にする</button></div></form></dialog>
   <dialog id="room-dialog" class="room-dialog" aria-labelledby="room-dialog-title"><span class="eyebrow">FIND YOUR NEXT PLACE</span><h2 id="room-dialog-title">どの部屋へ行こう？</h2><p>部屋を変えると、移動先の近くの人と音声がつながります。</p><div class="room-grid">${ROOMS.map((room, i) => `<button type="button" data-room="${room.id}" style="--card-accent:#${room.rug.toString(16)}"><span class="room-card-number">${String(i + 1).padStart(2, '0')} / ${room.icon}</span><strong>${room.name}</strong><span>${room.description}</span><small data-room-occupancy="${room.id}">0人</small></button>`).join('')}</div><form method="dialog"><button class="dialog-close">いまの部屋にもどる</button></form></dialog>
-  <dialog id="help-dialog" aria-labelledby="help-title"><span class="eyebrow">HOW TO WALK</span><h2 id="help-title">オフィスを歩いてみよう</h2><p>マップをクリックするか、Tabキーでマップにフォーカスしてから、<strong>矢印キー / WASD</strong> を押すと移動します。</p><p>スマートフォンやタブレットでは、マップ下の方向ボタンを使えます。</p><p>リアクションのボタン、またはマップ操作中の<strong>1〜4キー</strong>で、お辞儀・ジャンプ・バンザイ・よろこぶ動作を同じ部屋の人に伝えられます。歩くと動作が終わります。</p><p>家具や小物をクリックすると、登録済みのリンクを選んで開けます。「リンクを設定」で共有のお気に入りから複数選べます。リンクのあるホワイトボードは、前に立っても一覧が開きます。</p><p>椅子・机・ソファの正面で止まると自動で座り、移動すると立ち上がります。カフェ・休憩室の自販機のすぐ横に行くとペットボトルを受け取れます。</p><p>オフィスの置き場で、自転車・スケボー・スケートを借りると速く移動できます。置き場に踏み入れると自動で乗り、乗って戻ると返却します。マップ操作中の<strong>Eキー</strong>で空き台数も確認できます。</p><p>床の不思議な落とし物は、クリックするとひと言読めます。「床の落とし物」からも選べます。</p><p>壁や家具のあるマスは通れません。部屋の入口を探してみてください。</p><p>「入口にもどる」で最初の場所に戻れます。Tabキーでマップの操作を抜けられます。</p><form method="dialog"><button class="dialog-close">わかった、歩いてみる</button></form></dialog>
+  <dialog id="help-dialog" aria-labelledby="help-title"><span class="eyebrow">HOW TO WALK</span><h2 id="help-title">オフィスを歩いてみよう</h2><p>マップをクリックするか、Tabキーでマップにフォーカスしてから、<strong>矢印キー / WASD</strong> を押すと移動します。</p><p>スマートフォンやタブレットでは、マップ下の方向ボタンを使えます。</p><p>リアクションのボタン、またはマップ操作中の<strong>1〜4キー</strong>で、お辞儀・ジャンプ・バンザイ・よろこぶ動作を同じ部屋の人に伝えられます。歩くと動作が終わります。</p><p>家具や小物をクリックすると、登録済みのリンクを選んで開けます。「リンクを設定」で共有のお気に入りから複数選べます。リンクのあるホワイトボードは、前に立っても一覧が開きます。</p><p>「館内放送を出す」で全フロアにテキストを届けられます。「予定・定例を設定」ではJSTの開始時刻と繰り返しを登録できます。</p><p>椅子・机・ソファの正面で止まると自動で座り、移動すると立ち上がります。カフェ・休憩室の自販機のすぐ横に行くとペットボトルを受け取れます。</p><p>オフィスの置き場で、自転車・スケボー・スケートを借りると速く移動できます。置き場に踏み入れると自動で乗り、乗って戻ると返却します。マップ操作中の<strong>Eキー</strong>で空き台数も確認できます。</p><p>床の不思議な落とし物は、クリックするとひと言読めます。「床の落とし物」からも選べます。</p><p>壁や家具のあるマスは通れません。部屋の入口を探してみてください。</p><p>「入口にもどる」で最初の場所に戻れます。Tabキーでマップの操作を抜けられます。</p><form method="dialog"><button class="dialog-close">わかった、歩いてみる</button></form></dialog>
 `;
 
 const parent = document.querySelector<HTMLElement>('#game')!;
@@ -219,6 +232,6 @@ const dialog = document.querySelector<HTMLDialogElement>('#help-dialog')!;
 document.querySelector('#help-button')!.addEventListener('click', () => dialog.showModal());
 dialog.addEventListener('close', () => game.canvas.focus({ preventScroll: true }));
 
-document.querySelectorAll<HTMLDialogElement>('#avatar-dialog, #room-dialog, #object-links-dialog, #lost-item-info').forEach((item) => item.addEventListener('close', () => game.canvas.focus({ preventScroll: true })));
+document.querySelectorAll<HTMLDialogElement>('#avatar-dialog, #room-dialog, #object-links-dialog, #lost-item-info, #broadcast-dialog, #schedule-dialog').forEach((item) => item.addEventListener('close', () => game.canvas.focus({ preventScroll: true })));
 
 if (import.meta.hot) import.meta.hot.dispose(() => game.destroy(true));

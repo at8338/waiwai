@@ -7,6 +7,7 @@ import { DEFAULT_APPEARANCE } from '../src/game/avatar.ts';
 import { getRoom } from '../src/game/rooms.ts';
 import { ObjectStore } from './objects.ts';
 import { LinkStore } from './links.ts';
+import { AnnouncementStore } from './announcements.ts';
 import type { TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -19,9 +20,9 @@ import { MAX_VOICE_MEMBERS, MAX_VOICE_PEERS } from '../src/audio/proximity.ts';
 import { STEP_MS, canWalk } from '../src/game/world.ts';
 import { REACTION_COOLDOWN_MS } from '../src/game/reactions.ts';
 
-async function fixture(t: TestContext, objectsFile?: string, linksFile?: string) {
+async function fixture(t: TestContext, objectsFile?: string, linksFile?: string, announcementsFile?: string) {
   const server = createServer((_request, response) => response.end('ok'));
-  const dispose = attachOffice(server, undefined, { objectsFile, linksFile });
+  const dispose = attachOffice(server, undefined, { objectsFile, linksFile, announcementsFile });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const clients: WebSocket[] = [];
@@ -694,4 +695,41 @@ test('walking onto pads auto-borrows and returns once; vending gives a synchroni
   await step('right'); assert.equal(current.x, 26); assert.equal(current.appearance?.heldItem, 2);
   assert.equal(b.seen.filter((m) => m.type === 'player' && m.reason === 'vending' && m.player.id === a.welcome.id).length, 1);
   const c = await connect(); assert.equal(c.welcome.players.find((p) => p.id === a.welcome.id)?.appearance?.heldItem, 2);
+});
+
+test('all-floor broadcasts and meeting schedules synchronize across rooms, permit shared edits and persist', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'waiwai-broadcast-office-')); t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = join(dir, 'announcements.json'); const { connect } = await fixture(t, undefined, undefined, file);
+  const a = await connect(), b = await connect();
+  a.send({ type: 'profile', name: 'はな', outfit: 0 }); await a.next('player', (m) => m.reason === 'profile' && m.player.id === a.welcome.id);
+  b.send({ type: 'change-room', roomId: 'garden', requestId: 1 }); await b.next('objects', (m) => m.roomId === 'garden');
+  const publishId = randomUUID();
+  a.send({ type: 'announcement-publish', title: '全体会議', message: '作戦室へどうぞ。', durationMinutes: 3, actionId: publishId, author: 'forged' });
+  assert.equal((await a.next('announcement-result', (m) => m.actionId === publishId)).error, undefined);
+  const notice = (await b.next('announcements', (m) => m.announcements.length === 1)).announcements[0];
+  assert.equal(notice.author, 'はな'); assert.equal(notice.title, '全体会議');
+  const dismissId = randomUUID(); b.send({ type: 'announcement-dismiss', id: notice.id, actionId: dismissId });
+  assert.equal((await b.next('announcement-result', (m) => m.actionId === dismissId)).error, undefined);
+  await a.next('announcements', (m) => !m.announcements.length);
+  await new Promise((r) => setTimeout(r, 360));
+  const id = randomUUID(), schedule = { title: '定例会議', message: '全員集合！', startsAt: Date.now() + 2 * 60_000, repeat: 'weekdays', leadMinutes: 5, displayMinutes: 3, enabled: true };
+  a.send({ type: 'schedule-save', id, expectedVersion: 0, schedule, actionId: randomUUID() });
+  assert.equal((await a.next('announcement-result')).error, undefined);
+  // Saturday creation has its next weekday in the future: change to daily to exercise the live notice window.
+  await b.next('announcements', (m) => m.schedules.some((s) => s.id === id));
+  await new Promise((r) => setTimeout(r, 360));
+  b.send({ type: 'schedule-save', id, expectedVersion: 1, schedule: { ...schedule, repeat: 'daily', title: '変更した会議' }, actionId: randomUUID() });
+  assert.equal((await b.next('announcement-result')).error, undefined);
+  const saved = await a.next('announcements', (m) => m.schedules[0]?.version === 2);
+  assert.equal(saved.announcements[0].title, '変更した会議');
+  const c = await connect(); const joined = await c.next('announcements');
+  assert.equal(joined.schedules[0].version, 2); assert.equal(joined.announcements[0].title, '変更した会議');
+  assert.equal(new AnnouncementStore(file).snapshot().schedules[0].version, 2);
+  await new Promise((r) => setTimeout(r, 360));
+  b.send({ type: 'schedule-save', id, expectedVersion: 1, schedule, actionId: randomUUID() });
+  assert.match((await b.next('announcement-result')).error!, /更新/);
+  a.send({ type: 'schedule-delete', id, expectedVersion: 2, actionId: randomUUID() });
+  assert.equal((await a.next('announcement-result')).error, undefined);
+  assert.equal((await b.next('announcements', (m) => !m.schedules.length && !m.announcements.length)).schedules.length, 0);
+  assert.equal(new AnnouncementStore(file).snapshot().schedules.length, 0);
 });

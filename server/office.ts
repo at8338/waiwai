@@ -1,3 +1,4 @@
+import { AnnouncementStore, AnnouncementError } from './announcements.ts';
 import { vendingInReach } from '../src/game/amenities.ts';
 import { VehicleFleet } from './vehicles.ts';
 import { movementStep } from '../src/game/transport.ts';
@@ -26,12 +27,14 @@ import { REACTION_COOLDOWN_MS } from '../src/game/reactions.ts';
 
 class EditError extends Error {}
 
-export function attachOffice(server: Server, auth?: SlackAuth, options: { objectsFile?: string; membersFile?: string; linksFile?: string } = {}): () => void {
+export function attachOffice(server: Server, auth?: SlackAuth, options: { objectsFile?: string; membersFile?: string; linksFile?: string; announcementsFile?: string } = {}): () => void {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 });
   const players = new Map<WebSocket, Player>();
   const store = new ObjectStore(options.objectsFile);
   const members = new MemberStore(options.membersFile);
   const links = new LinkStore(options.linksFile);
+  const announcements = new AnnouncementStore(options.announcementsFile);
+  let announcementWarning: string | undefined;
   let directoryDirty = false;
   let directoryWarning: string | undefined;
   const alive = new Set<WebSocket>();
@@ -46,6 +49,19 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     const serialized = JSON.stringify(message);
     for (const ws of players.keys()) if (ws !== except) sendRaw(ws, serialized);
   };
+  const sendAnnouncements = (ws?: WebSocket) => {
+    const message: ServerMessage = { type: 'announcements', ...announcements.snapshot(), ...(announcementWarning ? { warning: announcementWarning } : {}) };
+    if (ws) send(ws, message); else broadcast(message);
+  };
+  const announcementTimer = setInterval(() => {
+    void announcements.tick().then((changed) => {
+      const recovered = !!announcementWarning; announcementWarning = undefined;
+      if (changed || recovered) sendAnnouncements();
+    }).catch(() => {
+      if (!announcementWarning) { announcementWarning = '予定の自動放送を保存できません。復旧後に再開します。'; sendAnnouncements(); }
+    });
+  }, 5000);
+  announcementTimer.unref();
   const voice = new VoiceRoom(players, send, readIceProvider());
   const directory = (): Extract<ServerMessage, { type: 'directory' }> => ({ type: 'directory', people: directoryPeople(members.list(), players.values()), ...(directoryWarning ? { warning: directoryWarning } : {}) });
   const fleet = new VehicleFleet();
@@ -112,6 +128,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     send(ws, directory());
     sendLinks(ws, player.roomId);
     sendFleet(ws);
+    sendAnnouncements(ws);
     let lastMove = -Infinity;
     let windowStart = Date.now();
     let messages = 0;
@@ -120,6 +137,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     let lastWarp = -Infinity;
     let lastLinkEdit = -Infinity;
     let lastReaction = -Infinity;
+    let lastAnnouncementEdit = -Infinity, lastPublish = -Infinity;
     let lastVehicle = -Infinity;
     let lastVending: string | undefined;
     const contact = () => {
@@ -141,6 +159,17 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
       const message = parseClientMessage(data.toString());
       if (message?.type === 'voice-signal' ? ++signals > 120 : ++messages > 40) { ws.close(1008, 'Too many messages'); return; }
       if (!message) return;
+      if (message.type === 'announcement-publish' || message.type === 'announcement-dismiss' || message.type === 'schedule-save' || message.type === 'schedule-delete') {
+        if (now - lastAnnouncementEdit < 350 || message.type === 'announcement-publish' && now - lastPublish < 10_000) {
+          send(ws, { type: 'announcement-result', actionId: message.actionId, error: '少し待ってから、もう一度設定してください。放送の間隔は10秒です。' }); return;
+        }
+        lastAnnouncementEdit = now; if (message.type === 'announcement-publish') lastPublish = now;
+        void announcements.apply(message, player.name, () => players.has(ws) && (!identity || auth?.identify(request)?.id === identity.id)).then((changed) => {
+          if (changed) sendAnnouncements();
+          send(ws, { type: 'announcement-result', actionId: message.actionId });
+        }).catch((error: unknown) => send(ws, { type: 'announcement-result', actionId: message.actionId, error: error instanceof AnnouncementError ? error.message : '放送・予定を保存できませんでした。時間をおいて試してください。' }));
+        return;
+      }
       if (message.type === 'vehicle-take' || message.type === 'vehicle-return') {
         if (now - lastVehicle < 350) { send(ws, { type: 'vehicle-result', actionId: message.actionId, error: '少し待ってから、もう一度操作してください。' }); return; }
         lastVehicle = now;
@@ -321,6 +350,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
   }, 15_000);
   heartbeat.unref();
   return () => {
+    clearInterval(announcementTimer);
     clearInterval(heartbeat);
     clearInterval(frame);
     clearInterval(petTimer);

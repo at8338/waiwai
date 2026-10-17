@@ -1,3 +1,4 @@
+import { dirname, join } from 'node:path';
 import { defineConfig, loadEnv } from 'vite';
 import type { Server } from 'node:http';
 import { attachOffice } from './server/office.ts';
@@ -17,7 +18,7 @@ export default defineConfig(({ mode }) => {
             .catch(() => { response.writeHead(500).end('Authentication unavailable'); });
         });
         if (server.httpServer) {
-          const close = attachOffice(server.httpServer as Server, auth, { objectsFile: env.WAIWAI_DATA_FILE ?? '.local/office-objects.json', membersFile: env.WAIWAI_MEMBERS_FILE ?? '.local/office-members.json', linksFile: env.WAIWAI_LINKS_FILE ?? '.local/office-links.json' });
+          const close = attachOffice(server.httpServer as Server, auth, { objectsFile: env.WAIWAI_DATA_FILE ?? '.local/office-objects.json', membersFile: env.WAIWAI_MEMBERS_FILE ?? '.local/office-members.json', linksFile: env.WAIWAI_LINKS_FILE ?? '.local/office-links.json', announcementsFile: env.WAIWAI_ANNOUNCEMENTS_FILE ?? join(dirname(env.WAIWAI_DATA_FILE ?? '.local/office-objects.json'), 'office-announcements.json') });
           server.httpServer.once('close', () => { close(); auth.close(); });
         }
       },
