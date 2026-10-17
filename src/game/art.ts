@@ -1,7 +1,7 @@
 import { ARCADE_GAMES, ARCADE_IDS } from './arcade.ts';
 import type { ArcadeGame } from './arcade.ts';
 import { cockpitFurniturePixels } from './robot-art.ts';
-import { WINDOW_COLUMNS } from './lighting.ts';
+import { roomWindowColumns } from './lighting.ts';
 import Phaser from 'phaser';
 import { COLS, ROWS, TILE, isWall } from './world.ts';
 import type { Direction, Furniture } from './world.ts';
@@ -53,11 +53,11 @@ function rug(g: Paint, x: number, y: number, w: number, h: number, color: number
   }
 }
 
-function drawFurniture(scene: Phaser.Scene, item: Furniture, openCalendar?: () => void): void {
+function drawFurniture(scene: Phaser.Scene, item: Furniture, openCalendar?: () => void, openBoard?: (item: Furniture) => void): void {
   const { x: tx, y: ty, w: tw, h: th, kind } = item;
   const x = tx * TILE, y = ty * TILE, w = tw * TILE, h = th * TILE;
   const g = scene.add.graphics().setDepth(y + h);
-  if (kind !== 'calendar') rect(g, 0xb59b74, x + 2, y + h - 2, w, 4);
+  if (kind !== 'calendar' && kind !== 'board') rect(g, 0xb59b74, x + 2, y + h - 2, w, 4);
   if (['viewport', 'reactor', 'console', 'pilot'].includes(kind)) {
     for (const pixel of cockpitFurniturePixels(kind, w, h)) rect(g, pixel.color, x + pixel.x, y + pixel.y, pixel.w, pixel.h);
   } else if (kind === 'calendar') {
@@ -135,9 +135,45 @@ function drawFurniture(scene: Phaser.Scene, item: Furniture, openCalendar?: () =
     for (let i = 4; i < w - 3; i += 5) rect(g, colors[(i - 4) / 5 % 4], x + i, y, 3, 9);
     rect(g, 0xdda96e, x, y + h - 3, w, 3);
   } else if (kind === 'board') {
-    rect(g, 0x6a756b, x, y, w, h); rect(g, 0xf3f0dc, x + 2, y + 2, w - 4, h - 5);
-    for (let i = 6; i < w - 10; i += 16) { rect(g, 0x779d98, x + i, y + 7, 9, 2); rect(g, 0xc39a6a, x + i + 3, y + 13, 5, 3); }
-    rect(g, 0x8b7461, x + 5, y + h - 2, w - 10, 3);
+    // Raise the face while keeping the original footprint and saved link identity.
+    const wall = item.boardMount === 'wall', top = y - 14, faceH = wall ? 27 : 28;
+    const bottom = top + faceH, foot = y + h - 3;
+    if (wall) {
+      rect(g, 0xb8ae95, x + 2, top + 2, w, faceH + 2);
+      for (const bx of [x + 7, x + w - 9]) rect(g, 0x626e70, bx, top - 1, 2, 5);
+    } else {
+      rect(g, 0xb7ab90, x + 6, foot + 2, w - 12, 3);
+      for (const leg of [x + 9, x + w - 12]) {
+        rect(g, 0x56666d, leg, bottom - 3, 3, foot - bottom + 4);
+        rect(g, 0xb4c3c2, leg, bottom - 3, 1, foot - bottom + 3);
+        rect(g, 0x829798, leg - 5, foot - 1, 13, 2);
+        for (const wheel of [leg - 5, leg + 5]) { rect(g, 0x394b53, wheel, foot + 1, 3, 3); rect(g, 0x8c9b9a, wheel + 1, foot + 1, 1, 1); }
+      }
+      rect(g, 0x8b9d9d, x + 12, bottom + 8, w - 24, 2);
+    }
+    rect(g, 0x536b72, x, top, w, faceH);
+    rect(g, 0xc5d2d0, x + 1, top + 1, w - 2, faceH - 2);
+    rect(g, 0xfafcf1, x + 3, top + 3, w - 6, faceH - 6);
+    rect(g, 0xffffff, x + 4, top + 3, w - 8, 2);
+    // Small marker notes and a flow diagram, on a vertical white writing surface.
+    rect(g, 0x4d858c, x + 8, top + 7, Math.min(23, w - 36), 2);
+    for (let row = 0; row < 2; row++) {
+      rect(g, 0x839b9d, x + 8, top + 13 + row * 5, 2, 2);
+      rect(g, 0x839b9d, x + 13, top + 13 + row * 5, row ? 13 : 18, 1);
+    }
+    const diagram = x + w - 25;
+    g.lineStyle(1, 0x639b9a).strokeRect(diagram, top + 8, 13, 6);
+    rect(g, 0x639b9a, diagram + 6, top + 15, 1, 3);
+    rect(g, 0x639b9a, diagram + 4, top + 17, 5, 1);
+    g.lineStyle(1, 0xc48479).strokeRect(diagram + 2, top + 19, 9, 3);
+    rect(g, 0x82999c, x + 3, bottom - 2, w - 6, 3);
+    rect(g, 0xd6dfd9, x + 4, bottom - 2, w - 8, 1);
+    for (const [offset, color] of [[8, 0x477d99], [16, 0xc86e63], [24, 0x4b6969]]) {
+      rect(g, color, x + offset, bottom - 3, 6, 1); rect(g, 0x394f59, x + offset, bottom - 3, 1, 1);
+    }
+    rect(g, 0x647b84, x + w - 16, bottom - 4, 8, 2);
+    if (openBoard) g.setInteractive(new Phaser.Geom.Rectangle(x, top, w, y + h - top), Phaser.Geom.Rectangle.Contains)
+      .on('pointerup', () => openBoard(item));
   } else if (kind === 'counter') {
     rect(g, 0x8b654a, x, y, w, h); rect(g, 0xe5c394, x, y, w, 8);
     rect(g, 0x455759, x + 10, y - 6, 21, 14); rect(g, 0xa7bfb4, x + 12, y - 4, 13, 7);
@@ -193,9 +229,10 @@ function drawFurniture(scene: Phaser.Scene, item: Furniture, openCalendar?: () =
   }
 }
 
-export function drawOffice(scene: Phaser.Scene, roomId: RoomId = 'office', openCalendar?: () => void, openArcade?: (game: ArcadeGame) => void): Phaser.GameObjects.GameObject[] {
+export function drawOffice(scene: Phaser.Scene, roomId: RoomId = 'office', openCalendar?: () => void, openArcade?: (game: ArcadeGame) => void, openBoard?: (item: Furniture) => void): Phaser.GameObjects.GameObject[] {
   const before = new Set(scene.children.list);
   const room = getRoom(roomId);
+  const windowColumns = roomWindowColumns(roomId);
   const floor = scene.add.graphics().setDepth(-100);
   for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
     rect(floor, (x + y) % 3 === 0 ? room.grain : room.floor, x * TILE, y * TILE, TILE, TILE);
@@ -241,13 +278,13 @@ export function drawOffice(scene: Phaser.Scene, roomId: RoomId = 'office', openC
     rect(g, room.wall, x * TILE + 1, y * TILE, TILE - 2, 9);
     rect(g, 0xf9f0d0, x * TILE + 1, y * TILE, TILE - 2, 2);
     rect(g, 0xc2b28b, x * TILE + 1, y * TILE + 9, TILE - 2, 4);
-    if (room.outlook === 'window' && y === 0 && WINDOW_COLUMNS.includes(x)) {
+    if (room.outlook === 'window' && y === 0 && windowColumns.includes(x)) {
       rect(g, 0x7b9b9b, x * TILE + 1, 2, 14, 10);
       rect(g, 0xb9d8c5, x * TILE + 2, 3, 12, 7);
       rect(g, 0xe8edd0, x * TILE + 3, 3, 2, 6);
     }
   }
-  room.furniture.forEach((item) => drawFurniture(scene, item, openCalendar));
+  room.furniture.forEach((item) => drawFurniture(scene, item, openCalendar, openBoard));
   if (roomId === 'arcade') for (const id of ARCADE_IDS) {
     const game = ARCADE_GAMES[id], x = game.x * TILE, y = game.y * TILE;
     const screen = scene.add.graphics().setDepth(y + 48);

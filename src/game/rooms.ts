@@ -13,7 +13,7 @@ const f = (kind: Furniture['kind'], x: number, y: number, w = 1, h = 1): Furnitu
 export const officeFurniture: Furniture[] = [
   ...VEHICLE_DOCKS.map((dock) => ({ ...dock, kind: 'parking' as const, vehicleKind: dock.kind, label: `${VEHICLES[dock.kind].name}置き場` })),
   f('desk', 2, 3, 3, 2), f('desk', 6, 3, 3, 2), f('desk', 2, 7, 3, 2), f('desk', 6, 7, 3, 2),
-  f('table', 13, 4, 4, 3), f('board', 14, 1, 4, 1), f('plant', 18, 2), f('shelf', 11, 1, 2), f('sofa', 23, 3, 4, 2),
+  f('table', 13, 4, 4, 3), { ...f('board', 14, 1, 4, 1), boardMount: 'wall' }, f('plant', 18, 2), f('shelf', 11, 1, 2), f('sofa', 23, 3, 4, 2),
   f('table', 24, 6, 2), f('plant', 27, 8), f('shelf', 21, 1, 2), f('plant', 2, 12), f('plant', 27, 12),
   f('shelf', 1, 17, 3), f('sofa', 20, 15, 4, 2), f('plant', 26, 17),
 ];

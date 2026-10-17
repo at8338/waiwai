@@ -7,6 +7,12 @@ import type { RoomObject } from './objects.ts';
 import { TILE } from './world.ts';
 
 export const WINDOW_COLUMNS = [3, 4, 7, 8, 14, 15, 24, 25];
+// North-wall whiteboards occupy this wall space, including their raised face.
+export function roomWindowColumns(roomId: RoomId): number[] {
+  const room = getRoom(roomId);
+  return room.outlook !== 'window' ? [] : WINDOW_COLUMNS.filter((x) => !room.furniture.some((item) =>
+    item.kind === 'board' && item.y <= 1 && x >= item.x && x < item.x + item.w));
+}
 export const LIGHTING_PHASES = ['morning', 'day', 'evening', 'night'] as const;
 export type LightingPhase = typeof LIGHTING_PHASES[number];
 export const LIGHTING_LABELS: Record<LightingPhase, string> = { morning: '朝の光', day: '昼の光', evening: '夕暮れ', night: '夜のあかり' };
@@ -57,7 +63,8 @@ export function roomLights(roomId: RoomId, objects: readonly RoomObject[]): Room
   const color = roomId === 'ops' || roomId === 'arcade' || roomId === 'cockpit' ? 0xc6e7eb : 0xffcd86;
   const lights: RoomLight[] = roomId === 'garden'
     ? [[6, 4], [24, 4], [8, 15], [21, 15]].map(([x, y]) => ({ x: (x + 0.5) * TILE, y: (y + 0.5) * TILE, radius: 55, color, kind: 'lantern' }))
-    : [5, 15, 25].map((x) => ({ x: (x + 0.5) * TILE, y: 20, radius: 83, color, kind: 'sconce' }));
+    : [5, 15, 25].filter((x) => !room.furniture.some((item) => item.kind === 'board' && item.y <= 1 && x >= item.x && x < item.x + item.w))
+      .map((x) => ({ x: (x + 0.5) * TILE, y: 20, radius: 83, color, kind: 'sconce' }));
   if (roomId === 'office') for (const x of [8, 22]) lights.push({ x: (x + 0.5) * TILE, y: 10 * TILE + 7, radius: 90, color, kind: 'sconce' });
   else if (roomId !== 'garden') for (const x of [1, 28]) lights.push({ x: (x + 0.5) * TILE, y: 13 * TILE, radius: 95, color, kind: 'sconce' });
   for (const item of [...room.furniture, ...objects.filter((o) => o.roomId === roomId)]) {

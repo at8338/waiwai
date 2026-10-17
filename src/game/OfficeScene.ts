@@ -23,7 +23,7 @@ import Phaser from 'phaser';
 import { avatarTexture, createAvatarTextures, drawOffice, drawRoomObject } from './art.ts';
 import { Controls } from './controls.ts';
 import { Walker, areaAt, COLS, ROWS, TILE } from './world.ts';
-import type { Direction } from './world.ts';
+import type { Direction, Furniture } from './world.ts';
 import { OfficeConnection } from '../network/OfficeConnection.ts';
 import type { ConnectionState } from '../network/OfficeConnection.ts';
 import type { Player } from '../network/protocol.ts';
@@ -128,7 +128,7 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.mapViews = drawOffice(this, this.roomId, () => { if (this.editMode === 'none') this.dailyUI?.openCalendar(); }, (game) => { if (this.editMode === 'none') this.arcadeUI?.open(game); });
+    this.mapViews = drawOffice(this, this.roomId, () => { if (this.editMode === 'none') this.dailyUI?.openCalendar(); }, (game) => { if (this.editMode === 'none') this.arcadeUI?.open(game); }, (item) => this.openBoard(item));
     this.lostItems = new LostItemsView(this, this.inputController.signal, (item) => {
       if (this.editMode !== 'none' || document.querySelector('dialog[open]')) return;
       this.controls.clear();
@@ -528,7 +528,7 @@ export class OfficeScene extends Phaser.Scene {
     this.seats.clear(); this.objects = []; this.objectsReady = false; this.pendingEdit = undefined;
     for (const view of [...this.mapViews, ...this.objectViews]) view.destroy();
     this.objectViews = [];
-    this.mapViews = drawOffice(this, id, () => { if (this.editMode === 'none') this.dailyUI?.openCalendar(); }, (game) => { if (this.editMode === 'none') this.arcadeUI?.open(game); });
+    this.mapViews = drawOffice(this, id, () => { if (this.editMode === 'none') this.dailyUI?.openCalendar(); }, (game) => { if (this.editMode === 'none') this.arcadeUI?.open(game); }, (item) => this.openBoard(item));
     const room = getRoom(id);
     this.game.canvas.setAttribute('aria-label', `${room.name}。矢印キーまたはWASDで移動。Tabキーでマップから移動できます。`);
     document.querySelectorAll('[data-room-name]').forEach((node) => { node.textContent = room.name; });
@@ -641,6 +641,11 @@ export class OfficeScene extends Phaser.Scene {
     this.ghost = drawRoomObject(this, object).setAlpha(error ? 0.25 : 0.65).setDepth(2000);
     const { w, h } = objectSize(object.kind);
     this.ghost.lineStyle(1, error ? 0xb96551 : 0xfff3bc).strokeRect(-w * TILE / 2, -h * TILE / 2, w * TILE, h * TILE);
+  }
+  private openBoard(item: Furniture): void {
+    if (this.editMode !== 'none' || !this.connected || !this.objectsReady) return;
+    const target = objectTargets(this.roomId, []).find((o) => o.kind === 'board' && o.x === item.x && o.y === item.y);
+    if (target) this.linksUI?.open(target);
   }
   private editAt(pointer: Phaser.Input.Pointer): void {
     const x = Math.floor(pointer.x / TILE), y = Math.floor(pointer.y / TILE);
