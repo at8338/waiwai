@@ -33,14 +33,15 @@ export class RoomLighting {
     const { phase, time, weather: outside, palette: p } = roomLightingAt(this.roomId, now, weather);
     this.sunlight.clear(); this.shade.clear(); this.glow.clear(); this.sources.clear();
     this.shade.fillStyle(p.tint, p.shade).fillRect(0, 0, COLS * TILE, ROWS * TILE);
-    const outlook = getRoom(this.roomId).outlook;
+    const room = getRoom(this.roomId), outlook = room.outlook;
     const windowColumns = roomWindowColumns(this.roomId);
     if (outlook === 'window') for (const start of [3, 7, 14, 24]) {
       if (!windowColumns.includes(start)) continue;
-      const min = this.roomId !== 'office' ? TILE : (start < 10 ? 1 : start < 20 ? 11 : 21) * TILE;
-      const max = this.roomId !== 'office' ? (COLS - 1) * TILE : (start < 10 ? 10 : start < 20 ? 20 : 29) * TILE;
+      const section = room.sections?.find((s) => s.y === 1 && start >= s.x && start < s.x + s.w);
+      const min = section ? section.x * TILE : this.roomId !== 'office' ? TILE : (start < 10 ? 1 : start < 20 ? 11 : 21) * TILE;
+      const max = section ? (section.x + section.w) * TILE : this.roomId !== 'office' ? (COLS - 1) * TILE : (start < 10 ? 10 : start < 20 ? 20 : 29) * TILE;
       const clamp = (x: number) => Phaser.Math.Clamp(x, min, max);
-      const length = this.roomId === 'office' ? 132 : 185;
+      const length = section ? section.h * TILE : this.roomId === 'office' ? 132 : 185;
       for (let band = 0; band < 6; band++) {
         const from = band / 6, to = (band + 1) / 6;
         this.sunlight.fillStyle(p.sunColor, p.sun * (1 - from) * (this.roomId === 'garden' ? 0.45 : 1)).fillPoints([

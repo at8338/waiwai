@@ -2,10 +2,10 @@ import type { RoomId } from './rooms.ts';
 export const ROBOT_NAME = 'ワイワイガー';
 export const ROBOT_PARTS = [
   { id: 'head', label: '頭部', title: '司令・展望ブロック', description: 'ここがワイワイガーの頭脳。操縦室と、遠くを見渡すラウンジ、考えをまとめる集中室。', rooms: ['cockpit', 'sky', 'focus'] },
-  { id: 'body', label: '胴体', title: 'みんなのコア', description: '胸の中にある、いつものオフィス。相談や作戦会議、日々の運用もこの場所から。', rooms: ['office', 'meeting', 'ops'] },
+  { id: 'body', label: '胴体', title: 'みんなのコア', description: '胸の中にある、いつものオフィス。相談や作戦会議、日々の運用もこの場所から。', rooms: ['office', 'meeting', 'ops', 'project'] },
   { id: 'leftarm', label: '左腕', title: 'ものづくりアーム', description: '絵を描き、試作を重ねる左腕。何かを生み出す人たちのアイデアが、この腕を動かす。', rooms: ['studio', 'workshop'] },
   { id: 'rightarm', label: '右腕', title: '知恵と遊びのアーム', description: '本棚の知恵とゲームのひらめきを詰めた右腕。ときどきロケットパンチの練習も。', rooms: ['library', 'arcade'] },
-  { id: 'leftleg', label: '左脚', title: '休息エネルギーブロック', description: 'カフェと休憩室で、まずはひと息。しっかり休むことが、大きな一歩のエネルギーになる。', rooms: ['cafe', 'wellness'] },
+  { id: 'leftleg', label: '左脚', title: '休息エネルギーブロック', description: '食堂でお腹を満たし、カフェと休憩室でひと息。しっかり休むことが、大きな一歩のエネルギーになる。', rooms: ['cafe', 'wellness', 'canteen'] },
   { id: 'rightleg', label: '右脚', title: '緑のオープンデッキ', description: '右足の甲に広がる屋上ガーデン。海風を感じながら、巨人の一歩を支える小さな庭。', rooms: ['garden'] },
 ] as const satisfies readonly { id: string; label: string; title: string; description: string; rooms: readonly RoomId[] }[];
 export const robotLocation = (room: RoomId): string => ROBOT_PARTS.find((part) => (part.rooms as readonly RoomId[]).includes(room))?.label ?? '';

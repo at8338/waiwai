@@ -65,6 +65,7 @@ export function roomLights(roomId: RoomId, objects: readonly RoomObject[]): Room
     ? [[6, 4], [24, 4], [8, 15], [21, 15]].map(([x, y]) => ({ x: (x + 0.5) * TILE, y: (y + 0.5) * TILE, radius: 55, color, kind: 'lantern' }))
     : [5, 15, 25].filter((x) => !room.furniture.some((item) => item.kind === 'board' && item.y <= 1 && x >= item.x && x < item.x + item.w))
       .map((x) => ({ x: (x + 0.5) * TILE, y: 20, radius: 83, color, kind: 'sconce' }));
+  if (room.sections) for (const section of room.sections) lights.push({ x: (section.x < 14 ? 13.5 : 16.5) * TILE, y: (section.y + 3) * TILE, radius: 91, color, kind: 'sconce' });
   if (roomId === 'office') for (const x of [8, 22]) lights.push({ x: (x + 0.5) * TILE, y: 10 * TILE + 7, radius: 90, color, kind: 'sconce' });
   else if (roomId !== 'garden') for (const x of [1, 28]) lights.push({ x: (x + 0.5) * TILE, y: 13 * TILE, radius: 95, color, kind: 'sconce' });
   for (const item of [...room.furniture, ...objects.filter((o) => o.roomId === roomId)]) {

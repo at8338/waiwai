@@ -9,18 +9,20 @@ export const SPAWN = { x: 15, y: 12 };
 export type Direction = 'up' | 'down' | 'left' | 'right';
 export type Point = { x: number; y: number };
 export type Furniture = Point & {
-  kind: 'viewport' | 'console' | 'pilot' | 'reactor' | 'calendar' | 'desk' | 'workbench' | 'table' | 'sofa' | 'plant' | 'shelf' | 'board' | 'counter' | 'pond' | 'easel' | 'arcade' | 'bed' | 'telescope' | 'monitor' | 'rack' | 'parking' | 'vending';
+  kind: 'buffet' | 'dishreturn' | 'viewport' | 'console' | 'pilot' | 'reactor' | 'calendar' | 'desk' | 'workbench' | 'table' | 'sofa' | 'plant' | 'shelf' | 'board' | 'counter' | 'pond' | 'easel' | 'arcade' | 'bed' | 'telescope' | 'monitor' | 'rack' | 'parking' | 'vending';
   w: number;
   h: number;
   label?: string;
   vehicleKind?: VehicleKind;
   boardMount?: 'wall' | 'stand';
+  tableSetting?: 'meal';
 };
 
 export const furniture: Furniture[] = officeFurniture;
 
 export function isWall(x: number, y: number, roomId: RoomId = 'office'): boolean {
   if (x === 0 || x === COLS - 1 || y === 0 || y === ROWS - 1) return true;
+  if (getRoom(roomId).partitions?.some((p) => p.x === x && p.y === y)) return true;
   if (roomId !== 'office') return false;
   if ((x === 10 || x === 20) && y < 10) return true;
   return y === 10 && ![5, 6, 14, 15, 24, 25].includes(x);
@@ -34,7 +36,11 @@ export function canWalk(x: number, y: number, roomId: RoomId = 'office'): boolea
 }
 
 export function areaAt({ x, y, roomId }: Point & { roomId?: RoomId }): string {
-  if (roomId && roomId !== 'office') return getRoom(roomId).name;
+  if (roomId && roomId !== 'office') {
+    const room = getRoom(roomId);
+    return room.sections?.find((section) => x >= section.x && x < section.x + section.w && y >= section.y && y < section.y + section.h)?.name
+      ?? (room.sections ? '共用通路' : room.name);
+  }
   if (y < 10) return x < 10 ? 'ワークエリア' : x < 20 ? 'ミーティングルーム' : 'ラウンジ';
   return y < 13 ? 'エントランス' : 'フリースペース';
 }

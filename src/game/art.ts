@@ -174,6 +174,30 @@ function drawFurniture(scene: Phaser.Scene, item: Furniture, openCalendar?: () =
     rect(g, 0x647b84, x + w - 16, bottom - 4, 8, 2);
     if (openBoard) g.setInteractive(new Phaser.Geom.Rectangle(x, top, w, y + h - top), Phaser.Geom.Rectangle.Contains)
       .on('pointerup', () => openBoard(item));
+  } else if (kind === 'buffet' || kind === 'dishreturn') {
+    rect(g, 0x536e70, x, y + 10, w, h - 10); rect(g, 0xa3bbb3, x + 2, y + 12, w - 4, h - 15);
+    rect(g, 0xd9e3d3, x, y + 9, w, 4); rect(g, 0xf7f1d7, x + 2, y + 9, w - 4, 1);
+    for (let i = 6; i < w - 6; i += 26) { rect(g, 0x78988e, x + i, y + 26, 22, 14); rect(g, 0xc9d7c2, x + i + 17, y + 30, 2, 6); }
+    rect(g, 0x435e63, x + 4, y + h - 3, w - 8, 3);
+    if (kind === 'buffet') {
+      for (let i = 8; i < w - 47; i += 27) {
+        rect(g, 0x738e8d, x + i, y + 14, 23, 10); rect(g, 0xf0e8c9, x + i + 2, y + 15, 19, 7);
+        rect(g, 0x9da75a, x + i + 4, y + 17, 6, 4); rect(g, 0xc68c55, x + i + 11, y + 16, 7, 4);
+        rect(g, 0xcce1d6, x + i + 5, y + 2, 1, 5); rect(g, 0xcce1d6, x + i + 8, y, 1, 4);
+      }
+      // Rice cooker, stacked bowls and a glass sneeze guard.
+      rect(g, 0x536b70, x + w - 34, y + 12, 22, 13); rect(g, 0xe9e8d1, x + w - 33, y + 9, 20, 11);
+      rect(g, 0xfaf3d9, x + w - 35, y + 8, 24, 3); rect(g, 0x536b70, x + w - 26, y + 6, 6, 2);
+      rect(g, 0xcb8d60, x + w - 25, y + 15, 4, 2);
+      for (const post of [3, w - 6]) rect(g, 0x759294, x + post, y, 2, 27);
+      rect(g, 0xa7c6c0, x + 3, y, w - 6, 2); rect(g, 0xd5e5d1, x + 6, y + 3, w - 12, 1);
+    } else {
+      rect(g, 0x334e56, x + 6, y + 15, w - 12, 13);
+      for (let i = 9; i < w - 13; i += 18) for (let row = 0; row < 3; row++) {
+        rect(g, 0xc6d7ce, x + i, y + 19 - row * 3, 15, 2); rect(g, 0xf5edcf, x + i + 2, y + 18 - row * 3, 11, 1);
+      }
+      rect(g, 0x8ca59b, x + 7, y + 32, w - 14, 5);
+    }
   } else if (kind === 'counter') {
     rect(g, 0x8b654a, x, y, w, h); rect(g, 0xe5c394, x, y, w, 8);
     rect(g, 0x455759, x + 10, y - 6, 21, 14); rect(g, 0xa7bfb4, x + 12, y - 4, 13, 7);
@@ -216,7 +240,16 @@ function drawFurniture(scene: Phaser.Scene, item: Furniture, openCalendar?: () =
     rect(g, 0xe0b577, x + 3, y + 1, w - 6, 3);
     rect(g, 0xf4e7bc, x + 8, y + 8, 10, 7);
     rect(g, 0x8ba5a0, x + 10, y + 10, 5, 1);
-    if (th > 1) {
+    if (item.tableSetting === 'meal') {
+      // Two little lunch trays; the existing table chairs remain usable.
+      for (const offset of [12, w - 31]) {
+        rect(g, 0x637f7b, x + offset, y + 7, 21, 13); rect(g, 0xb4be8a, x + offset + 1, y + 8, 19, 11);
+        rect(g, 0xf9efd2, x + offset + 3, y + 10, 7, 6); rect(g, 0xdab883, x + offset + 4, y + 14, 5, 2);
+        rect(g, 0xc58d5c, x + offset + 12, y + 10, 6, 4); rect(g, 0x729255, x + offset + 12, y + 15, 3, 2);
+        rect(g, 0x704d3b, x + offset + 4, y + 21, 16, 1); rect(g, 0x704d3b, x + offset + 4, y + 23, 16, 1);
+      }
+    }
+    if (th > 1 && !item.tableSetting) {
       rect(g, 0x557459, x + w - 15, y + 13, 7, 9);
       rect(g, 0xe8cf86, x + w - 13, y + 15, 3, 3);
     }
@@ -261,6 +294,10 @@ export function drawOffice(scene: Phaser.Scene, roomId: RoomId = 'office', openC
     } else if (room.style === 'control') {
       rug(floor, 9 * TILE, 6 * TILE, 12 * TILE, 10 * TILE, room.rug);
       for (const x of [9, 20]) for (let y = 2; y < 18; y += 2) rect(floor, 0xb5c3b3, x * TILE + 7, y * TILE + 3, 2, 8);
+    } else if (room.sections) {
+      for (const section of room.sections) rug(floor, (section.x + 1) * TILE, (section.y + 1) * TILE, (section.w - 2) * TILE, (section.h - 2) * TILE, section.color);
+      for (let y = 1; y < ROWS - 1; y++) rect(floor, 0xe6dcb9, 14 * TILE, y * TILE, 2 * TILE, TILE);
+      rect(floor, 0xe6dcb9, TILE, 9 * TILE, 28 * TILE, 2 * TILE);
     } else if (room.style !== 'grass') rug(floor, 9 * TILE, 5 * TILE, 12 * TILE, 9 * TILE, room.rug);
     for (let y = 1; y < ROWS - 1; y++) for (let x = 1; x < COLS - 1; x++) {
       if (room.style === 'checker' && (x + y) % 2 === 0) rect(floor, room.grain, x * TILE + 1, y * TILE + 1, 14, 14);
@@ -283,6 +320,17 @@ export function drawOffice(scene: Phaser.Scene, roomId: RoomId = 'office', openC
       rect(g, 0xb9d8c5, x * TILE + 2, 3, 12, 7);
       rect(g, 0xe8edd0, x * TILE + 3, 3, 2, 6);
     }
+  }
+  for (const section of room.sections ?? []) {
+    const entry = section.entrance, x = entry.x * TILE, y = entry.y * TILE, width = entry.w * TILE;
+    const threshold = scene.add.graphics().setDepth(-90);
+    rect(threshold, 0x947b56, x, y + 5, width, 7); rect(threshold, section.color, x + 1, y + 6, width - 2, 4);
+    const label = scene.add.text(x + width / 2, y - 3, section.name, {
+      fontFamily: 'sans-serif', fontSize: '9px', color: '#fff7df', backgroundColor: '#344d59', padding: { x: 7, y: 3 },
+    }).setOrigin(0.5, 1).setResolution(2).setDepth(y + TILE);
+    const sign = scene.add.graphics().setDepth(y + TILE - 1);
+    rect(sign, 0x937b5c, label.x - label.width / 2 - 2, label.y - label.height - 2, label.width + 4, label.height + 4);
+    rect(sign, section.color, label.x - label.width / 2, label.y - label.height, 3, label.height);
   }
   room.furniture.forEach((item) => drawFurniture(scene, item, openCalendar, openBoard));
   if (roomId === 'arcade') for (const id of ARCADE_IDS) {
