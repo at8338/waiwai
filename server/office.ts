@@ -1,4 +1,6 @@
 import { lostItemsSnapshot, lostItemPeriod } from '../src/game/lost-items.ts';
+import { BirthdayStore, BirthdayError } from './birthdays.ts';
+import { birthdayDay } from '../src/game/birthdays.ts';
 import { ArcadeRoom } from './arcade.ts';
 import { RobotSimulation } from './robot.ts';
 import { dailyEventAt } from '../src/game/daily-events.ts';
@@ -31,13 +33,16 @@ import { REACTION_COOLDOWN_MS } from '../src/game/reactions.ts';
 
 class EditError extends Error {}
 
-export function attachOffice(server: Server, auth?: SlackAuth, options: { objectsFile?: string; membersFile?: string; linksFile?: string; announcementsFile?: string; eventClock?: () => number; lostClock?: () => number } = {}): () => void {
+export function attachOffice(server: Server, auth?: SlackAuth, options: { objectsFile?: string; membersFile?: string; linksFile?: string; announcementsFile?: string; birthdaysFile?: string; birthdayClock?: () => number; eventClock?: () => number; lostClock?: () => number } = {}): () => void {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 });
   const players = new Map<WebSocket, Player>();
   const store = new ObjectStore(options.objectsFile);
   const members = new MemberStore(options.membersFile);
   const links = new LinkStore(options.linksFile);
   const announcements = new AnnouncementStore(options.announcementsFile);
+  const birthdayClock = options.birthdayClock ?? Date.now;
+  const birthdays = new BirthdayStore(options.birthdaysFile, birthdayClock);
+  const birthdayOwner = (player: Player) => player.slackVerified && player.slack ? `slack:${player.slack.teamId}:${player.slack.userId}` : `guest:${player.id}`;
   let announcementWarning: string | undefined;
   let directoryDirty = false;
   let directoryWarning: string | undefined;
@@ -53,6 +58,11 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     const serialized = JSON.stringify(message);
     for (const ws of players.keys()) if (ws !== except) sendRaw(ws, serialized);
   };
+  const sendBirthdays = (target?: WebSocket) => {
+    for (const [client, player] of players) if (!target || target === client) send(client, { type: 'birthdays', ...birthdays.snapshot(birthdayOwner(player)) });
+  };
+  let birthdayDate = birthdayDay(birthdayClock());
+  const birthdayTimer = setInterval(() => { const date = birthdayDay(birthdayClock()); if (date !== birthdayDate) { birthdayDate = date; sendBirthdays(); } }, 1000); birthdayTimer.unref();
   const arcade = new ArcadeRoom();
   const publishedArcade = new Map<string, string>();
   const sendArcade = (target?: WebSocket) => {
@@ -181,6 +191,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     sendLinks(ws, player.roomId);
     sendFleet(ws);
     sendAnnouncements(ws);
+    sendBirthdays(ws);
     sendDailyEvent(ws);
     sendLostItems(ws);
     let lastMove = -Infinity;
@@ -195,6 +206,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     const arcadeRequests = new Set<string>();
     let lastRobot = -Infinity;
     let lastVehicle = -Infinity;
+    let lastBirthday = -Infinity;
     const vehicleResults = new Map<string, string | undefined>();
     let lastVending: string | undefined;
     const contact = () => {
@@ -216,6 +228,14 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
       const message = parseClientMessage(data.toString());
       if (message?.type === 'voice-signal' ? ++signals > 120 : ++messages > 40) { ws.close(1008, 'Too many messages'); return; }
       if (!message) return;
+      if (message.type === 'birthday-save' || message.type === 'birthday-delete' || message.type === 'birthday-cheer') {
+        if (now - lastBirthday < 750) { send(ws, { type: 'birthday-result', actionId: message.actionId, error: '少し待ってから操作してください。' }); return; }
+        lastBirthday = now;
+        void birthdays.apply(message, birthdayOwner(player), player.name, () => players.has(ws) && (!identity || auth?.identify(request)?.id === identity.id)).then(() => {
+          sendBirthdays(); send(ws, { type: 'birthday-result', actionId: message.actionId });
+        }).catch((error: unknown) => send(ws, { type: 'birthday-result', actionId: message.actionId, error: error instanceof BirthdayError ? error.message : '誕生日を保存できませんでした。時間をおいて試してください。' }));
+        return;
+      }
       if (message.type === 'arcade-action') {
         if (arcadeRequests.has(message.actionId)) return;
         arcadeRequests.add(message.actionId);
@@ -407,6 +427,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
       leaveArcade(player.id);
       const hadVehicle = !!player.riding; fleet.forget(player);
       players.delete(ws);
+      if (!identity) void birthdays.removeGuest(birthdayOwner(player)).then(() => sendBirthdays()).catch(() => {});
       if (hadVehicle) sendFleet();
       directoryDirty = true;
       identities.delete(ws);
@@ -438,6 +459,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
   heartbeat.unref();
   return () => {
     clearInterval(lostTimer);
+    clearInterval(birthdayTimer);
     clearInterval(arcadeTimer);
     clearInterval(robotTimer);
     clearInterval(dailyEventTimer);

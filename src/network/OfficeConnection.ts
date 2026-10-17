@@ -1,4 +1,5 @@
 import type { ArcadeAction } from '../game/arcade.ts';
+import type { BirthdayAction } from '../game/birthdays.ts';
 import type { RobotAction } from '../game/robot.ts';
 import type { AnnouncementAction } from '../game/announcements.ts';
 import type { RoomPet } from '../game/buddies.ts';
@@ -16,6 +17,8 @@ import type { ReactionKind } from '../game/reactions.ts';
 
 export type ConnectionState = 'connecting' | 'online' | 'reconnecting';
 export type ConnectionHandlers = {
+  birthdays?: (message: Extract<ServerMessage, { type: 'birthdays' }>) => void;
+  birthdayResult?: (id: string, error?: string) => void;
   lostItems?: (message: Extract<ServerMessage, { type: 'lost-items' }>) => void;
   arcadeState?: (message: Extract<ServerMessage, { type: 'arcade-state' }>) => void;
   arcadeResult?: (message: Extract<ServerMessage, { type: 'arcade-result' }>) => void;
@@ -126,6 +129,8 @@ export class OfficeConnection {
       else if (message.type === 'robot-state') this.handlers.robotState?.(message);
       else if (message.type === 'robot-result') this.handlers.robotResult?.(message);
       else if (message.type === 'daily-event') this.handlers.dailyEvent?.(message);
+      else if (message.type === 'birthdays') this.handlers.birthdays?.(message);
+      else if (message.type === 'birthday-result') this.handlers.birthdayResult?.(message.actionId, message.error);
       else if (message.type === 'announcements') this.handlers.announcements?.(message);
       else if (message.type === 'announcement-result') this.handlers.announcementResult?.(message.actionId, message.error);
       else if (message.type === 'vehicles') this.handlers.vehicles?.(message.units);
@@ -200,6 +205,7 @@ export class OfficeConnection {
   robot(action: RobotAction, actionId: string): boolean { if (!this.online) return false; this.send({ type: 'robot-action', action, actionId }); return true; }
 
   announcement(action: AnnouncementAction): boolean { if (!this.online) return false; this.send(action); return true; }
+  birthday(action: BirthdayAction): boolean { if (!this.online) return false; this.send(action); return true; }
 
   vehicle(action: VehicleAction, actionId: string): boolean {
     if (!this.online) return false;

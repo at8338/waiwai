@@ -21,9 +21,9 @@ import { MAX_VOICE_MEMBERS, MAX_VOICE_PEERS } from '../src/audio/proximity.ts';
 import { STEP_MS, canWalk } from '../src/game/world.ts';
 import { REACTION_COOLDOWN_MS } from '../src/game/reactions.ts';
 
-async function fixture(t: TestContext, objectsFile?: string, linksFile?: string, announcementsFile?: string, eventClock?: () => number, lostClock?: () => number) {
+async function fixture(t: TestContext, objectsFile?: string, linksFile?: string, announcementsFile?: string, eventClock?: () => number, lostClock?: () => number, birthdayClock?: () => number) {
   const server = createServer((_request, response) => response.end('ok'));
-  const dispose = attachOffice(server, undefined, { objectsFile, linksFile, announcementsFile, eventClock, lostClock });
+  const dispose = attachOffice(server, undefined, { objectsFile, linksFile, announcementsFile, eventClock, lostClock, birthdayClock });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const clients: WebSocket[] = [];
@@ -63,6 +63,25 @@ async function fixture(t: TestContext, objectsFile?: string, linksFile?: string,
   };
   return { connect, origin };
 }
+
+test('birthday registration and one cheer are shared across rooms; guests can only edit themselves and leave no registration after exit', async (t) => {
+  let now = Date.parse('2026-10-17T12:00:00+09:00');
+  const { connect } = await fixture(t, undefined, undefined, undefined, undefined, undefined, () => now);
+  const a = await connect(), b = await connect();
+  const self = (await a.next('birthdays')).selfId;
+  b.send({ type: 'change-room', roomId: 'library', requestId: 1 }); await b.next('player', (m) => m.reason === 'room');
+  const actionId = randomUUID(); a.send({ type: 'birthday-save', month: 10, day: 17, expectedVersion: 0, actionId, id: 'slack:T1:U2', name: 'forged' });
+  assert.equal((await a.next('birthday-result', (m) => m.actionId === actionId)).error, undefined);
+  const state = await b.next('birthdays', (m) => m.entries.length === 1);
+  assert.equal(state.entries[0].id, self); assert.equal(state.entries[0].name, 'ゲスト'); assert.equal(state.persistent, false);
+  const cheerId = randomUUID(); b.send({ type: 'birthday-cheer', id: self, actionId: cheerId });
+  assert.equal((await b.next('birthday-result', (m) => m.actionId === cheerId)).error, undefined);
+  assert.equal((await a.next('birthdays', (m) => m.entries[0]?.cheers === 1)).entries[0].cheered, false);
+  assert.equal((await b.next('birthdays', (m) => m.entries[0]?.cheers === 1)).entries[0].cheered, true);
+  now = Date.parse('2026-10-18T00:00:00+09:00');
+  assert.equal((await b.next('birthdays', (m) => m.serverNow === now)).entries[0].cheers, 0);
+  a.ws.close(); await b.next('birthdays', (m) => !m.entries.length);
+});
 
 test('two clients receive each other, profile changes, and the same authoritative movement', async (t) => {
   const { connect } = await fixture(t);
