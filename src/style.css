@@ -254,3 +254,20 @@ select { color: #354b3e; background: #fffdf6; border: 1px solid #ced7c2; border-
   .people-dialog { padding: 22px 16px; }.people-search { grid-template-columns: 1fr; gap: 5px; }
   #people-results li { flex-wrap: wrap; gap: 10px; }.person-info { flex-basis: 55%; }
 }
+
+.buddy-section { border-bottom: 1px solid var(--line, #ddd9c8); padding: 20px 0; }
+#buddy-current { font-size: 13px; font-weight: 700; }
+.buddy-dialog { width: min(680px, calc(100vw - 32px)); max-width: 680px; padding: 30px; max-height: calc(100dvh - 32px); overflow-y: auto; }
+.buddy-filter { display: flex; align-items: center; gap: 8px; margin: 18px 0; font-size: 13px; }
+#buddy-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.buddy-none { grid-column: 1 / -1; padding: 10px; font-size: 13px; }
+.buddy-card { position: relative; border: 1px solid #d9dfd1; border-radius: 12px; background: #f7f7ed; }
+.buddy-card:has(input:checked) { border-color: #477766; box-shadow: 0 0 0 2px #477766; background: #edf3e5; }
+.buddy-card label { display: grid; grid-template-columns: 18px 50px 1fr; padding: 16px 38px 16px 12px; align-items: center; gap: 8px; cursor: pointer; min-height: 120px; }
+.buddy-card canvas { width: 40px; height: 44px; image-rendering: pixelated; grid-row: span 2; }
+.buddy-card strong { font-size: 13px; }
+.buddy-card label span { grid-column: 3; font-size: 11px; line-height: 1.7; color: #66746a; }
+.buddy-star { position: absolute; top: 8px; right: 8px; font-size: 22px; padding: 2px 5px; border: 0; background: transparent; color: #9c7732; }
+.buddy-card input, .buddy-filter input, .buddy-none input { width: auto; margin: 0; accent-color: #477766; }
+#buddy-info { max-width: min(420px, calc(100vw - 32px)); }
+@media (max-width: 540px) { #buddy-cards { grid-template-columns: 1fr; } .buddy-card label { min-height: 95px; } }

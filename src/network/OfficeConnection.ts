@@ -1,3 +1,4 @@
+import type { RoomPet } from '../game/buddies.ts';
 import type { RoomId } from '../game/rooms.ts';
 import type { RoomObject } from '../game/objects.ts';
 import type { Direction } from '../game/world.ts';
@@ -17,6 +18,7 @@ export type ConnectionHandlers = {
   left: (id: string) => void;
   voice: (snapshot: VoiceSnapshot) => void;
   voiceSignal: (signal: VoiceSignal) => void;
+  pets?: (roomId: RoomId, pets: RoomPet[]) => void;
   objects?: (roomId: RoomId, objects: RoomObject[]) => void;
   objectResult?: (editId: string, error?: string) => void;
   directory?: (people: Person[], warning?: string) => void;
@@ -88,13 +90,13 @@ export class OfficeConnection {
           this.handlers.travelComplete?.();
         }
       } else if (message.type === 'positions') {
-        for (const [slot, x, y, flags] of message.positions) {
+        for (const [slot, x, y, flags, buddyX, buddyY, buddyFacing] of message.positions) {
           const id = this.slots.get(slot);
           if (!id) continue;
           const previous = this.players.get(id);
           // Own acknowledgments are newer than a coalesced remote frame.
           if (!previous || id === this.id) continue;
-          const player = { ...previous, x, y, facing: directions[flags & 3] };
+          const player = { ...previous, x, y, facing: directions[flags & 3], ...(buddyX !== undefined && buddyY !== undefined && buddyFacing !== undefined ? { buddyPosition: { x: buddyX, y: buddyY, facing: directions[buddyFacing] } } : {}) };
           this.players.set(id, player);
           this.handlers.player(player, (flags & 4) !== 0);
         }
@@ -103,6 +105,7 @@ export class OfficeConnection {
         if (player) this.slots.delete(player.slot);
         this.players.delete(message.id); this.handlers.left(message.id);
       }
+      else if (message.type === 'pets') this.handlers.pets?.(message.roomId, message.pets);
       else if (message.type === 'reaction') this.handlers.reaction?.(message);
       else if (message.type === 'directory') this.handlers.directory?.(message.people, message.warning);
       else if (message.type === 'travel-error') {

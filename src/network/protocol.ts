@@ -1,3 +1,5 @@
+import { isBuddyKind } from '../game/buddies.ts';
+import type { BuddyKind, BuddyPosition, RoomPet } from '../game/buddies.ts';
 import { parseAppearance } from '../game/avatar.ts';
 import type { Appearance } from '../game/avatar.ts';
 import { isRoomId } from '../game/rooms.ts';
@@ -15,12 +17,12 @@ import { parseSlackIdentity } from '../slack/dm.ts';
 import { isReactionKind } from '../game/reactions.ts';
 import type { ReactionKind } from '../game/reactions.ts';
 
-export type Profile = { name: string; outfit: number; appearance?: Appearance; slack?: SlackIdentity | null };
-export type Player = Profile & { id: string; slot: number; roomId: RoomId; x: number; y: number; facing: Direction; slackVerified?: boolean };
+export type Profile = { name: string; outfit: number; appearance?: Appearance; buddy?: BuddyKind | null; slack?: SlackIdentity | null };
+export type Player = Profile & { id: string; slot: number; roomId: RoomId; x: number; y: number; facing: Direction; slackVerified?: boolean; buddyPosition?: BuddyPosition };
 // Profiles travel only on join/edit; movement is coalesced into one frame per 50ms.
 // Small numeric slot maps to a UUID in the welcome/join profile. Bits 0–1 are
 // direction; bit 2 means snap/reset. UUIDs and identities stay out of frames.
-export type Position = [slot: number, x: number, y: number, flags: number];
+export type Position = [slot: number, x: number, y: number, flags: number, buddyX?: number, buddyY?: number, buddyFacing?: number];
 export const MAX_PLAYERS = 150;
 export const POSITION_FRAME_MS = 50;
 export type ClientMessage =
@@ -37,6 +39,7 @@ export type ClientMessage =
   | { type: 'move'; direction: Direction; requestId: number }
   | { type: 'reset'; requestId: number };
 export type ServerMessage =
+  | { type: 'pets'; roomId: RoomId; pets: RoomPet[] }
   | VoiceSnapshot
   | VoiceSignal
   | { type: 'reaction'; playerId: string; roomId: RoomId; kind: ReactionKind }
@@ -96,10 +99,11 @@ export function parseClientMessage(raw: string): ClientMessage | undefined {
   if (data.type === 'move' && validRequest && directions.includes(data.direction as Direction)) return { type: 'move', direction: data.direction as Direction, requestId: data.requestId as number };
   if (data.type === 'profile' && typeof data.name === 'string' &&
       Number.isInteger(data.outfit) && (data.outfit as number) >= 0 && (data.outfit as number) <= 2) {
+    if (data.buddy !== undefined && data.buddy !== null && !isBuddyKind(data.buddy)) return;
     const appearance = parseAppearance(data.appearance, data.outfit as number);
     if (!appearance) return;
     const slack = parseSlackIdentity(data.slack);
     if (slack === undefined) return;
-    return { type: 'profile', name: normalizeName(data.name), outfit: data.outfit as number, appearance, slack };
+    return { type: 'profile', name: normalizeName(data.name), outfit: data.outfit as number, appearance, slack, ...(data.buddy !== undefined ? { buddy: data.buddy as BuddyKind | null } : {}) };
   }
 }

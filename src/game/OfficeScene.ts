@@ -1,3 +1,6 @@
+import { CompanionsView } from './companions-view.ts';
+import { BUDDIES } from './buddies.ts';
+import type { BuddyKind } from './buddies.ts';
 import Phaser from 'phaser';
 import { avatarTexture, createAvatarTextures, drawOffice, drawRoomObject } from './art.ts';
 import { Controls } from './controls.ts';
@@ -32,6 +35,8 @@ type AvatarView = {
 type Peer = { player: Player; walker: Walker; view: AvatarView };
 
 export class OfficeScene extends Phaser.Scene {
+  private companions?: CompanionsView;
+  private buddyChoice: BuddyKind | null = null;
   readonly walker = new Walker();
   private controls = new Controls();
   private avatar!: AvatarView;
@@ -91,6 +96,14 @@ export class OfficeScene extends Phaser.Scene {
   create(): void {
     this.mapViews = drawOffice(this, this.roomId);
     createAvatarTextures(this);
+    this.companions = new CompanionsView(this, (kind, owner) => {
+      if (this.editMode !== 'none') return;
+      this.controls.clear();
+      document.querySelector('#buddy-info-title')!.textContent = `${BUDDIES[kind].icon} ${BUDDIES[kind].name}`;
+      document.querySelector('#buddy-info-owner')!.textContent = owner;
+      document.querySelector('#buddy-info-description')!.textContent = BUDDIES[kind].description;
+      const dialog = document.querySelector<HTMLDialogElement>('#buddy-info')!; if (!dialog.open) dialog.showModal();
+    });
     this.avatar = this.makeAvatar(true);
     this.controls.attach(this.game.canvas);
     this.setupRoomTools();
@@ -134,6 +147,7 @@ export class OfficeScene extends Phaser.Scene {
         this.showRoom(players.find((p) => p.id === id)?.roomId ?? 'office');
         for (const player of players) this.receivePlayer(player, true);
       },
+      pets: (roomId, pets) => this.companions?.pets(roomId, pets),
       player: (player, snap) => this.receivePlayer(player, snap),
       reaction: (message) => {
         if (message.roomId !== this.roomId || this.players.get(message.playerId)?.roomId !== this.roomId) return;
@@ -177,6 +191,7 @@ export class OfficeScene extends Phaser.Scene {
       this.inputController.abort();
       this.voice?.destroy();
       this.connection?.destroy();
+      this.companions?.clear();
     };
     this.events.once('shutdown', cleanup);
     this.events.once('destroy', cleanup);
@@ -194,6 +209,7 @@ export class OfficeScene extends Phaser.Scene {
       this.controls.clear();
       this.clearPeers();
       this.players.clear();
+      this.companions?.clear();
       this.localId = undefined;
       this.objectsReady = false;
       this.setEditMode('none');
@@ -274,12 +290,14 @@ export class OfficeScene extends Phaser.Scene {
       peer.player = player;
       peer.walker.receive(player, player.facing, snap);
     }
+    this.companions?.player(player, snap);
     this.participantsDirty = true;
     this.voice?.setWorld(this.localId, this.players, player.id);
     if (this.selectedPlayer === player.id) this.renderSlackTarget();
   }
 
   private removePlayer(id: string): void {
+    this.companions?.remove(id);
     this.reactions.delete(id);
     const peer = this.peers.get(id);
     if (peer) this.destroyView(peer.view);
@@ -316,6 +334,8 @@ export class OfficeScene extends Phaser.Scene {
       item.dataset.playerId = player.id;
       item.dataset.tileX = String(player.x);
       item.dataset.tileY = String(player.y);
+      item.dataset.buddy = player.buddy ?? '';
+      item.dataset.buddyPosition = JSON.stringify(player.buddyPosition ?? null);
       item.dataset.outfit = String(player.outfit);
       item.dataset.roomId = player.roomId;
       item.dataset.speaking = String(this.speaking.has(player.id));
@@ -352,10 +372,12 @@ export class OfficeScene extends Phaser.Scene {
 
   setAppearance(appearance: Appearance): void { this.appearance = { ...appearance }; this.outfit = Math.min(appearance.color, 2); this.sendProfile(); }
 
+  setBuddy(kind: BuddyKind | null): void { this.buddyChoice = kind; this.sendProfile(); }
+
   setSlack(slack: SlackIdentity | null): void { this.slack = slack; this.sendProfile(); }
 
   private sendProfile(): void {
-    this.connection?.setProfile({ name: this.playerName, outfit: this.outfit, appearance: this.appearance, slack: this.slack });
+    this.connection?.setProfile({ name: this.playerName, outfit: this.outfit, appearance: this.appearance, slack: this.slack, buddy: this.buddyChoice });
   }
 
   private openSlackDM(id: string): void {
@@ -397,6 +419,8 @@ export class OfficeScene extends Phaser.Scene {
   private showRoom(id: RoomId): void {
     this.reactions.clear();
     this.roomId = id;
+    this.companions?.setRoom(id);
+    this.game.canvas.dataset.roomPets = '[]';
     this.frontBoard = undefined; this.linksUI?.reset();
     this.atDoor = false;
     this.lastArea = '';
@@ -581,6 +605,7 @@ export class OfficeScene extends Phaser.Scene {
       this.lastParticipantsAt = time;
       this.renderParticipants();
     }
+    this.companions?.update(time, delta, this.reducedMotion);
     this.walker.update(delta);
     if (this.editMode === 'none' && !this.walker.moving && this.connection?.readyToMove) {
       const direction = this.controls.direction();

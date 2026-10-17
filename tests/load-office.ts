@@ -1,3 +1,4 @@
+import { BUDDY_KINDS } from '../src/game/buddies.ts';
 import assert from 'node:assert/strict';
 import { fork } from 'node:child_process';
 import { once } from 'node:events';
@@ -41,7 +42,7 @@ try {
       if (message.type === 'voice-signal') relayed++;
     }));
     await welcome;
-    ws.send(JSON.stringify({ type: 'profile', name: `負荷試験${i}`, outfit: i % 3 }));
+    ws.send(JSON.stringify({ type: 'profile', name: `負荷試験${i}`, outfit: i % 3, ...(process.env.LOAD_BUDDIES === 'true' ? { buddy: BUDDY_KINDS[i % BUDDY_KINDS.length] } : {}) }));
     if (i < 30) ws.send(JSON.stringify({ type: 'voice-state', listening: true, microphone: true }));
   }
   await new Promise((resolve) => setTimeout(resolve, 250));
@@ -81,7 +82,7 @@ try {
   const p95 = latencies[Math.floor(latencies.length * 0.95)];
   assert.ok(p95 < 250, `ack p95 ${p95}ms exceeds 250ms`);
   const result = { at: new Date().toISOString(), platform: `${process.platform}/${process.arch}`, seconds: elapsed, clients: 150, voiceSignalingMembers: 30,
-    audioMediaMeasured: false, movementRequests: sent, unexpectedCloses, ackP95Ms: p95, ackMaxMs: latencies.at(-1),
+    equippedBuddies: self.filter((p) => p.buddy).length, audioMediaMeasured: false, movementRequests: sent, unexpectedCloses, ackP95Ms: p95, ackMaxMs: latencies.at(-1),
     eventLoopP99Ms: metrics.eventLoopP99Ms, serverCpuOneCorePercent: (metrics.cpuMicros.user + metrics.cpuMicros.system) / (elapsed * 1e6) * 100,
     serverRssMiB: metrics.rssBytes / 1024 ** 2, serverPayloadEgressMbps: bytes * 8 / elapsed / 1e6, positionFramesReceived: positions, relayedSignals: relayed };
   console.log(JSON.stringify(result, null, 2));
