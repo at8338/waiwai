@@ -8,6 +8,8 @@ import type { ConnectionState } from '../network/OfficeConnection.ts';
 import type { Player } from '../network/protocol.ts';
 import { ProximityVoice } from '../audio/ProximityVoice.ts';
 import type { VoiceUI } from '../audio/ProximityVoice.ts';
+import { activateSlackDM, slackDMUrl } from '../slack/dm.ts';
+import type { SlackIdentity } from '../slack/dm.ts';
 
 type AvatarView = {
   sprite: Phaser.GameObjects.Image;
@@ -31,8 +33,10 @@ export class OfficeScene extends Phaser.Scene {
   private players = new Map<string, Player>();
   private voice?: ProximityVoice;
   private speaking = new Set<string>();
+  private slack: SlackIdentity | null;
+  private selectedPlayer?: string;
 
-  constructor() { super('office'); }
+  constructor(slack: SlackIdentity | null = null) { super('office'); this.slack = slack; }
 
   private makeAvatar(local: boolean): AvatarView {
     const shadow = this.add.graphics();
@@ -50,6 +54,10 @@ export class OfficeScene extends Phaser.Scene {
     createAvatarTextures(this);
     this.avatar = this.makeAvatar(true);
     this.controls.attach(this.game.canvas);
+    document.querySelector('#participants')?.addEventListener('click', (event) => {
+      const target = (event.target as Element).closest<HTMLButtonElement>('[data-dm-player]');
+      if (target) this.openSlackDM(target.dataset.dmPlayer!);
+    }, { signal: this.inputController.signal });
     this.voice = new ProximityVoice({
       sendState: (state) => this.connection?.setVoice(state),
       sendSignal: (to, session, payload) => this.connection?.signalVoice(to, session, payload),
@@ -82,7 +90,7 @@ export class OfficeScene extends Phaser.Scene {
       voice: (snapshot) => this.voice?.accept(snapshot),
       voiceSignal: (signal) => this.voice?.signal(signal),
     });
-    this.connection.setProfile({ name: this.playerName, outfit: this.outfit });
+    this.sendProfile();
     const cleanup = () => {
       this.controls.destroy();
       this.inputController.abort();
@@ -104,6 +112,7 @@ export class OfficeScene extends Phaser.Scene {
       this.clearPeers();
       this.players.clear();
       this.localId = undefined;
+      if (this.selectedPlayer) this.renderSlackTarget();
     }
     const messages = {
       connecting: 'オフィスに接続しています…',
@@ -154,6 +163,10 @@ export class OfficeScene extends Phaser.Scene {
       let peer = this.peers.get(player.id);
       if (!peer) {
         peer = { player, walker: new Walker(), view: this.makeAvatar(false) };
+        peer.view.sprite.setInteractive({ useHandCursor: true })
+          .on('pointerup', () => this.openSlackDM(player.id));
+        peer.view.label.setInteractive({ useHandCursor: true })
+          .on('pointerup', () => this.openSlackDM(player.id));
         this.peers.set(player.id, peer);
         snap = true;
       }
@@ -162,6 +175,7 @@ export class OfficeScene extends Phaser.Scene {
     }
     this.renderParticipants();
     this.voice?.setWorld(this.localId, this.players);
+    if (this.selectedPlayer === player.id) this.renderSlackTarget();
   }
 
   private removePlayer(id: string): void {
@@ -171,24 +185,40 @@ export class OfficeScene extends Phaser.Scene {
     this.players.delete(id);
     this.voice?.setWorld(this.localId, this.players);
     this.renderParticipants();
+    if (this.selectedPlayer === id) this.renderSlackTarget();
   }
 
   private renderParticipants(): void {
     const list = document.querySelector('#participants')!;
-    list.replaceChildren();
+    // Preserve keyboard focus while positions, names, or Slack settings change.
+    const existing = new Map([...list.children].map((element) => [(element as HTMLElement).dataset.playerId, element as HTMLElement]));
+    for (const [id, item] of existing) if (!id || !this.players.has(id)) item.remove();
     for (const player of this.players.values()) {
-      const item = document.createElement('li');
+      let item = existing.get(player.id);
+      if (!item) {
+        item = document.createElement('li');
+        const name = document.createElement(player.id === this.localId ? 'strong' : 'button');
+        name.className = 'participant-name';
+        if (name instanceof HTMLButtonElement) {
+          name.type = 'button';
+          name.dataset.dmPlayer = player.id;
+        }
+        const location = document.createElement('span');
+        const slackStatus = document.createElement('span');
+        slackStatus.className = 'participant-slack';
+        item.append(name, location, slackStatus);
+        list.append(item);
+      }
       item.dataset.playerId = player.id;
       item.dataset.tileX = String(player.x);
       item.dataset.tileY = String(player.y);
       item.dataset.outfit = String(player.outfit);
       item.dataset.speaking = String(this.speaking.has(player.id));
-      const name = document.createElement('strong');
+      const name = item.children[0];
       name.textContent = player.name + (player.id === this.localId ? '（あなた）' : '');
-      const location = document.createElement('span');
-      location.textContent = areaAt(player);
-      item.append(name, location);
-      list.append(item);
+      if (player.id !== this.localId) name.setAttribute('aria-label', `${player.name}さんのSlack DMを開く`);
+      item.children[1].textContent = areaAt(player);
+      item.children[2].textContent = player.slack ? 'Slack設定済み' : 'Slack未設定';
     }
     document.querySelectorAll('[data-player-count]').forEach((element) => {
       const text = this.connected ? `${this.players.size}人が滞在中` : '接続を待っています';
@@ -198,12 +228,47 @@ export class OfficeScene extends Phaser.Scene {
 
   setName(name: string): void {
     this.playerName = name.trim() || 'あなた';
-    this.connection?.setProfile({ name: this.playerName, outfit: this.outfit });
+    this.sendProfile();
   }
 
   setOutfit(color: number): void {
     this.outfit = color;
-    this.connection?.setProfile({ name: this.playerName, outfit: this.outfit });
+    this.sendProfile();
+  }
+
+  setSlack(slack: SlackIdentity | null): void { this.slack = slack; this.sendProfile(); }
+
+  private sendProfile(): void {
+    this.connection?.setProfile({ name: this.playerName, outfit: this.outfit, slack: this.slack });
+  }
+
+  private openSlackDM(id: string): void {
+    this.controls.clear();
+    this.selectedPlayer = id;
+    this.renderSlackTarget();
+    document.querySelector('#slack-target')?.scrollIntoView({ block: 'nearest' });
+    const player = this.players.get(id);
+    if (!this.connected || !player || id === this.localId) return;
+    if (!activateSlackDM(player.slack, (url) => window.location.assign(url)) && slackDMUrl(player.slack)) {
+      document.querySelector('#slack-target-message')!.textContent = 'Slackアプリを開けませんでした。インストール状態を確認し、下のリンクからもう一度お試しください。';
+    }
+  }
+
+  private renderSlackTarget(): void {
+    const card = document.querySelector<HTMLElement>('#slack-target')!;
+    card.hidden = false;
+    const player = this.selectedPlayer ? this.players.get(this.selectedPlayer) : undefined;
+    const link = document.querySelector<HTMLAnchorElement>('#slack-dm-link')!;
+    const url = player && this.connected ? slackDMUrl(player.slack) : undefined;
+    document.querySelector('#slack-target-name')!.textContent = player ? `${player.name}さんのSlack DM` : '相手はオフィスにいません';
+    const message = !this.connected ? 'オフィスへの接続が切れています。再接続後に相手を選び直してください。'
+      : !player ? '相手が退出しました。Slackのリンクを解除しました。'
+      : url ? 'SlackアプリでDMを開きます。開かなかった場合は、下のリンクからもう一度開けます。'
+      : '相手のSlackが未設定です。相手にワークスペースIDとメンバーIDの設定をお願いしてください。';
+    document.querySelector('#slack-target-message')!.textContent = message;
+    document.querySelector('#slack-target-ids')!.textContent = url && player?.slack ? `${player.slack.teamId} / ${player.slack.userId}` : '';
+    if (url) { link.href = url; link.hidden = false; }
+    else { link.removeAttribute('href'); link.hidden = true; }
   }
 
   private drawAvatar(view: AvatarView, walker: Walker, outfit: number, name: string, time: number): void {
@@ -238,8 +303,8 @@ export class OfficeScene extends Phaser.Scene {
   }
 }
 
-export function startOffice(parent: HTMLElement): { game: Phaser.Game; scene: OfficeScene } {
-  const scene = new OfficeScene();
+export function startOffice(parent: HTMLElement, slack: SlackIdentity | null = null): { game: Phaser.Game; scene: OfficeScene } {
+  const scene = new OfficeScene(slack);
   const game = new Phaser.Game({
     type: Phaser.AUTO, parent, width: COLS * TILE, height: ROWS * TILE,
     backgroundColor: '#ead3a5', pixelArt: true, roundPixels: true,

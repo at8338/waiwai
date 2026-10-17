@@ -200,3 +200,28 @@ test('voice limits simultaneous participation and frees capacity on exit', async
   last.send({ type: 'voice-state', listening: true, microphone: false });
   assert.equal((await last.next('voice', (message) => message.self.listening)).self.listening, true);
 });
+
+test('Slack IDs synchronize in profiles and join snapshots, reject invalid edits, and can be cleared', async (t) => {
+  const { connect } = await fixture(t);
+  const a = await connect();
+  const b = await connect();
+  const slack = { teamId: 'T012ABCDEF', userId: 'U012ABCDEF' };
+  a.send({ type: 'profile', name: 'あさ', outfit: 1, slack });
+  const shared = await b.next('player', (message) => message.reason === 'profile');
+  assert.deepEqual(shared.player.slack, slack);
+  assert.equal(shared.player.id, a.welcome.id);
+  const c = await connect();
+  assert.deepEqual(c.welcome.players.find((player) => player.id === a.welcome.id)?.slack, slack);
+  a.send({ type: 'profile', name: '改名', outfit: 2, slack });
+  const renamed = await b.next('player', (message) => message.reason === 'profile');
+  assert.equal(renamed.player.name, '改名');
+  assert.equal(renamed.player.outfit, 2);
+  assert.deepEqual(renamed.player.slack, slack);
+  a.send({ type: 'profile', name: '不正', outfit: 0, slack: { ...slack, userId: 'U012ABCDEF&team=TOTHER' } });
+  a.send({ type: 'move', direction: 'right', requestId: 1 });
+  const afterInvalid = await a.next('player', (message) => message.requestId === 1);
+  assert.equal(afterInvalid.player.name, '改名');
+  assert.deepEqual(afterInvalid.player.slack, slack);
+  a.send({ type: 'profile', name: '改名', outfit: 2, slack: null });
+  assert.equal((await b.next('player', (message) => message.reason === 'profile')).player.slack, null);
+});

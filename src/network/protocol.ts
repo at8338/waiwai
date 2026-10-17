@@ -1,13 +1,15 @@
 import type { Direction } from '../game/world.ts';
 import type { VoicePayload, VoiceSignal, VoiceSnapshot } from '../audio/protocol.ts';
 import { parseVoicePayload } from '../audio/protocol.ts';
+import type { SlackIdentity } from '../slack/dm.ts';
+import { parseSlackIdentity } from '../slack/dm.ts';
 
-export type Profile = { name: string; outfit: number };
+export type Profile = { name: string; outfit: number; slack?: SlackIdentity | null };
 export type Player = Profile & { id: string; x: number; y: number; facing: Direction };
 export type ClientMessage =
   | { type: 'voice-state'; listening: boolean; microphone: boolean }
   | { type: 'voice-signal'; to: string; session: string; payload: VoicePayload }
-  | { type: 'profile'; name: string; outfit: number }
+  | ({ type: 'profile' } & Profile)
   | { type: 'move'; direction: Direction; requestId: number }
   | { type: 'reset'; requestId: number };
 export type ServerMessage =
@@ -41,6 +43,8 @@ export function parseClientMessage(raw: string): ClientMessage | undefined {
   if (data.type === 'move' && validRequest && directions.includes(data.direction as Direction)) return { type: 'move', direction: data.direction as Direction, requestId: data.requestId as number };
   if (data.type === 'profile' && typeof data.name === 'string' &&
       Number.isInteger(data.outfit) && (data.outfit as number) >= 0 && (data.outfit as number) <= 2) {
-    return { type: 'profile', name: normalizeName(data.name), outfit: data.outfit as number };
+    const slack = parseSlackIdentity(data.slack);
+    if (slack === undefined) return;
+    return { type: 'profile', name: normalizeName(data.name), outfit: data.outfit as number, slack };
   }
 }
