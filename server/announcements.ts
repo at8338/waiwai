@@ -26,7 +26,7 @@ export class AnnouncementStore {
     return this.change((s, now) => {
       if (!authorize()) throw new AnnouncementError('接続が変わりました。再接続してから設定してください。');
       if (action.type === 'announcement-publish') {
-        if (s.announcements.filter((a) => !a.scheduleId && a.expiresAt > now).length >= 5) throw new AnnouncementError('同時に表示できる手動放送は5件までです。終了してから追加してください。');
+        if (s.announcements.filter((a) => !a.scheduleId && a.category !== 'arena' && a.expiresAt > now).length >= 5) throw new AnnouncementError('同時に表示できる手動放送は5件までです。終了してから追加してください。');
         s.announcements.push({ id: randomUUID(), title: action.title, message: action.message, author, createdAt: now, expiresAt: now + action.durationMinutes * MINUTE });
       } else if (action.type === 'announcement-dismiss') {
         s.announcements = s.announcements.filter((a) => a.id !== action.id);
@@ -53,6 +53,14 @@ export class AnnouncementStore {
     });
   }
   tick(): Promise<boolean> { return this.change(() => {}); }
+  publishArena(id: string, message: string): Promise<boolean> {
+    return this.change((s, now) => {
+      if (s.announcements.some((entry) => entry.id === id)) return;
+      const existing = s.announcements.filter((entry) => entry.category === 'arena');
+      if (existing.length >= 5) s.announcements = s.announcements.filter((entry) => entry.id !== existing[0].id);
+      s.announcements.push({ id, category: 'arena', title: '🏆 魔法闘技場の対戦結果', message, author: '魔法闘技場', createdAt: now, expiresAt: now + 3 * MINUTE });
+    });
+  }
   private change(edit: (s: AnnouncementState, now: number) => void): Promise<boolean> {
     const operation = this.queue.then(async () => {
       const next = structuredClone(this.state), now = this.clock();

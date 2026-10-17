@@ -61,3 +61,12 @@ test('manual broadcasts expire, have a bounded active count, and rejected connec
   now += MINUTE; await store.tick(); assert.equal(store.snapshot().announcements.length, 0);
   await store.apply(action, 'はな'); assert.equal(store.snapshot().announcements.length, 1);
 });
+
+test('arena results are deduplicated, expire after three minutes and retain the manual announcement quota', async () => {
+  let now = start; const store = new AnnouncementStore(undefined, () => now), id = randomUUID();
+  await store.publishArena(id, 'アリスさんの勝ち'); await store.publishArena(id, '重複'); assert.equal(store.snapshot().announcements.length, 1);
+  for (let i = 0; i < 5; i++) await store.apply({ type: 'announcement-publish', title: '会議', message: '集合', durationMinutes: 5, actionId: randomUUID() }, 'はな');
+  for (let i = 0; i < 6; i++) await store.publishArena(randomUUID(), '次の対戦結果');
+  assert.equal(store.snapshot().announcements.filter(a => a.category === 'arena').length, 5); assert.equal(store.snapshot().announcements.length, 10);
+  now += 3 * MINUTE; await store.tick(); assert.equal(store.snapshot().announcements.length, 5);
+});

@@ -293,7 +293,7 @@ select { color: #354b3e; background: #fffdf6; border: 1px solid #ced7c2; border-
 #spell-status { flex-basis: 100%; margin: 0; }
 #spell-status:empty { display: none; }
 .spells-dialog { width: min(640px, calc(100vw - 32px)); max-width: 640px; max-height: calc(100dvh - 32px); overflow-y: auto; background: #faf5f7; }
-.spell-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 20px 0; }
+.spell-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 20px 0; }
 .spell-choices button { display: flex; flex-direction: column; align-items: center; gap: 6px; font: inherit; padding: 16px 8px; background: #f2edf3; color: #6d567f; border: 1px solid #d2c7da; border-radius: 9px; cursor: pointer; }
 .spell-choices button span { font-size: 24px; }
 .spell-choices button[aria-pressed="true"] { border-color: #8a6c9e; box-shadow: 0 0 0 1px #8a6c9e; background: #eae0f0; }
@@ -516,3 +516,12 @@ select { color: #354b3e; background: #fffdf6; border: 1px solid #ced7c2; border-
 .vehicle-quick-drop:disabled { opacity: .6; cursor: wait; }
 .vehicle-quick-status { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 5; width: fit-content; max-width: calc(100% - 20px); margin: 0; padding: 8px 12px; border-radius: 5px; background: #fbf4dfee; color: #385f4b; font-size: 12px; pointer-events: none; }
 .vehicle-quick-drop[hidden], .vehicle-quick-status[hidden] { display: none; }
+
+.arena-panel { padding: 20px; margin: 16px 0; border: 1px solid #bdb0ce; border-radius: 12px; background: #f1ebf5; color: #5c496c; }
+.arena-panel h3 { margin: 8px 0; }
+.arena-panel p { font-size: 13px; line-height: 1.8; }
+.arena-panel button { padding: 9px 14px; margin: 4px 6px 8px 0; border: 1px solid #a18cb4; border-radius: 6px; background: #fff; color: #5c496c; font: inherit; cursor: pointer; }
+#arena-fighters { display: flex; gap: 16px; flex-wrap: wrap; }
+.arena-fighter { display: grid; flex: 1; gap: 6px; min-width: 140px; font-size: 12px; }
+.arena-fighter progress { width: 100%; accent-color: #679b76; }
+#arena-error { color: #9d3d50; }

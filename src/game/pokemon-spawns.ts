@@ -9,7 +9,7 @@ export function dailyPokemonKinds(now: number, salt = 0): PokemonKind[] {
 }
 export function pokemonRoster(now: number, salt = 0, forced?: readonly PokemonKind[], room?: RoomId) {
   const kinds = forced ?? dailyPokemonKinds(now, salt);
-  const rooms = [...ROOM_IDS].sort((a, b) => spawnHash(`${pokemonDay(now)}:${salt}:${a}`) - spawnHash(`${pokemonDay(now)}:${salt}:${b}`));
+  const rooms = ROOM_IDS.filter((room) => room !== 'arena').sort((a, b) => spawnHash(`${pokemonDay(now)}:${salt}:${a}`) - spawnHash(`${pokemonDay(now)}:${salt}:${b}`));
   return [...new Set(kinds)].slice(0, MAX_DAILY_POKEMON).map((kind, index) => {
     const roomId = room ?? rooms[index], origin = getRoom(roomId).spawn;
     return { kind, roomId, x: origin.x - 5 + index % 4 * 3, y: origin.y - 3 - Math.floor(index / 4) * 2 };

@@ -1,6 +1,7 @@
 import type { LostItemsSnapshot } from '../game/lost-items.ts';
 import { parseSpellAction } from '../game/spells.ts';
 import type { SpellAction, SpellEffect, SpellKind } from '../game/spells.ts';
+import type { ArenaAction, ArenaState, IceSnapshot } from '../game/arena.ts';
 import { parseDevWorldAction } from '../game/dev-world.ts';
 import type { DevWorldAction, DevWorldSnapshot } from '../game/dev-world.ts';
 import { parseBirthdayAction } from '../game/birthdays.ts';
@@ -42,6 +43,7 @@ export type Position = [slot: number, x: number, y: number, flags: number, buddy
 export const MAX_PLAYERS = 150;
 export const POSITION_FRAME_MS = 50;
 export type ClientMessage =
+  | ArenaAction
   | SpellAction
   | DevWorldAction
   | BirthdayAction
@@ -60,8 +62,12 @@ export type ClientMessage =
   | { type: 'voice-signal'; to: string; session: string; payload: VoicePayload }
   | ({ type: 'profile' } & Profile)
   | { type: 'move'; direction: Direction; requestId: number }
+  | { type: 'dash'; direction: Direction; requestId: number }
   | { type: 'reset'; requestId: number };
 export type ServerMessage =
+  | ({ type: 'ice-state' } & IceSnapshot)
+  | { type: 'arena-state'; state: ArenaState; serverNow: number }
+  | { type: 'arena-result'; actionId: string; error?: string }
   | ({ type: 'spell-effect' } & SpellEffect)
   | { type: 'spell-result'; actionId: string; spell: SpellKind; error?: string }
   | ({ type: 'dev-world-state' } & DevWorldSnapshot)
@@ -90,7 +96,7 @@ export type ServerMessage =
   | { type: 'objects'; roomId: RoomId; objects: RoomObject[] }
   | { type: 'object-result'; editId: string; error?: string }
   | { type: 'positions'; positions: Position[] }
-  | { type: 'player'; player: Player; reason: 'join' | 'profile' | 'move' | 'reset' | 'room' | 'warp' | 'spell' | 'vehicle' | 'vending'; requestId?: number }
+  | { type: 'player'; player: Player; reason: 'join' | 'profile' | 'move' | 'dash' | 'reset' | 'room' | 'warp' | 'spell' | 'vehicle' | 'vending'; requestId?: number }
   | { type: 'left'; id: string };
 
 export const directions = ['up', 'down', 'left', 'right'] as const;
@@ -103,6 +109,7 @@ export function parseClientMessage(raw: string): ClientMessage | undefined {
   try { value = JSON.parse(raw); } catch { return; }
   if (!value || typeof value !== 'object') return;
   const data = value as Record<string, unknown>;
+  if (data.type === 'arena-action' && (data.command === 'join' || data.command === 'leave') && validAnnouncementId(data.actionId)) return { type: 'arena-action', command: data.command, actionId: data.actionId };
   const spell = parseSpellAction(data); if (spell) return spell;
   const dev = parseDevWorldAction(data); if (dev) return dev;
   const birthday = parseBirthdayAction(data); if (birthday) return birthday;
@@ -146,7 +153,7 @@ export function parseClientMessage(raw: string): ClientMessage | undefined {
     }
   }
   if (data.type === 'reset' && validRequest) return { type: 'reset', requestId: data.requestId as number };
-  if (data.type === 'move' && validRequest && directions.includes(data.direction as Direction)) return { type: 'move', direction: data.direction as Direction, requestId: data.requestId as number };
+  if ((data.type === 'move' || data.type === 'dash') && validRequest && directions.includes(data.direction as Direction)) return { type: data.type, direction: data.direction as Direction, requestId: data.requestId as number };
   if (data.type === 'profile' && typeof data.name === 'string' &&
       Number.isInteger(data.outfit) && (data.outfit as number) >= 0 && (data.outfit as number) <= 2) {
     if (data.buddy !== undefined && data.buddy !== null && !isBuddyKind(data.buddy)) return;
