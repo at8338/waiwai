@@ -17,7 +17,7 @@ export default defineConfig(({ mode }) => {
             .catch(() => { response.writeHead(500).end('Authentication unavailable'); });
         });
         if (server.httpServer) {
-          const close = attachOffice(server.httpServer as Server, auth, { objectsFile: env.WAIWAI_DATA_FILE ?? '.local/office-objects.json', membersFile: env.WAIWAI_MEMBERS_FILE ?? '.local/office-members.json' });
+          const close = attachOffice(server.httpServer as Server, auth, { objectsFile: env.WAIWAI_DATA_FILE ?? '.local/office-objects.json', membersFile: env.WAIWAI_MEMBERS_FILE ?? '.local/office-members.json', linksFile: env.WAIWAI_LINKS_FILE ?? '.local/office-links.json' });
           server.httpServer.once('close', () => { close(); auth.close(); });
         }
       },

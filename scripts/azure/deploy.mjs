@@ -7,6 +7,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { parseEnv } from 'node:util';
+import { LinkStore } from '../../server/links.ts';
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const run = (cmd, args, options = {}) => execFileSync(cmd, args, { cwd: root, stdio: 'inherit', ...options });
 const output = JSON.parse(run('terraform', ['-chdir=infra/azure', 'output', '-json'], { encoding: 'utf8', stdio: 'pipe' }));
@@ -31,7 +32,7 @@ try {
   const existing = ssh('sudo test -f /etc/waiwai/app.env && sudo cat /etc/waiwai/app.env || true', { encoding: 'utf8', stdio: 'pipe' });
   secret = parseEnv(existing).TURN_SHARED_SECRET || randomBytes(48).toString('hex');
   if (!/^[a-f0-9]{96}$/.test(secret)) throw new Error('Unexpected existing TURN secret; handle rotation explicitly.');
-  const env = { HOST: '127.0.0.1', PORT: '5173', NODE_ENV: 'production', WAIWAI_DATA_FILE: '/var/lib/waiwai/office-objects.json', WAIWAI_MEMBERS_FILE: '/var/lib/waiwai/office-members.json', REQUIRE_SLACK_LOGIN: 'true', SLACK_TEAM_ID: team,
+  const env = { HOST: '127.0.0.1', PORT: '5173', NODE_ENV: 'production', WAIWAI_DATA_FILE: '/var/lib/waiwai/office-objects.json', WAIWAI_MEMBERS_FILE: '/var/lib/waiwai/office-members.json', WAIWAI_LINKS_FILE: '/var/lib/waiwai/office-links.json', REQUIRE_SLACK_LOGIN: 'true', SLACK_TEAM_ID: team,
     SLACK_CLIENT_ID: source.SLACK_CLIENT_ID, SLACK_CLIENT_SECRET: source.SLACK_CLIENT_SECRET,
     SLACK_REDIRECT_URI: `https://${domain}/auth/slack/callback`, TURN_SHARED_SECRET: secret,
     TURN_URLS: `turn:${domain}:3478?transport=udp,turn:${domain}:3478?transport=tcp,turns:${domain}:5349?transport=tcp` };
@@ -47,7 +48,11 @@ try {
   await writeFile(resolve(temp, 'turnserver.conf'), turn + denied.map((range) => `denied-peer-ip=${range}`).join('\n') + '\n', { mode: 0o600 });
   remote = ssh('mktemp -d /tmp/waiwai-deploy-XXXXXXXX', { encoding: 'utf8', stdio: 'pipe' }).trim();
   if (!/^\/tmp\/waiwai-deploy-[A-Za-z0-9]+$/.test(remote)) throw new Error('Invalid remote staging directory.');
-  run('scp', [...sshArgs, archive, resolve(temp, 'app.env'), resolve(temp, 'turnserver.conf'), resolve(root, 'scripts/azure/activate-release.sh'), `${target}:${remote}/`]);
+  // Copy local favorites once on first deploy; never replace live edits on upgrades.
+  const seed = resolve(temp, 'office-links.seed.json');
+  const localLinks = new LinkStore(resolve(root, source.WAIWAI_LINKS_FILE || '.local/office-links.json')).list();
+  await writeFile(seed, JSON.stringify({ version: 1, ...localLinks }) + '\n', { mode: 0o600 });
+  run('scp', [...sshArgs, archive, seed, resolve(temp, 'app.env'), resolve(temp, 'turnserver.conf'), resolve(root, 'scripts/azure/activate-release.sh'), `${target}:${remote}/`]);
   ssh(`sudo bash ${remote}/activate-release.sh ${remote}/app.tar.gz ${release}`);
   const health = await fetch(`https://${domain}/healthz`, { signal: AbortSignal.timeout(10_000) });
   if (!health.ok) throw new Error('External HTTPS health check failed.');

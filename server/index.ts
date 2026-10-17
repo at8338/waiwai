@@ -31,7 +31,7 @@ const server = createServer(async (request, response) => {
     response.end(request.method === 'HEAD' ? undefined : content);
   } catch { response.writeHead(404).end('Not found'); }
 });
-const closeOffice = attachOffice(server, auth, { objectsFile: process.env.WAIWAI_DATA_FILE ?? '.local/office-objects.json', membersFile: process.env.WAIWAI_MEMBERS_FILE ?? '.local/office-members.json' });
+const closeOffice = attachOffice(server, auth, { objectsFile: process.env.WAIWAI_DATA_FILE ?? '.local/office-objects.json', membersFile: process.env.WAIWAI_MEMBERS_FILE ?? '.local/office-members.json', linksFile: process.env.WAIWAI_LINKS_FILE ?? '.local/office-links.json' });
 const port = Number(process.env.PORT ?? 5173);
 const host = process.env.HOST ?? '127.0.0.1';
 server.listen(port, host, () => console.log(`Waiwai: http://${host}:${port}/`));

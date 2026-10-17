@@ -92,6 +92,23 @@ app.innerHTML = `
     </section>
   </main>
   <footer class="page-footer"><span>離れていても、おなじ場所に。</span><span>MADE FOR LITTLE ENCOUNTERS <span aria-hidden="true">✦</span></span></footer>
+  <dialog id="object-links-dialog" class="object-links-dialog" aria-labelledby="object-links-title">
+    <span class="eyebrow">OPEN TOGETHER</span><h2 id="object-links-title">オブジェクトのリンク</h2>
+    <div class="object-links-body">
+      <p class="links-help">使いたいリンクを選んで、作業をはじめよう。</p>
+      <ul id="object-link-list" aria-label="登録済みのリンク"></ul>
+      <p id="object-links-empty">まだリンクがありません。「リンクを設定」から追加できます。</p>
+      <details id="object-links-settings"><summary>リンクを設定 · お気に入りから選択</summary>
+        <p id="object-links-permission" class="links-help"></p>
+        <div id="link-favorites" role="group" aria-label="共有のお気に入り"></div>
+        <div class="link-save-row"><span id="object-links-selection"></span><button type="button" id="object-links-save">この選択を保存</button></div>
+        <details id="favorite-add-section"><summary>共有のお気に入りを追加</summary>
+          <form id="favorite-form"><label>リンクの名前<input name="title" maxlength="60" placeholder="チームのMiroボード" required /></label><label>URL<input name="url" type="url" maxlength="2048" placeholder="https://…" required /></label><p class="links-help">オフィス全体で共有されます。HTTPSのURLを登録できます。</p><button type="submit">お気に入りに追加</button></form>
+        </details>
+      </details>
+    </div>
+    <p id="object-links-status" role="status"></p><button id="object-links-close" type="button" class="dialog-close">マップにもどる</button>
+  </dialog>
   <dialog id="people-dialog" class="people-dialog" aria-labelledby="people-title">
     <span class="eyebrow">FIND YOUR PEOPLE</span><h2 id="people-title">あの人に、会いに行こう。</h2>
     <p class="people-help">Waiwaiへの入室状態を表示します。一度入室したSlackメンバーと、接続中のゲストを探せます。</p>
@@ -102,7 +119,7 @@ app.innerHTML = `
   </dialog>
   <dialog id="avatar-dialog" class="avatar-dialog" aria-labelledby="avatar-title"><form id="avatar-form"><span class="eyebrow">MAKE YOUR OWN CHARACTER</span><h2 id="avatar-title">あなたらしい姿に。</h2><div class="avatar-editor-layout"><div class="avatar-draft-backdrop"><canvas id="avatar-draft" width="20" height="28" aria-label="変更中のアバター"></canvas><p>性別や体型にかかわらず<br>すべての服と髪型を選べます。</p></div><div id="avatar-fields"></div></div><div class="dialog-actions"><button type="button" id="avatar-cancel">キャンセル</button><button type="submit">この見た目にする</button></div></form></dialog>
   <dialog id="room-dialog" class="room-dialog" aria-labelledby="room-dialog-title"><span class="eyebrow">FIND YOUR NEXT PLACE</span><h2 id="room-dialog-title">どの部屋へ行こう？</h2><p>部屋を変えると、移動先の近くの人と音声がつながります。</p><div class="room-grid">${ROOMS.map((room, i) => `<button type="button" data-room="${room.id}" style="--card-accent:#${room.rug.toString(16)}"><span class="room-card-number">${String(i + 1).padStart(2, '0')} / ${room.icon}</span><strong>${room.name}</strong><span>${room.description}</span><small data-room-occupancy="${room.id}">0人</small></button>`).join('')}</div><form method="dialog"><button class="dialog-close">いまの部屋にもどる</button></form></dialog>
-  <dialog id="help-dialog" aria-labelledby="help-title"><span class="eyebrow">HOW TO WALK</span><h2 id="help-title">オフィスを歩いてみよう</h2><p>マップをクリックするか、Tabキーでマップにフォーカスしてから、<strong>矢印キー / WASD</strong> を押すと移動します。</p><p>スマートフォンやタブレットでは、マップ下の方向ボタンを使えます。</p><p>壁や家具のあるマスは通れません。部屋の入口を探してみてください。</p><p>「入口にもどる」で最初の場所に戻れます。Tabキーでマップの操作を抜けられます。</p><form method="dialog"><button class="dialog-close">わかった、歩いてみる</button></form></dialog>
+  <dialog id="help-dialog" aria-labelledby="help-title"><span class="eyebrow">HOW TO WALK</span><h2 id="help-title">オフィスを歩いてみよう</h2><p>マップをクリックするか、Tabキーでマップにフォーカスしてから、<strong>矢印キー / WASD</strong> を押すと移動します。</p><p>スマートフォンやタブレットでは、マップ下の方向ボタンを使えます。</p><p>家具や小物をクリックすると、登録済みのリンクを選んで開けます。「リンクを設定」で共有のお気に入りから複数選べます。リンクのあるホワイトボードは、前に立っても一覧が開きます。</p><p>壁や家具のあるマスは通れません。部屋の入口を探してみてください。</p><p>「入口にもどる」で最初の場所に戻れます。Tabキーでマップの操作を抜けられます。</p><form method="dialog"><button class="dialog-close">わかった、歩いてみる</button></form></dialog>
 `;
 
 const parent = document.querySelector<HTMLElement>('#game')!;
@@ -191,6 +208,6 @@ const dialog = document.querySelector<HTMLDialogElement>('#help-dialog')!;
 document.querySelector('#help-button')!.addEventListener('click', () => dialog.showModal());
 dialog.addEventListener('close', () => game.canvas.focus({ preventScroll: true }));
 
-document.querySelectorAll<HTMLDialogElement>('#avatar-dialog, #room-dialog').forEach((item) => item.addEventListener('close', () => game.canvas.focus({ preventScroll: true })));
+document.querySelectorAll<HTMLDialogElement>('#avatar-dialog, #room-dialog, #object-links-dialog').forEach((item) => item.addEventListener('close', () => game.canvas.focus({ preventScroll: true })));
 
 if (import.meta.hot) import.meta.hot.dispose(() => game.destroy(true));

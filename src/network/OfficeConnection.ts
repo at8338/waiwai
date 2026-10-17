@@ -6,6 +6,7 @@ import { directions } from './protocol.ts';
 import type { ClientMessage, Player, Profile, ServerMessage } from './protocol.ts';
 import type { VoiceSignal, VoiceSnapshot, VoicePayload, VoiceState } from '../audio/protocol.ts';
 import type { Person } from '../game/directory.ts';
+import type { LinkEdit } from '../game/object-links.ts';
 
 export type ConnectionState = 'connecting' | 'online' | 'reconnecting';
 export type ConnectionHandlers = {
@@ -20,6 +21,8 @@ export type ConnectionHandlers = {
   directory?: (people: Person[], warning?: string) => void;
   travelComplete?: () => void;
   travelError?: (error: string) => void;
+  objectLinks?: (snapshot: Extract<ServerMessage, { type: 'object-links' }>) => void;
+  linkResult?: (result: Extract<ServerMessage, { type: 'link-result' }>) => void;
 };
 
 export class OfficeConnection {
@@ -106,6 +109,8 @@ export class OfficeConnection {
         window.clearTimeout(this.watchdog);
         this.handlers.travelError?.(message.error);
       }
+      else if (message.type === 'object-links') this.handlers.objectLinks?.(message);
+      else if (message.type === 'link-result') this.handlers.linkResult?.(message);
       else if (message.type === 'objects') this.handlers.objects?.(message.roomId, message.objects);
       else if (message.type === 'object-result') this.handlers.objectResult?.(message.editId, message.error);
       else if (message.type === 'voice') this.handlers.voice(message);
@@ -154,6 +159,7 @@ export class OfficeConnection {
   }
 
   editObject(message: Extract<ClientMessage, { editId: string }>): void { if (this.online) this.send(message); }
+  editLinks(message: LinkEdit): void { if (this.online) this.send(message); }
 
   reset(): void {
     if (this.online) this.request({ type: 'reset', requestId: ++this.sequence });

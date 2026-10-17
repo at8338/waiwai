@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { DEFAULT_APPEARANCE } from '../src/game/avatar.ts';
 import { getRoom } from '../src/game/rooms.ts';
 import { ObjectStore } from './objects.ts';
+import { LinkStore } from './links.ts';
 import type { TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -17,9 +18,9 @@ import { MAX_PLAYERS, directions, parseClientMessage } from '../src/network/prot
 import { MAX_VOICE_MEMBERS, MAX_VOICE_PEERS } from '../src/audio/proximity.ts';
 import { STEP_MS, canWalk } from '../src/game/world.ts';
 
-async function fixture(t: TestContext, objectsFile?: string) {
+async function fixture(t: TestContext, objectsFile?: string, linksFile?: string) {
   const server = createServer((_request, response) => response.end('ok'));
-  const dispose = attachOffice(server, undefined, { objectsFile });
+  const dispose = attachOffice(server, undefined, { objectsFile, linksFile });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const clients: WebSocket[] = [];
@@ -396,4 +397,64 @@ test('person warps synchronize across rooms, revoke old voice pairs, reject stal
   a.send({ type: 'reset', requestId: 6 });
   assert.equal((await a.next('player', (m) => m.requestId === 6)).player.roomId, 'cafe');
   assert.ok(!a.seen.some((m) => m.type === 'player' && m.reason === 'warp' && m.requestId === 5));
+});
+
+test('shared favorites support multiple links on fixed furniture, persist, deduplicate and remain room scoped', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'waiwai-link-share-')); t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = join(dir, 'links.json');
+  const { connect } = await fixture(t, undefined, file); const a = await connect(), b = await connect();
+  const add = async (url: string) => {
+    const editId = randomUUID(); a.send({ type: 'favorite-add', title: 'ボード', url, editId });
+    const result = await a.next('link-result', (m) => m.editId === editId);
+    assert.equal(result.error, undefined); return result.favoriteId!;
+  };
+  const first = await add('https://example.com/first');
+  await new Promise((r) => setTimeout(r, 360));
+  const second = await add('https://example.com/second');
+  await new Promise((r) => setTimeout(r, 360));
+  assert.equal(await add('https://example.com/first'), first);
+  const bind = async (objectId: string, linkIds: string[]) => {
+    await new Promise((r) => setTimeout(r, 360));
+    const editId = randomUUID(); a.send({ type: 'object-links-set', objectId, linkIds, editId });
+    return a.next('link-result', (m) => m.editId === editId);
+  };
+  assert.equal((await bind('fixed:office:desk:2:3', [first, second])).error, undefined);
+  const shared = await b.next('object-links', (m) => m.bindings.some((b) => b.linkIds.length === 2));
+  assert.deepEqual(shared.bindings[0].linkIds, [first, second]); assert.equal(shared.favorites.length, 2);
+  assert.deepEqual(new LinkStore(file).list().bindings, shared.bindings);
+  const c = await connect(); assert.deepEqual((await c.next('object-links')).bindings, shared.bindings);
+  b.send({ type: 'change-room', roomId: 'cafe', requestId: 1 });
+  const cafe = await b.next('object-links', (m) => m.roomId === 'cafe');
+  assert.equal(cafe.bindings.length, 0); assert.equal(cafe.favorites.length, 2);
+  assert.match((await bind('fixed:cafe:counter:4:3', [first])).error!, /見つかりません/);
+  assert.match((await bind('fixed:office:desk:2:3', [randomUUID()])).error!, /お気に入り/);
+  assert.equal((await bind('fixed:office:desk:2:3', [])).error, undefined);
+  assert.equal((await c.next('object-links', (m) => !m.bindings.length)).bindings.length, 0);
+  assert.equal(new LinkStore(file).list().bindings.length, 0);
+});
+
+test('placed furniture links follow movement, allow only owner edits, and disappear when removed', async (t) => {
+  const { connect } = await fixture(t); const a = await connect(), b = await connect();
+  for (const client of [a, b]) { client.send({ type: 'change-room', roomId: 'cafe', requestId: 1 }); await client.next('objects', (m) => m.roomId === 'cafe'); }
+  a.send({ type: 'object-place', kind: 'desk', x: 18, y: 12, rotation: 0, editId: randomUUID() });
+  await a.next('object-result');
+  const desk = (await b.next('objects', (m) => m.objects.length === 1)).objects[0];
+  a.send({ type: 'favorite-add', title: '資料', url: 'https://example.com/docs', editId: randomUUID() });
+  const id = (await a.next('link-result')).favoriteId!;
+  await new Promise((r) => setTimeout(r, 360));
+  a.send({ type: 'object-links-set', objectId: `placed:${desk.id}`, linkIds: [id], editId: randomUUID() });
+  assert.equal((await a.next('link-result')).error, undefined);
+  await b.next('object-links', (m) => m.bindings.some((binding) => binding.objectId === `placed:${desk.id}`));
+  b.send({ type: 'object-links-set', objectId: `placed:${desk.id}`, linkIds: [], editId: randomUUID() });
+  assert.match((await b.next('link-result')).error!, /配置した本人/);
+  a.send({ type: 'object-move', id: desk.id, x: 20, y: 12, rotation: 1, editId: randomUUID() });
+  assert.equal((await a.next('object-result')).error, undefined);
+  const c = await connect(); c.send({ type: 'change-room', roomId: 'cafe', requestId: 1 });
+  assert.equal((await c.next('object-links', (m) => m.roomId === 'cafe')).bindings[0].objectId, `placed:${desk.id}`);
+  await new Promise((r) => setTimeout(r, 360));
+  a.send({ type: 'object-remove', id: desk.id, editId: randomUUID() }); await a.next('object-result');
+  const d = await connect(); d.send({ type: 'change-room', roomId: 'cafe', requestId: 1 });
+  assert.equal((await d.next('object-links', (m) => m.roomId === 'cafe')).bindings.length, 0);
+  a.send({ type: 'object-links-set', objectId: `placed:${desk.id}`, linkIds: [id], editId: randomUUID() });
+  assert.match((await a.next('link-result')).error!, /見つかりません/);
 });

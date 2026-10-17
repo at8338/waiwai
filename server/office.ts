@@ -8,21 +8,24 @@ import type { Player, Position, ServerMessage } from '../src/network/protocol.ts
 import { VoiceRoom, readIceProvider } from './voice.ts';
 import type { SlackAuth } from './auth.ts';
 import { DEFAULT_APPEARANCE } from '../src/game/avatar.ts';
-import { getRoom } from '../src/game/rooms.ts';
+import { getRoom, ROOMS } from '../src/game/rooms.ts';
 import type { RoomId } from '../src/game/rooms.ts';
 import { placementProblem, walkableWithObjects } from '../src/game/objects.ts';
 import { ObjectStore } from './objects.ts';
 import { MemberStore } from './members.ts';
 import { directoryPeople } from '../src/game/directory.ts';
 import { adjacentTile } from './warp.ts';
+import { LinkStore } from './links.ts';
+import { MAX_FAVORITES, objectTargets } from '../src/game/object-links.ts';
 
 class EditError extends Error {}
 
-export function attachOffice(server: Server, auth?: SlackAuth, options: { objectsFile?: string; membersFile?: string } = {}): () => void {
+export function attachOffice(server: Server, auth?: SlackAuth, options: { objectsFile?: string; membersFile?: string; linksFile?: string } = {}): () => void {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 });
   const players = new Map<WebSocket, Player>();
   const store = new ObjectStore(options.objectsFile);
   const members = new MemberStore(options.membersFile);
+  const links = new LinkStore(options.linksFile);
   let directoryDirty = false;
   let directoryWarning: string | undefined;
   const alive = new Set<WebSocket>();
@@ -51,6 +54,11 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
   frame.unref();
   const roomObjects = (roomId: RoomId) => store.list().filter((o) => o.roomId === roomId);
   const sendObjects = (ws: WebSocket, roomId: RoomId) => send(ws, { type: 'objects', roomId, objects: roomObjects(roomId) });
+  const sendLinks = (ws: WebSocket, roomId: RoomId) => {
+    const targets = new Set(objectTargets(roomId, store.list()).map((o) => o.id));
+    send(ws, { type: 'object-links', roomId, favorites: links.list().favorites,
+      bindings: links.list().bindings.filter((b) => b.roomId === roomId && targets.has(b.objectId)) });
+  };
   const spawn = (roomId: RoomId = 'office', except?: WebSocket) => {
     const origin = getRoom(roomId).spawn;
     const objects = roomObjects(roomId);
@@ -86,12 +94,14 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     broadcast({ type: 'player', player, reason: 'join' }, ws);
     sendObjects(ws, player.roomId);
     send(ws, directory());
+    sendLinks(ws, player.roomId);
     let lastMove = -Infinity;
     let windowStart = Date.now();
     let messages = 0;
     let signals = 0;
     let lastEdit = -Infinity;
     let lastWarp = -Infinity;
+    let lastLinkEdit = -Infinity;
     ws.on('pong', () => alive.add(ws));
     ws.on('error', () => ws.terminate());
     ws.on('message', (data, isBinary) => {
@@ -104,6 +114,35 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
       if (!message) return;
       if (message.type === 'voice-state') { voice.state(ws, message); return; }
       if (message.type === 'voice-signal') { voice.signal(ws, message); return; }
+      if (message.type === 'favorite-add' || message.type === 'object-links-set') {
+        if (now - lastLinkEdit < 350) { send(ws, { type: 'link-result', editId: message.editId, error: '少し待ってから、もう一度保存してください。' }); return; }
+        lastLinkEdit = now;
+        const roomId = player.roomId;
+        const owner = identity ? `slack:${identity.user.slack.teamId}:${identity.user.slack.userId}` : `guest:${player.id}`;
+        void links.transact((state) => {
+          if (!players.has(ws) || player.roomId !== roomId || (identity && auth?.identify(request)?.id !== identity.id)) throw new EditError('接続または部屋が変わったため、操作を取り消しました。');
+          // Discard bindings left by removed furniture before applying a new edit.
+          const liveTargets = new Set(ROOMS.flatMap((room) => objectTargets(room.id, store.list()).map((o) => `${room.id}:${o.id}`)));
+          state.bindings = state.bindings.filter((b) => liveTargets.has(`${b.roomId}:${b.objectId}`));
+          if (message.type === 'favorite-add') {
+            const existing = state.favorites.find((f) => f.url === message.url);
+            if (existing) return existing.id;
+            if (state.favorites.length >= MAX_FAVORITES) throw new EditError(`共有のお気に入りは${MAX_FAVORITES}件まで登録できます。`);
+            const id = randomUUID(); state.favorites.push({ id, title: message.title, url: message.url }); return id;
+          }
+          const target = objectTargets(roomId, store.list()).find((o) => o.id === message.objectId);
+          if (!target) throw new EditError('そのオブジェクトは見つかりません。');
+          if (target.owner && target.owner !== owner) throw new EditError('配置した本人だけが、この家具のリンクを変更できます。');
+          if (message.linkIds.some((id) => !state.favorites.some((f) => f.id === id))) throw new EditError('選択したお気に入りが見つかりません。');
+          state.bindings = state.bindings.filter((b) => b.roomId !== roomId || b.objectId !== message.objectId);
+          if (message.linkIds.length) state.bindings.push({ roomId, objectId: message.objectId, linkIds: [...message.linkIds] });
+        }).then((favoriteId) => {
+          for (const [client, person] of players) if (message.type === 'favorite-add' || person.roomId === roomId) sendLinks(client, person.roomId);
+          send(ws, { type: 'link-result', editId: message.editId, ...(favoriteId ? { favoriteId } : {}) });
+        }).catch((error: unknown) => send(ws, { type: 'link-result', editId: message.editId,
+          error: error instanceof EditError ? error.message : 'リンクを保存できませんでした。時間をおいて試してください。' }));
+        return;
+      }
       if (message.type === 'warp-to') {
         const fail = (error: string) => send(ws, { type: 'travel-error', requestId: message.requestId, error });
         if (now - lastWarp < 1000) { fail('少し待ってから、もう一度ワープしてください。'); return; }
@@ -117,6 +156,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
         pending.delete(player.id);
         broadcast({ type: 'player', player, reason: 'warp', requestId: message.requestId });
         sendObjects(ws, player.roomId);
+        sendLinks(ws, player.roomId);
         directoryDirty = true;
         voice.refresh();
         lastMove = now;
@@ -156,6 +196,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
         pending.delete(player.id);
         broadcast({ type: 'player', player, reason: 'room', requestId: message.requestId });
         sendObjects(ws, player.roomId);
+        sendLinks(ws, player.roomId);
         directoryDirty = true;
         voice.refresh();
         lastMove = now;
