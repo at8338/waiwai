@@ -1,3 +1,5 @@
+import { SkyWindowView } from './SkyWindowView.ts';
+import { RoomLighting } from './RoomLighting.ts';
 import { CompanionsView } from './companions-view.ts';
 import { BUDDIES } from './buddies.ts';
 import type { BuddyKind } from './buddies.ts';
@@ -35,6 +37,8 @@ type AvatarView = {
 type Peer = { player: Player; walker: Walker; view: AvatarView };
 
 export class OfficeScene extends Phaser.Scene {
+  private skyWindow?: SkyWindowView;
+  private lighting?: RoomLighting;
   private companions?: CompanionsView;
   private buddyChoice: BuddyKind | null = null;
   readonly walker = new Walker();
@@ -95,6 +99,8 @@ export class OfficeScene extends Phaser.Scene {
 
   create(): void {
     this.mapViews = drawOffice(this, this.roomId);
+    this.lighting = new RoomLighting(this);
+    this.skyWindow = new SkyWindowView(document.querySelector<HTMLCanvasElement>('#sky-window')!);
     createAvatarTextures(this);
     this.companions = new CompanionsView(this, (kind, owner) => {
       if (this.editMode !== 'none') return;
@@ -165,7 +171,7 @@ export class OfficeScene extends Phaser.Scene {
       travelError: (error) => this.directoryUI?.fail(error),
       objects: (roomId, objects) => {
         if (roomId !== this.roomId) return;
-        this.objects = objects; this.objectsReady = true; this.drawObjects(); this.updateObjectTools();
+        this.objects = objects; this.lighting?.setObjects(objects); this.objectsReady = true; this.drawObjects(); this.updateObjectTools();
         this.linksUI?.refreshTarget(); this.linksUI?.setReady(this.connected);
       },
       objectLinks: (snapshot) => { if (snapshot.roomId === this.roomId) { this.linksUI?.snapshot(snapshot); this.linksUI?.setReady(this.connected && this.objectsReady); } },
@@ -192,6 +198,7 @@ export class OfficeScene extends Phaser.Scene {
       this.voice?.destroy();
       this.connection?.destroy();
       this.companions?.clear();
+      this.lighting?.destroy();
     };
     this.events.once('shutdown', cleanup);
     this.events.once('destroy', cleanup);
@@ -421,6 +428,8 @@ export class OfficeScene extends Phaser.Scene {
     this.reactions.clear();
     this.roomId = id;
     this.companions?.setRoom(id);
+    this.lighting?.setRoom(id);
+    this.skyWindow?.setRoom(id);
     this.game.canvas.dataset.roomPets = '[]';
     this.frontBoard = undefined; this.linksUI?.reset();
     this.atDoor = false;
@@ -600,6 +609,9 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number): void {
+    const now = Date.now();
+    this.lighting?.update(now);
+    this.skyWindow?.update(now, this.reducedMotion);
     if (this.reactionBlocked !== (!this.connected || performance.now() < this.nextReactionAt)) this.updateReactionTools();
     if (this.participantsDirty && time - this.lastParticipantsAt >= 100) {
       this.participantsDirty = false;

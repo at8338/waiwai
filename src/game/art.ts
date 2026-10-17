@@ -1,3 +1,4 @@
+import { WINDOW_COLUMNS } from './lighting.ts';
 import Phaser from 'phaser';
 import { COLS, ROWS, TILE, isWall } from './world.ts';
 import type { Direction, Furniture } from './world.ts';
@@ -202,7 +203,7 @@ export function drawOffice(scene: Phaser.Scene, roomId: RoomId = 'office'): Phas
     rect(g, room.wall, x * TILE + 1, y * TILE, TILE - 2, 9);
     rect(g, 0xf9f0d0, x * TILE + 1, y * TILE, TILE - 2, 2);
     rect(g, 0xc2b28b, x * TILE + 1, y * TILE + 9, TILE - 2, 4);
-    if (y === 0 && [3, 4, 7, 8, 14, 15, 24, 25].includes(x)) {
+    if (room.outlook === 'window' && y === 0 && WINDOW_COLUMNS.includes(x)) {
       rect(g, 0x7b9b9b, x * TILE + 1, 2, 14, 10);
       rect(g, 0xb9d8c5, x * TILE + 2, 3, 12, 7);
       rect(g, 0xe8edd0, x * TILE + 3, 3, 2, 6);

@@ -1,0 +1,26 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><title>Waiwai — JSTの照明比較</title><style>
+*{box-sizing:border-box}body{margin:0;background:#f7f3e8;color:#385b4b;font:14px system-ui,sans-serif}main{max-width:1040px;margin:24px auto;padding:0 20px}h1{margin:0 0 6px;font-size:24px}p{color:#788575;margin:0 0 20px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}article{border:1px solid #c5ceb7;padding:9px;background:#fdf9ec;border-radius:10px}h2{font-size:15px;margin:3px 0 10px;display:flex;justify-content:space-between}span{font-weight:400;font-size:12px}canvas[hidden]{display:none}canvas{width:100%;height:auto;display:block;image-rendering:pixelated;border-radius:3px}button,select{margin:10px 8px 15px 0;padding:8px;border:1px solid #a7b7a0;background:#fdf9ec;color:#385b4b;border-radius:4px}@media(max-width:650px){.grid{grid-template-columns:1fr}}
+</style><main><h1>同じオフィスに、四つのあかり。</h1><p>朝の木漏れ日、昼の自然光、夕日のぬくもり、夜の電灯。JSTで自動切り替え。</p><label>確認する部屋 <select id="room"><option value="office">ひだまりオフィス</option><option value="garden">風の屋上ガーデン</option><option value="ops">システム管制室</option></select></label><label>天気 <select id="weather"><option value="clear">晴れ</option><option value="rain">雨</option><option value="storm">雷雨</option></select></label><label><input id="reduced" type="checkbox"> 動きを抑える</label><button id="advance">夜のパネルを05:59→06:00に進める</button><div class="grid"></div></main><script type="module">
+import Phaser from 'phaser';
+import { drawOffice, avatarTexture, drawRoomObject } from '/src/game/art.ts';
+import { SkyWindowView } from '/src/game/SkyWindowView.ts';
+import { RoomLighting } from '/src/game/RoomLighting.ts';
+import { DEFAULT_APPEARANCE } from '/src/game/avatar.ts';
+import { lightingAt, LIGHTING_LABELS } from '/src/game/lighting.ts';
+const phases=[['朝','08:00'],['昼','12:00'],['夕方','17:00'],['夜','22:00']];
+const scenes=[]; let room='office'; let weather='clear';let reduced=false;
+for (let i=0;i<4;i++) {
+  const [name,clock]=phases[i],article=document.createElement('article');article.innerHTML=`<h2>${name}<span id="clock-${i}">${clock} JST</span></h2><canvas id="sky-${i}" width="480" height="56" role="img" aria-label="窓の風景"></canvas><div id="map-${i}"></div>`;document.querySelector('.grid').append(article);
+  class Preview extends Phaser.Scene {
+    now=Date.parse(`2026-10-18T${clock}:00+09:00`);
+    create(){this.sky=new SkyWindowView(document.querySelector(`#sky-${i}`));this.lighting=new RoomLighting(this);this.rebuild();scenes[i]=this;}
+    rebuild(){if(this.views)for(const view of this.views)view.destroy();const before=new Set(this.children.list);drawOffice(this,room);drawRoomObject(this,{id:'lamp',owner:'preview',roomId:room,kind:'lamp',x:18,y:13,rotation:0});this.add.image(15.5*16,13*16,avatarTexture(this,{...DEFAULT_APPEARANCE,heldItem:1},'down',0)).setOrigin(.5,1).setDepth(210);this.views=this.children.list.filter(v=>!before.has(v));this.lighting.setRoom(room);this.sky.setRoom(room);this.lighting.setObjects([{id:'lamp',owner:'preview',roomId:room,kind:'lamp',x:18,y:13,rotation:0}]);this.lighting.update(this.now,weather);this.sky.update(this.now,reduced,weather);}
+    update(){this.lighting?.update(this.now,weather);this.sky?.update(this.now + (weather === 'clear' ? 0 : Math.floor(performance.now() / 120) * 120 % 30000),reduced,weather)}
+  }
+  new Phaser.Game({type:Phaser.AUTO,parent:`map-${i}`,width:480,height:320,pixelArt:true,roundPixels:true,scene:[Preview],input:{keyboard:false},audio:{noAudio:true},banner:false});
+}
+document.querySelector('#reduced').onchange=e=>{reduced=e.target.checked;for(const scene of scenes)scene?.rebuild()};
+document.querySelector('#weather').onchange=e=>{weather=e.target.value;for(const scene of scenes)scene?.rebuild()};
+document.querySelector('#room').onchange=e=>{room=e.target.value;for(const scene of scenes)scene?.rebuild()};
+let advances=0;document.querySelector('#advance').onclick=()=>{const clock=advances++?'06:00':'05:59';scenes[3].now=Date.parse(`2026-10-18T${clock}:00+09:00`);document.querySelector('#clock-3').textContent=`${clock} JST · ${LIGHTING_LABELS[lightingAt(scenes[3].now).phase]}`;};
+</script></html>
