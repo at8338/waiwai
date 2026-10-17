@@ -33,7 +33,12 @@ app.innerHTML = `
       <div class="under-map"><p id="map-instructions"><span class="keycaps"><kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd></span><span>または <strong>W A S D</strong> で移動 <span class="instruction-extra">· マップをクリックして操作</span></span></p><button type="button" class="reset-button" id="reset-position"><span aria-hidden="true">↩</span> 入口にもどる</button></div>
       <div class="touch-controls" aria-label="移動ボタン"><button type="button" data-direction="up" aria-label="上へ移動">↑</button><button type="button" data-direction="left" aria-label="左へ移動">←</button><span aria-hidden="true">✦</span><button type="button" data-direction="right" aria-label="右へ移動">→</button><button type="button" data-direction="down" aria-label="下へ移動">↓</button></div>
       <p id="connection-message" class="connection-message" role="status">オフィスに接続しています…</p>
-      <div class="map-legend"><span><i class="legend-work"></i>ワークエリア</span><span><i class="legend-meet"></i>ミーティングルーム</span><span><i class="legend-lounge"></i>ラウンジ</span><span class="scope-note">音声・Slack連携はこれから。</span></div>
+      <section id="voice-controls" class="voice-controls" aria-labelledby="voice-title">
+        <div><h2 id="voice-title">近くで、ちょっと話そう。</h2><p id="voice-status" role="status">オフィスへの接続後に参加できます。</p><p id="voice-nearby">初期状態はマイクOFFです。</p></div>
+        <div class="voice-buttons"><button type="button" id="voice-toggle" aria-pressed="false" disabled>音声に参加</button><button type="button" id="mic-toggle" aria-pressed="false" disabled>マイクをON</button></div>
+        <p class="voice-hint">同じ部屋で5マス未満の人に声が届きます。近いほど大きく聞こえます。音声に参加しただけではマイクはONになりません。</p>
+      </section>
+      <div class="map-legend"><span><i class="legend-work"></i>ワークエリア</span><span><i class="legend-meet"></i>ミーティングルーム</span><span><i class="legend-lounge"></i>ラウンジ</span><span class="scope-note">Slack連携はこれから。</span></div>
     </section>
   </main>
   <footer class="page-footer"><span>離れていても、おなじ場所に。</span><span>MADE FOR LITTLE ENCOUNTERS <span aria-hidden="true">✦</span></span></footer>

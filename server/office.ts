@@ -5,9 +5,10 @@ import WebSocket, { WebSocketServer } from 'ws';
 import { COLS, ROWS, SPAWN, STEP_MS, canWalk } from '../src/game/world.ts';
 import { parseClientMessage } from '../src/network/protocol.ts';
 import type { Player, ServerMessage } from '../src/network/protocol.ts';
+import { VoiceRoom, readIceServers } from './voice.ts';
 
 export function attachOffice(server: Server): () => void {
-  const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 });
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 });
   const players = new Map<WebSocket, Player>();
   const alive = new Set<WebSocket>();
   const vectors = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
@@ -19,6 +20,7 @@ export function attachOffice(server: Server): () => void {
   const broadcast = (message: ServerMessage, except?: WebSocket) => {
     for (const ws of players.keys()) if (ws !== except) send(ws, message);
   };
+  const voice = new VoiceRoom(players, send, readIceServers());
   const spawn = (except?: WebSocket) => {
     const occupied = new Set([...players].filter(([ws]) => ws !== except).map(([, { x, y }]) => `${x},${y}`));
     const tiles = [];
@@ -39,15 +41,18 @@ export function attachOffice(server: Server): () => void {
     let lastMove = -Infinity;
     let windowStart = Date.now();
     let messages = 0;
+    let signals = 0;
     ws.on('pong', () => alive.add(ws));
     ws.on('error', () => ws.terminate());
     ws.on('message', (data, isBinary) => {
       if (isBinary) { ws.close(1003, 'Text messages only'); return; }
       const now = Date.now();
-      if (now - windowStart >= 1000) { windowStart = now; messages = 0; }
-      if (++messages > 40) { ws.close(1008, 'Too many messages'); return; }
+      if (now - windowStart >= 1000) { windowStart = now; messages = 0; signals = 0; }
       const message = parseClientMessage(data.toString());
+      if (message?.type === 'voice-signal' ? ++signals > 120 : ++messages > 40) { ws.close(1008, 'Too many messages'); return; }
       if (!message) return;
+      if (message.type === 'voice-state') { voice.state(ws, message); return; }
+      if (message.type === 'voice-signal') { voice.signal(ws, message); return; }
       if (message.type === 'profile') {
         player.name = message.name;
         player.outfit = message.outfit;
@@ -65,10 +70,12 @@ export function attachOffice(server: Server): () => void {
       }
       broadcast({ type: 'player', player, reason: message.type,
         ...('requestId' in message ? { requestId: message.requestId } : {}) });
+      voice.refresh();
     });
     ws.on('close', () => {
       players.delete(ws);
       alive.delete(ws);
+      voice.leave(ws);
       broadcast({ type: 'left', id: player.id });
     });
   });

@@ -6,6 +6,8 @@ import type { Direction } from './world.ts';
 import { OfficeConnection } from '../network/OfficeConnection.ts';
 import type { ConnectionState } from '../network/OfficeConnection.ts';
 import type { Player } from '../network/protocol.ts';
+import { ProximityVoice } from '../audio/ProximityVoice.ts';
+import type { VoiceUI } from '../audio/ProximityVoice.ts';
 
 type AvatarView = {
   sprite: Phaser.GameObjects.Image;
@@ -27,6 +29,8 @@ export class OfficeScene extends Phaser.Scene {
   private connected = false;
   private peers = new Map<string, Peer>();
   private players = new Map<string, Player>();
+  private voice?: ProximityVoice;
+  private speaking = new Set<string>();
 
   constructor() { super('office'); }
 
@@ -46,6 +50,16 @@ export class OfficeScene extends Phaser.Scene {
     createAvatarTextures(this);
     this.avatar = this.makeAvatar(true);
     this.controls.attach(this.game.canvas);
+    this.voice = new ProximityVoice({
+      sendState: (state) => this.connection?.setVoice(state),
+      sendSignal: (to, session, payload) => this.connection?.signalVoice(to, session, payload),
+      notify: (state) => this.renderVoice(state),
+    });
+    document.querySelector('#voice-toggle')?.addEventListener('click', () => {
+      if (document.querySelector('#voice-toggle')?.getAttribute('aria-pressed') === 'true') this.voice?.stop();
+      else void this.voice?.start();
+    }, { signal: this.inputController.signal });
+    document.querySelector('#mic-toggle')?.addEventListener('click', () => { void this.voice?.toggleMicrophone(); }, { signal: this.inputController.signal });
     document.querySelector('#reset-position')?.addEventListener('click', () => {
       this.controls.clear();
       this.connection?.reset();
@@ -65,11 +79,14 @@ export class OfficeScene extends Phaser.Scene {
       },
       player: (player, snap) => this.receivePlayer(player, snap),
       left: (id) => this.removePlayer(id),
+      voice: (snapshot) => this.voice?.accept(snapshot),
+      voiceSignal: (signal) => this.voice?.signal(signal),
     });
     this.connection.setProfile({ name: this.playerName, outfit: this.outfit });
     const cleanup = () => {
       this.controls.destroy();
       this.inputController.abort();
+      this.voice?.destroy();
       this.connection?.destroy();
     };
     this.events.once('shutdown', cleanup);
@@ -81,6 +98,7 @@ export class OfficeScene extends Phaser.Scene {
 
   private setConnectionState(state: ConnectionState): void {
     this.connected = state === 'online';
+    this.voice?.setConnected(this.connected);
     if (!this.connected) {
       this.controls.clear();
       this.clearPeers();
@@ -98,6 +116,25 @@ export class OfficeScene extends Phaser.Scene {
     document.querySelector('#profile-presence')!.textContent = this.connected ? 'オフィスにいます' : '接続を待っています';
     (document.querySelector('#reset-position') as HTMLButtonElement).disabled = !this.connected;
     this.renderParticipants();
+  }
+
+  private renderVoice(state: VoiceUI): void {
+    this.speaking = state.speakers;
+    const join = document.querySelector<HTMLButtonElement>('#voice-toggle')!;
+    const mic = document.querySelector<HTMLButtonElement>('#mic-toggle')!;
+    join.textContent = state.active ? '音声を終了' : state.busy ? '準備しています…' : '音声に参加';
+    join.setAttribute('aria-pressed', String(state.active));
+    join.disabled = !this.connected || (state.busy && !state.active);
+    mic.textContent = state.microphone ? 'マイクをOFF' : 'マイクをON';
+    mic.setAttribute('aria-pressed', String(state.microphone));
+    mic.disabled = !state.active || state.busy;
+    const status = document.querySelector('#voice-status')!;
+    if (status.textContent !== state.message) status.textContent = state.message;
+    document.querySelector('#voice-nearby')!.textContent = state.active ? `近くに${state.nearby}人 · ${state.connected}人と接続中` : '初期状態はマイクOFFです。';
+    document.querySelector('#voice-controls')!.setAttribute('data-microphone', String(state.microphone));
+    for (const item of document.querySelectorAll<HTMLElement>('[data-player-id]')) {
+      item.dataset.speaking = String(this.speaking.has(item.dataset.playerId!));
+    }
   }
 
   private clearPeers(): void {
@@ -124,6 +161,7 @@ export class OfficeScene extends Phaser.Scene {
       peer.walker.receive(player, player.facing, snap);
     }
     this.renderParticipants();
+    this.voice?.setWorld(this.localId, this.players);
   }
 
   private removePlayer(id: string): void {
@@ -131,6 +169,7 @@ export class OfficeScene extends Phaser.Scene {
     if (peer) this.destroyView(peer.view);
     this.peers.delete(id);
     this.players.delete(id);
+    this.voice?.setWorld(this.localId, this.players);
     this.renderParticipants();
   }
 
@@ -143,6 +182,7 @@ export class OfficeScene extends Phaser.Scene {
       item.dataset.tileX = String(player.x);
       item.dataset.tileY = String(player.y);
       item.dataset.outfit = String(player.outfit);
+      item.dataset.speaking = String(this.speaking.has(player.id));
       const name = document.createElement('strong');
       name.textContent = player.name + (player.id === this.localId ? '（あなた）' : '');
       const location = document.createElement('span');
@@ -185,7 +225,7 @@ export class OfficeScene extends Phaser.Scene {
     this.avatar.sprite.setAlpha(this.connected ? 1 : 0.45);
     for (const peer of this.peers.values()) {
       peer.walker.update(delta);
-      this.drawAvatar(peer.view, peer.walker, peer.player.outfit, peer.player.name, time);
+      this.drawAvatar(peer.view, peer.walker, peer.player.outfit, peer.player.name + (this.speaking.has(peer.player.id) ? ' ♪' : ''), time);
     }
     const area = areaAt(this.walker.tile);
     if (area !== this.lastArea) {

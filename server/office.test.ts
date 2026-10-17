@@ -24,10 +24,13 @@ async function fixture(t: TestContext) {
     const ws = new WebSocket(origin.replace('http:', 'ws:') + '/office', { origin });
     clients.push(ws);
     const inbox: ServerMessage[] = [];
+    const seen: ServerMessage[] = [];
     const waiters = new Set<() => void>();
     ws.on('error', () => {});
     ws.on('message', (raw) => {
-      inbox.push(JSON.parse(raw.toString()) as ServerMessage);
+      const message = JSON.parse(raw.toString()) as ServerMessage;
+      inbox.push(message);
+      seen.push(message);
       for (const notify of [...waiters]) notify();
     });
     const next = <T extends ServerMessage['type']>(type: T, predicate: (message: Extract<ServerMessage, { type: T }>) => boolean = () => true) =>
@@ -44,7 +47,7 @@ async function fixture(t: TestContext) {
         check();
       });
     const welcome = await next('welcome');
-    return { ws, next, welcome, send: (message: unknown) => ws.send(JSON.stringify(message)) };
+    return { ws, next, welcome, seen, send: (message: unknown) => ws.send(JSON.stringify(message)) };
   };
   return { connect, origin };
 }
@@ -135,4 +138,65 @@ test('cross-origin browser connections are refused', async (t) => {
   ws.on('error', () => {});
   await new Promise((resolve) => ws.once('close', resolve));
   assert.equal(opened, false);
+});
+
+test('voice signaling requires both participants to join and a current proximity grant', async (t) => {
+  const { connect } = await fixture(t);
+  const a = await connect();
+  const b = await connect();
+  const payload = { kind: 'description', type: 'offer', sdp: 'v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\n' };
+  const signalsReceived = () => b.seen.filter((message) => message.type === 'voice-signal').length;
+  a.send({ type: 'voice-signal', to: b.welcome.id, session: 'ungranted', payload });
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  assert.equal(signalsReceived(), 0);
+  a.send({ type: 'voice-state', listening: true, microphone: false });
+  assert.equal((await a.next('voice')).peers.length, 0);
+  b.send({ type: 'voice-state', listening: true, microphone: false });
+  const grantA = await a.next('voice', (message) => message.peers.length === 1);
+  const grantB = await b.next('voice', (message) => message.peers.length === 1);
+  assert.equal(grantA.peers[0].session, grantB.peers[0].session);
+  a.send({ type: 'voice-signal', to: b.welcome.id, session: grantA.peers[0].session, from: 'forged', payload });
+  const relayed = await b.next('voice-signal');
+  assert.equal(relayed.from, a.welcome.id);
+  assert.deepEqual(relayed.payload, payload);
+  a.send({ type: 'voice-state', listening: true, microphone: true });
+  assert.equal((await b.next('voice', (message) => message.peers[0]?.microphone === true)).peers[0].microphone, true);
+  for (let i = 0; i < 5; i++) {
+    if (i) await new Promise((resolve) => setTimeout(resolve, STEP_MS + 5));
+    a.send({ type: 'move', direction: 'right', requestId: i + 1 });
+    await a.next('player', (message) => message.requestId === i + 1);
+  }
+  assert.equal((await a.next('voice', (message) => message.peers.length === 0)).peers.length, 0);
+  await b.next('voice', (message) => message.peers.length === 0);
+  a.send({ type: 'voice-signal', to: b.welcome.id, session: grantA.peers[0].session, payload });
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  assert.equal(signalsReceived(), 1);
+  a.send({ type: 'reset', requestId: 10 });
+  const newGrant = await a.next('voice', (message) => message.peers.length === 1 && message.peers[0].session !== grantA.peers[0].session);
+  await b.next('voice', (message) => message.peers.length === 1);
+  assert.notEqual(newGrant.peers[0].session, grantA.peers[0].session);
+  a.send({ type: 'voice-signal', to: b.welcome.id, session: grantA.peers[0].session, payload });
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  assert.equal(signalsReceived(), 1);
+  a.send({ type: 'voice-state', listening: false, microphone: true });
+  const ended = await a.next('voice', (message) => !message.self.listening);
+  assert.equal(ended.self.microphone, false);
+  assert.equal((await b.next('voice', (message) => message.peers.length === 0)).peers.length, 0);
+});
+
+test('voice limits simultaneous participation and frees capacity on exit', async (t) => {
+  const { connect } = await fixture(t);
+  const clients = [];
+  for (let i = 0; i < 9; i++) clients.push(await connect());
+  for (const client of clients.slice(0, 8)) {
+    client.send({ type: 'voice-state', listening: true, microphone: false });
+    assert.equal((await client.next('voice', (message) => message.self.listening)).self.listening, true);
+  }
+  const last = clients[8];
+  last.send({ type: 'voice-state', listening: true, microphone: false });
+  assert.equal((await last.next('voice')).error, 'capacity');
+  clients[0].send({ type: 'voice-state', listening: false, microphone: false });
+  await clients[0].next('voice', (message) => !message.self.listening);
+  last.send({ type: 'voice-state', listening: true, microphone: false });
+  assert.equal((await last.next('voice', (message) => message.self.listening)).self.listening, true);
 });

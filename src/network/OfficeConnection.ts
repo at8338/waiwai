@@ -1,6 +1,7 @@
 import type { Direction } from '../game/world.ts';
 import { STEP_MS } from '../game/world.ts';
 import type { ClientMessage, Player, Profile, ServerMessage } from './protocol.ts';
+import type { VoiceSignal, VoiceSnapshot, VoicePayload, VoiceState } from '../audio/protocol.ts';
 
 export type ConnectionState = 'connecting' | 'online' | 'reconnecting';
 export type ConnectionHandlers = {
@@ -8,6 +9,8 @@ export type ConnectionHandlers = {
   welcome: (id: string, players: Player[]) => void;
   player: (player: Player, snap: boolean) => void;
   left: (id: string) => void;
+  voice: (snapshot: VoiceSnapshot) => void;
+  voiceSignal: (signal: VoiceSignal) => void;
 };
 
 export class OfficeConnection {
@@ -60,6 +63,8 @@ export class OfficeConnection {
         }
         this.handlers.player(message.player, message.reason === 'reset' || message.reason === 'join');
       } else if (message.type === 'left') this.handlers.left(message.id);
+      else if (message.type === 'voice') this.handlers.voice(message);
+      else if (message.type === 'voice-signal') this.handlers.voiceSignal(message);
     };
     socket.onerror = () => socket.close();
     socket.onclose = () => {
@@ -100,6 +105,11 @@ export class OfficeConnection {
   setProfile(profile: Profile): void {
     this.profile = { ...profile };
     if (this.online) this.send({ type: 'profile', ...this.profile });
+  }
+
+  setVoice(state: VoiceState): void { if (this.online) this.send({ type: 'voice-state', ...state }); }
+  signalVoice(to: string, session: string, payload: VoicePayload): void {
+    if (this.online) this.send({ type: 'voice-signal', to, session, payload });
   }
 
   destroy(): void {

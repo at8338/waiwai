@@ -1,0 +1,7 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Waiwai 音声検証</title></head><body>
+<h1>開発用・合成音によるWebRTC検証</h1><p>マイクを使用せず、低音量の440Hzテスト音を送信します。本番用ビルドには含まれません。</p>
+<button id="join">音声に参加</button><button id="mic">テスト音のON / OFF</button><button id="end">音声を終了</button>
+<button id="mid">少し離れる</button><button id="far">遠くへ</button><button id="reset">入口に戻る</button>
+<button id="deny">権限拒否を模擬</button><button id="pending">取得待ちを模擬</button><button id="resolve">取得を完了</button>
+<p id="received" role="status">音声なし</p><pre id="voice-state"></pre><pre id="players"></pre><p id="track-state">未取得</p>
+<script type="module" src="./voice-browser.ts"></script></body></html>
