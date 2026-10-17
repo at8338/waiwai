@@ -1,3 +1,6 @@
+import { movementStep, VEHICLES } from './transport.ts';
+import { VehicleDocksView, vehicleTexture } from './transport-view.ts';
+import { TransportUI } from './transport-ui.ts';
 import { SkyWindowView } from './SkyWindowView.ts';
 import { RoomLighting } from './RoomLighting.ts';
 import { CompanionsView } from './companions-view.ts';
@@ -29,6 +32,7 @@ import type { ReactionKind } from './reactions.ts';
 
 type AvatarView = {
   sprite: Phaser.GameObjects.Image;
+  vehicle: Phaser.GameObjects.Image;
   shadow: Phaser.GameObjects.Graphics;
   label: Phaser.GameObjects.Text;
   reactionLabel: Phaser.GameObjects.Text;
@@ -37,6 +41,8 @@ type AvatarView = {
 type Peer = { player: Player; walker: Walker; view: AvatarView };
 
 export class OfficeScene extends Phaser.Scene {
+  private vehicleUI?: TransportUI;
+  private vehicleDocks?: VehicleDocksView;
   private skyWindow?: SkyWindowView;
   private lighting?: RoomLighting;
   private companions?: CompanionsView;
@@ -94,7 +100,8 @@ export class OfficeScene extends Phaser.Scene {
     const reactionLabel = this.add.text(0, 0, '', { fontFamily: 'sans-serif', fontSize: '8px', color: '#506444',
       backgroundColor: '#fff0bf', padding: { x: 4, y: 2 } }).setOrigin(0.5, 1).setResolution(2).setVisible(false);
     const sparkles = this.add.graphics();
-    return { sprite, shadow, label, reactionLabel, sparkles };
+    const vehicle = this.add.image(0, 0, vehicleTexture(this, 'bike', 'down', 0)).setOrigin(0.5, 1).setVisible(false);
+    return { sprite, vehicle, shadow, label, reactionLabel, sparkles };
   }
 
   create(): void {
@@ -114,6 +121,8 @@ export class OfficeScene extends Phaser.Scene {
     this.controls.attach(this.game.canvas);
     this.setupRoomTools();
     this.setupReactions();
+    this.vehicleUI = new TransportUI(this.inputController.signal, (kind, id) => this.connection?.vehicle(kind, id) ?? false, () => { this.controls.clear(); this.setEditMode('none'); });
+    this.vehicleDocks = new VehicleDocksView(this, () => { if (this.editMode === 'none') this.vehicleUI?.open(); });
     this.linksUI = new ObjectLinksEditor({ signal: this.inputController.signal, owner: () => this.owner(),
       resolve: (id) => objectTargets(this.roomId, this.objects).find((o) => o.id === id),
       send: (edit) => this.connection?.editLinks(edit), open: () => this.controls.clear() });
@@ -153,6 +162,8 @@ export class OfficeScene extends Phaser.Scene {
         this.showRoom(players.find((p) => p.id === id)?.roomId ?? 'office');
         for (const player of players) this.receivePlayer(player, true);
       },
+      vehicles: (units) => { this.vehicleUI?.inventory(units); this.vehicleDocks?.receive(units); },
+      vehicleResult: (id, error) => this.vehicleUI?.result(id, error),
       pets: (roomId, pets) => this.companions?.pets(roomId, pets),
       player: (player, snap) => this.receivePlayer(player, snap),
       reaction: (message) => {
@@ -199,6 +210,7 @@ export class OfficeScene extends Phaser.Scene {
       this.connection?.destroy();
       this.companions?.clear();
       this.lighting?.destroy();
+      this.vehicleDocks?.destroy(); this.vehicleUI?.destroy();
     };
     this.events.once('shutdown', cleanup);
     this.events.once('destroy', cleanup);
@@ -209,6 +221,7 @@ export class OfficeScene extends Phaser.Scene {
 
   private setConnectionState(state: ConnectionState): void {
     this.connected = state === 'online';
+    this.vehicleUI?.setConnected(this.connected);
     this.voice?.setConnected(this.connected);
     this.linksUI?.setReady(this.connected && this.objectsReady);
     if (!this.connected) {
@@ -264,7 +277,7 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   private destroyView(view: AvatarView): void {
-    view.sprite.destroy(); view.shadow.destroy(); view.label.destroy(); view.reactionLabel.destroy(); view.sparkles.destroy();
+    view.sprite.destroy(); view.vehicle.destroy(); view.shadow.destroy(); view.label.destroy(); view.reactionLabel.destroy(); view.sparkles.destroy();
   }
 
   private receivePlayer(player: Player, snap: boolean): void {
@@ -278,7 +291,9 @@ export class OfficeScene extends Phaser.Scene {
         this.slack = player.slack ?? null;
         document.querySelector('#profile-name')!.textContent = player.name;
       }
+      this.walker.setStepMs(movementStep(player.riding?.kind));
       this.walker.receive(player, player.facing, snap);
+      this.vehicleUI?.setPlayer(player);
     } else if (player.roomId !== this.roomId) {
       const peer = this.peers.get(player.id);
       if (peer) this.destroyView(peer.view);
@@ -289,12 +304,14 @@ export class OfficeScene extends Phaser.Scene {
         peer = { player, walker: new Walker(), view: this.makeAvatar(false) };
         peer.view.sprite.setInteractive({ useHandCursor: true })
           .on('pointerup', () => { if (this.editMode === 'none') this.openSlackDM(player.id); });
+        peer.view.vehicle.setInteractive({ useHandCursor: true }).on('pointerup', () => { if (this.editMode === 'none') this.openSlackDM(player.id); });
         peer.view.label.setInteractive({ useHandCursor: true })
           .on('pointerup', () => { if (this.editMode === 'none') this.openSlackDM(player.id); });
         this.peers.set(player.id, peer);
         snap = true;
       }
       peer.player = player;
+      peer.walker.setStepMs(movementStep(player.riding?.kind));
       peer.walker.receive(player, player.facing, snap);
     }
     this.companions?.player(player, snap);
@@ -335,7 +352,8 @@ export class OfficeScene extends Phaser.Scene {
         const slackStatus = document.createElement('span');
         slackStatus.className = 'participant-slack';
         const reaction = document.createElement('span'); reaction.className = 'participant-reaction';
-        item.append(name, location, slackStatus, reaction);
+        const vehicle = document.createElement('span'); vehicle.className = 'participant-vehicle';
+        item.append(name, location, slackStatus, reaction, vehicle);
         list.append(item);
       }
       item.dataset.playerId = player.id;
@@ -343,6 +361,8 @@ export class OfficeScene extends Phaser.Scene {
       item.dataset.tileY = String(player.y);
       item.dataset.buddy = player.buddy ?? '';
       item.dataset.buddyPosition = JSON.stringify(player.buddyPosition ?? null);
+      item.dataset.riding = player.riding?.kind ?? '';
+      item.children[4].textContent = player.riding ? `${VEHICLES[player.riding.kind].icon} ${VEHICLES[player.riding.kind].name}で移動中` : '';
       item.dataset.heldItem = String(player.appearance?.heldItem ?? 0);
       item.dataset.outfit = String(player.outfit);
       item.dataset.roomId = player.roomId;
@@ -429,6 +449,7 @@ export class OfficeScene extends Phaser.Scene {
     this.roomId = id;
     this.companions?.setRoom(id);
     this.lighting?.setRoom(id);
+    this.vehicleDocks?.setRoom(id);
     this.skyWindow?.setRoom(id);
     this.game.canvas.dataset.roomPets = '[]';
     this.frontBoard = undefined; this.linksUI?.reset();
@@ -486,6 +507,7 @@ export class OfficeScene extends Phaser.Scene {
     }, { signal });
     this.game.canvas.addEventListener('keydown', (event) => {
       if (event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (event.code === 'KeyE' && this.editMode === 'none') { event.preventDefault(); this.vehicleUI?.open(); return; }
       const index = ['Digit1', 'Digit2', 'Digit3', 'Digit4'].indexOf(event.code);
       if (index !== -1) { event.preventDefault(); this.playReaction(REACTION_KINDS[index]); }
     }, { signal });
@@ -589,10 +611,13 @@ export class OfficeScene extends Phaser.Scene {
     const reaction = id ? this.reactions.get(id) : undefined;
     const motion = reaction ? reactionMotion(reaction.kind, performance.now() - reaction.startedAt, this.reducedMotion) : undefined;
     if (reaction && !motion) { this.reactions.delete(id!); this.participantsDirty = true; }
-    const lift = motion?.lift ?? 0;
+    const riding = id ? this.players.get(id)?.riding : undefined;
+    const lift = (motion?.lift ?? 0) + (riding?.kind === 'bike' ? 4 : 0);
     const frame = walker.moving && !motion ? 1 + Math.floor(time / 95) % 2 : 0;
     view.sprite.setPosition(Math.round(x), Math.round(y + 6 - lift)).setRotation(motion?.tilt ?? 0).setScale(1, motion?.scaleY ?? 1)
       .setTexture(avatarTexture(this, appearance, motion ? 'down' : walker.facing, frame, motion?.pose)).setDepth(y + 7);
+    view.vehicle.setVisible(!!riding);
+    if (riding) view.vehicle.setTexture(vehicleTexture(this, riding.kind, walker.facing, frame)).setPosition(Math.round(x), Math.round(y + 10 - (motion?.lift ?? 0))).setDepth(y + 6.5);
     view.shadow.setPosition(Math.round(x), Math.round(y) + 5).setScale(motion?.shadow ?? 1, 1).setDepth(y + 6);
     view.label.setText(name).setPosition(Math.round(x), Math.round(y - 20 - lift)).setDepth(ROWS * TILE + 20);
     view.reactionLabel.setVisible(!!motion);
@@ -649,6 +674,7 @@ export class OfficeScene extends Phaser.Scene {
     this.game.canvas.dataset.roomObjects = String(this.objects.length);
     this.game.canvas.dataset.tileX = String(this.walker.tile.x);
     this.game.canvas.dataset.tileY = String(this.walker.tile.y);
+    this.game.canvas.dataset.riding = this.localId ? this.players.get(this.localId)?.riding?.kind ?? '' : '';
     this.game.canvas.dataset.connectedPlayers = String(this.players.size);
   }
 }

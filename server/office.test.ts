@@ -562,3 +562,57 @@ test('handheld items synchronize, survive movement and reject invalid choices', 
   const moved = await a.next('player', (m) => m.player.id === a.welcome.id && m.requestId === 1);
   assert.equal(moved.player.name, 'サンドイッチ'); assert.equal(moved.player.appearance?.heldItem, 3);
 });
+
+test('shared vehicle stock handles competing borrowers, server speed limits and disconnect returns', async (t) => {
+  const { connect } = await fixture(t);
+  const clients = await Promise.all(Array.from({ length: 4 }, () => connect()));
+  const walkTo = async (client: typeof clients[number], target: { x: number; y: number }) => {
+    const start = client.welcome.players.find((p) => p.id === client.welcome.id)!;
+    const queue = [{ x: start.x, y: start.y, path: [] as Array<typeof directions[number]> }], seen = new Set<string>();
+    for (let index = 0; index < queue.length; index++) {
+      const p = queue[index], key = `${p.x},${p.y}`;
+      if (seen.has(key)) continue; seen.add(key);
+      if (p.x === target.x && p.y === target.y) {
+        for (const [i, direction] of p.path.entries()) {
+          if (i) await new Promise((resolve) => setTimeout(resolve, STEP_MS + 5));
+          client.send({ type: 'move', direction, requestId: i + 1 });
+          const ack = await client.next('player', (m) => m.player.id === client.welcome.id && m.requestId === i + 1);
+          if (i === p.path.length - 1) assert.deepEqual([ack.player.x, ack.player.y], [target.x, target.y]);
+        }
+        return;
+      }
+      for (const [direction, dx, dy] of [['up', 0, -1], ['down', 0, 1], ['left', -1, 0], ['right', 1, 0]] as const) {
+        if (canWalk(p.x + dx, p.y + dy)) queue.push({ x: p.x + dx, y: p.y + dy, path: [...p.path, direction] });
+      }
+    }
+    throw new Error('No route to vehicle dock');
+  };
+  await Promise.all(clients.map((c) => walkTo(c, { x: 5, y: 12 })));
+  const requests = clients.map(() => randomUUID());
+  clients.forEach((c, i) => c.send({ type: 'vehicle-take', kind: 'bike', actionId: requests[i] }));
+  const results = await Promise.all(clients.map((c, i) => c.next('vehicle-result', (m) => m.actionId === requests[i])));
+  assert.equal(results.filter((r) => !r.error).length, 3); assert.equal(results.filter((r) => r.error).length, 1);
+  const snapshot = await clients[0].next('vehicles', (m) => m.units.filter((u) => u.kind === 'bike' && u.riderId).length === 3);
+  const occupied = snapshot.units.filter((u) => u.kind === 'bike'); assert.equal(new Set(occupied.map((u) => u.riderId)).size, 3);
+  const owner = clients[results.findIndex((r) => !r.error)];
+  const borrowed = await owner.next('player', (m) => m.reason === 'vehicle' && m.player.id === owner.welcome.id);
+  assert.ok(borrowed.player.riding);
+  await new Promise((resolve) => setTimeout(resolve, 90));
+  owner.send({ type: 'move', direction: 'left', requestId: 100 });
+  const first = await owner.next('player', (m) => m.player.id === owner.welcome.id && m.requestId === 100);
+  assert.equal(first.player.x, 4);
+  owner.send({ type: 'move', direction: 'left', requestId: 101 });
+  assert.equal((await owner.next('player', (m) => m.player.id === owner.welcome.id && m.requestId === 101)).player.x, 4);
+  await new Promise((resolve) => setTimeout(resolve, 90));
+  owner.send({ type: 'move', direction: 'left', requestId: 102 });
+  assert.equal((await owner.next('player', (m) => m.player.id === owner.welcome.id && m.requestId === 102)).player.x, 3);
+  owner.send({ type: 'profile', name: 'rider', outfit: 0, riding: { id: 'fake', kind: 'skates' } });
+  assert.equal((await owner.next('player', (m) => m.player.id === owner.welcome.id && m.reason === 'profile')).player.riding?.id, borrowed.player.riding.id);
+  const newcomer = await connect(); assert.equal(newcomer.welcome.players.find((p) => p.id === owner.welcome.id)?.riding?.kind, 'bike');
+  owner.send({ type: 'change-room', roomId: 'garden', requestId: 103 });
+  const traveled = await owner.next('player', (m) => m.player.id === owner.welcome.id && m.requestId === 103);
+  assert.equal(traveled.player.riding?.id, borrowed.player.riding.id);
+  owner.ws.terminate();
+  const freed = await newcomer.next('vehicles', (m) => m.units.some((u) => u.id === borrowed.player.riding!.id && u.riderId === null));
+  assert.equal(freed.units.filter((u) => u.kind === 'bike' && u.riderId).length, 2);
+});

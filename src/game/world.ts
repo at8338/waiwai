@@ -1,3 +1,5 @@
+import { WALK_STEP_MS } from './transport.ts';
+import type { VehicleKind } from './transport.ts';
 import { getRoom, officeFurniture } from './rooms.ts';
 import type { RoomId } from './rooms.ts';
 export const TILE = 16;
@@ -7,10 +9,11 @@ export const SPAWN = { x: 15, y: 12 };
 export type Direction = 'up' | 'down' | 'left' | 'right';
 export type Point = { x: number; y: number };
 export type Furniture = Point & {
-  kind: 'desk' | 'workbench' | 'table' | 'sofa' | 'plant' | 'shelf' | 'board' | 'counter' | 'pond' | 'easel' | 'arcade' | 'bed' | 'telescope' | 'monitor' | 'rack';
+  kind: 'desk' | 'workbench' | 'table' | 'sofa' | 'plant' | 'shelf' | 'board' | 'counter' | 'pond' | 'easel' | 'arcade' | 'bed' | 'telescope' | 'monitor' | 'rack' | 'parking';
   w: number;
   h: number;
   label?: string;
+  vehicleKind?: VehicleKind;
 };
 
 export const furniture: Furniture[] = officeFurniture;
@@ -35,7 +38,7 @@ export function areaAt({ x, y, roomId }: Point & { roomId?: RoomId }): string {
   return y < 13 ? 'エントランス' : 'フリースペース';
 }
 
-export const STEP_MS = 145;
+export const STEP_MS = WALK_STEP_MS;
 const vectors: Record<Direction, Point> = {
   up: { x: 0, y: -1 }, down: { x: 0, y: 1 },
   left: { x: -1, y: 0 }, right: { x: 1, y: 0 },
@@ -49,6 +52,8 @@ export class Walker {
   private elapsed: number;
   private stepMs: number;
   constructor(stepMs = STEP_MS) { this.stepMs = stepMs; this.elapsed = stepMs; }
+
+  setStepMs(stepMs: number): void { this.elapsed = this.elapsed / this.stepMs * stepMs; this.stepMs = stepMs; }
 
   get moving(): boolean { return this.elapsed < this.stepMs; }
 
