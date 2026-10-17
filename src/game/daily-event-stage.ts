@@ -1,3 +1,4 @@
+import { eventVisitorPixels } from './event-visitors.ts';
 import type { DailyEpisode, EventTheme } from './daily-event-catalog.ts';
 import type { RoomId } from './rooms.ts';
 import { getRoom } from './rooms.ts';
@@ -59,19 +60,22 @@ export function roomEventStage(event: DailyEpisode, roomId: RoomId = 'meeting', 
   const stage: EventStage = { floor: [], scenery: [], effects: [], damage: [], hero: { x: 190, y: 173, scale: .75 }, caption: eventStageDescription(event) };
   let target = stage.floor;
   const p = (color: number, x: number, y: number, w: number, h: number, alpha = 1) => {
-    const left = Math.max(0, Math.round(x)), top = Math.max(0, Math.round(y));
-    const right = Math.min(480, Math.round(x + w)), bottom = Math.min(320, Math.round(y + h));
+    const left = Math.max(0, Math.round(x * 2) / 2), top = Math.max(0, Math.round(y * 2) / 2);
+    const right = Math.min(480, Math.round((x + w) * 2) / 2), bottom = Math.min(320, Math.round((y + h) * 2) / 2);
     if (right > left && bottom > top) target.push({ color, x: left, y: top, w: right - left, h: bottom - top, alpha });
   };
   const ellipse = (color: number, x: number, y: number, w: number, h: number, alpha = 1) => {
-    for (let dy = -h / 2; dy < h / 2; dy += 4) {
-      const half = Math.sqrt(Math.max(0, 1 - ((dy + 2) / (h / 2)) ** 2)) * w / 2;
-      p(color, x - half, y + dy, half * 2, 4, alpha);
+    for (let dy = -h / 2; dy < h / 2; dy += .5) {
+      const half = Math.sqrt(Math.max(0, 1 - ((dy + .25) / (h / 2)) ** 2)) * w / 2;
+      p(color, x - half, y + dy, half * 2, .5, alpha);
     }
   };
   const line = (color: number, x1: number, y1: number, x2: number, y2: number, width = 2, alpha = 1) => {
-    const steps = Math.max(1, Math.ceil(Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1)) / 4));
+    const steps = Math.max(1, Math.ceil(Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1)) / Math.max(.5, width / 2)));
     for (let i = 0; i <= steps; i++) p(color, x1 + (x2 - x1) * i / steps, y1 + (y2 - y1) * i / steps, width, width, alpha);
+  };
+  const prop = (kind: Parameters<typeof eventPropPixels>[0], x: number, y: number, w: number, h = w, alpha = 1) => {
+    for (const px of eventPropPixels(kind)) p(px.color, x + px.x * w / 8, y + px.y * h / 8, px.w * w / 8, px.h * h / 8, alpha);
   };
   const ink = 0x303443, concrete = 0x9f9a8b, cream = 0xe1d8bd, ember = 0xe6a365, v = event.variant;
   let seed = (v + 1) * 7919 + Object.keys(descriptions).indexOf(event.theme) * 3571;
@@ -134,6 +138,19 @@ export function roomEventStage(event: DailyEpisode, roomId: RoomId = 'meeting', 
     p(0xcdd5ce, 109, 86, 9, 46); p(0xcdd5ce, 110, 81, 58, 10); p(0x6f858c, 118, 91, 48, 5);
     p(0xe4bd77, 3, 132, 10, 12); p(0xe4bd77, 3, 160, 10, 12); p(0xb96459, 176, 135, 7, 10); p(0xb96459, 176, 161, 7, 10);
     for (let i = 0; i < 7; i++) p(0x4c6571, 123 + i * 7, 137, 3, 26);
+    for (const wx of [23,143]) for (const wy of [112,185]) {
+      p(0x859394, wx + 3, wy + 3, 16, 5); p(0xd6d9cd, wx + 7, wy + 4, 8, 3);
+      for (let dx = 2; dx < 21; dx += 3) p(0x43525c, wx + dx, wy + 1, .5, 10);
+    }
+    for (const y of [125.5,176.5]) p(0xf1eee0, 18, y, 140, .5);
+    line(0x556c78, 39, 129, 50, 151, .5); line(0x556c78, 50, 151, 39, 173, .5);
+    p(0x526b77, 114, 126, .5, 51); p(0x526b77, 58, 129, .5, 43);
+    p(0xdce3d8, 68, 132, 24, .5); line(0xdce3d8,65,134,72,143,.5);
+    p(0x364f5f, 103, 135, 3, 26); p(0x94b1b7, 104, 137, .5, 21);
+    p(0xe6ce9b, 93, 147, 3, 7); p(0x334c5b, 122, 169, 32, .5);
+    p(0xc4cecc, 110, 83, 55, .5); p(0x415866, 117, 91, 47, .5);
+    for (let i=0;i<6;i++) p(0xd8e1da,125+i*7,138,1,24);
+    p(0x42576a, 159,143,9,17); p(0xc99c69,162,146,3,9);
     for (const y of [120, 192]) for (let x = 185; x < 458; x += 9) { p(0x443e40, x, y, 9, 8); p(0xcf704b, x, y + 2, 6, 4); p(0xedc275, x, y + 3, 4, 2); }
     for (let i = 0; i < 8; i++) line(0x74c6dc, 190 + i * 27, 143 + i % 2 * 20, 203 + i * 27, 153 + i % 2 * 20, 2);
   } else if (event.theme === 'kaiju' && [0, 10, 14].includes(v)) {
@@ -159,8 +176,8 @@ export function roomEventStage(event: DailyEpisode, roomId: RoomId = 'meeting', 
     for (let i = 0; i < 8; i++) p(i % 2 ? 0xdfb970 : 0x7acdc5, cx - 97 + i * 28, 126, 11, 5);
     stage.hero = { x: 305, y: 166, scale: .75 };
   } else if (event.theme === 'santa') {
-    p(0x753d42, 98, 191, 66, 22); p(0xbb5a55, 104, 184, 60, 24); p(0xd9bc7b, 96, 213, 75, 3);
-    for (let i = 0; i < 35; i++) { const x = 24 + random() * 420, y = 45 + random() * 210; p(i % 2 ? 0xa4b18a : 0xc68b85, x, y, 12, 10); p(cream, x + 5, y, 2, 10); }
+    prop('sleigh', 94, 178, 78, 41);
+    for (let i = 0; i < 35; i++) { const x = 24 + random() * 420, y = 45 + random() * 210; prop('gift', x, y, 15, 15); }
     for (let i = 0; i < 28; i++) { p(0x607b5b, 22 + i * 16, 22 + i % 3 * 3, 16, 2); p(i % 2 ? 0xe3bd70 : 0xc97567, 26 + i * 16, 26 + i % 3 * 3, 3, 4); }
     stage.hero = { x: 155, y: 170, scale: .75 };
   } else if (event.theme === 'kaguya') {
@@ -177,7 +194,7 @@ export function roomEventStage(event: DailyEpisode, roomId: RoomId = 'meeting', 
     stage.hero = { x: 327, y: 157, scale: .75 };
   } else if (event.theme === 'festival') {
     for (const x of [35, 350]) { p(0x8e6049, x, 177, 84, 28); p(0xb75352, x, 150, 84, 11); for (let i = 0; i < 7; i++) p(i % 2 ? cream : 0xb75352, x + i * 12, 150, 10, 11); p(0x8e6049, x + 2, 155, 3, 39); p(0x8e6049, x + 77, 155, 3, 39); }
-    for (let i = 0; i < 20; i++) { p(0x7b684f, 20 + i * 22, 27 + i % 3, 22, 1); p(0xe6bd72, 27 + i * 22, 31 + i % 3, 9, 13); }
+    for (let i = 0; i < 20; i++) { p(0x7b684f, 20 + i * 22, 27 + i % 3, 22, 1); prop('lantern',27 + i * 22,31 + i % 3,12,17); }
     stage.hero = { x: 173, y: 164, scale: .75 };
   } else if (event.theme === 'oz') {
     for (let i = 0; i < 16; i++) { const y = 24 + i * 12, w = 210 - i * 9; p(i % 2 ? 0xa6a5a2 : 0x7b8287, cx - w / 2 + Math.sin(i) * 13, y, w, 9, .9); }
@@ -187,7 +204,7 @@ export function roomEventStage(event: DailyEpisode, roomId: RoomId = 'meeting', 
     stage.hero = { x: 176, y: 170, scale: .75 };
   }
   if (['thief', 'detective'].includes(event.theme)) {
-    for (let i = 0; i < 33; i++) { const x = 42 + random() * 393, y = 47 + random() * 199; p(cream, x, y, 18, 12); p(i % 3 ? 0x827f7c : 0xaf6964, x + 3, y + 4, 10, 2); }
+    for (let i = 0; i < 33; i++) { const x = 42 + random() * 393, y = 47 + random() * 199; prop('paper',x,y,14,18); }
     if (event.theme === 'detective') for (let i = 0; i < 18; i++) { p(0xd9be70, 80 + i * 16, 238, 15, 5); p(ink, 82 + i * 16, 238, 5, 5); }
   }
   if (stage.hero.scale > 0 && stage.hero.scale <= 1 && event.theme !== 'terminator') { const at = visitorAt(7); stage.hero = { x: at.x - 8, y: at.y - 7, scale: .75 }; }
@@ -208,13 +225,19 @@ export function roomEventStage(event: DailyEpisode, roomId: RoomId = 'meeting', 
   }
   if (event.theme === 'ghost') {
     for (let i = 0; i < 3; i++) {
-      const at = visitorAt(i + 2); p(0xd6b59a, at.x + 6, at.y + 3, 9, 8); p(ink, at.x + 6, at.y + 1, 9, 3); p(0xb6a580, at.x + 4, at.y + 11, 13, 12); p(ink, at.x + 3, at.y + 23, 5, 5); p(ink, at.x + 12, at.y + 23, 5, 5); p(0x46575b, at.x + 1, at.y + 10, 5, 14); p(0x6eaa87, at.x + 1, at.y + 12, 2, 7); p(ink, at.x + 15, at.y + 14, 16, 3);
-      line(0xd69c78, at.x + 30, at.y + 15, at.x + 49, at.y - 2, 1, .65);
+      const at = visitorAt(i + 2);
+      for (const px of eventVisitorPixels('ghost')) p(px.color,at.x+px.x*.6,at.y+px.y*.6,px.w*.6,px.h*.6);
+      line(0xd69c78, at.x + 28, at.y + 18, at.x + 49, at.y - 2, 1, .65);
     }
   }
   if (event.theme === 'comic') for (let i = 0; i < 12; i++) { const angle = i * Math.PI / 6; line(0x8c7f70, 240 + Math.cos(angle) * 190, 150 + Math.sin(angle) * 110, 240 + Math.cos(angle) * 142, 150 + Math.sin(angle) * 82, 1, .5); }
   if (event.theme === 'flood' && !aquarium) for (const x of [70, 219, 378]) {
     p(0x647d84, x, 6, 10, 32); p(0xb3c4c1, x + 2, 6, 4, 32); p(ink, x - 2, 26, 14, 4); p(0x74b9d1, x, 31, 9, 44, .8); p(0xc7eeeb, x + 3, 34, 2, 35, .85); line(0x7cc5dc, x + 4, 34, x + 23, 71, 2, .7); line(0x7cc5dc, x + 4, 34, x - 15, 74, 2, .7);
+  }
+  if (event.theme === 'flood' && !aquarium) for (const x of [70,219,378]) {
+    for (const y of [9,23]) { p(0xd4ddd0,x-1,y,12,1); p(0x526b73,x-1,y+1,12,.5); }
+    for (let i=0;i<7;i++) { const yy=41+i*4; p(0xe2f6e7,x+2+i%2,yy,.5,2); }
+    for (const dx of [-18,-9,10,19]) { p(0xb4e6e1,x+dx,72+dx%3,2,.5); p(0xe9f5dc,x+dx,70+dx%3,.5,.5); }
   }
   target = stage.effects;
   if (aquarium) {
@@ -224,12 +247,12 @@ export function roomEventStage(event: DailyEpisode, roomId: RoomId = 'meeting', 
     target = stage.scenery;
     p(0x697d86, 328, 39, 97, 73); p(0xb4d7da, 332, 43, 89, 63, .4); p(0x697d86, 331, 109, 5, 20); p(0x697d86, 415, 109, 5, 20);
     target = stage.effects;
-    for (let i = 0; i < 16; i++) for (const pixel of eventPropPixels('fish')) p(i % 2 ? pixel.color : 0xd6a46a, 35 + i * 69 % 400 + pixel.x * 2 + (frame < 0 ? 0 : frame % 3), 64 + i * 47 % 173 + pixel.y * 2, 2, 2);
+    for (let i = 0; i < 16; i++) for (const pixel of eventPropPixels('fish')) p(i % 2 || pixel.color !== 0x6ba7bb ? pixel.color : 0xd6a46a, 35 + i * 69 % 400 + pixel.x * 2 + (frame < 0 ? 0 : frame % 3), 64 + i * 47 % 173 + pixel.y * 2, pixel.w * 2, pixel.h * 2);
     stage.caption = eventStageDescription(original);
   }
   if (event.theme === 'ghost') for (let i = 0; i < 15 + v % 5; i++) {
     const x = 34 + (i * 79 + v * 11) % 404, y = 40 + (i * 47) % 195 + (frame < 0 ? 0 : frame % 3 - 1), color = i % 3 === 0 ? 0x99bc93 : i % 3 === 1 ? 0xece7d8 : 0xb7a7d0;
-    p(color, x + 3, y, 12, 4, .85); p(color, x, y + 4, 18, 14, .85); for (let j = 0; j < 3; j++) p(color, x + j * 6, y + 17, 4, 5, .8); p(ink, x + 4, y + 7, 3, 4); p(ink, x + 11, y + 7, 3, 4); p(0x857487, x + 7, y + 14, 4, 2);
+    for (const pixel of eventPropPixels('ghost')) p(pixel.color === 0xe8dcc1 ? color : pixel.color, x + pixel.x * 2.5, y + pixel.y * 2.5, pixel.w * 2.5, pixel.h * 2.5, .85);
   }
   if (event.theme === 'terminator') {
     const paths = [[437, 63], [419, 120], [445, 199], [369, 43]];

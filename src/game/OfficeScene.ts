@@ -1,3 +1,4 @@
+import { ART_WIDTH, ART_HEIGHT, configureArtCamera } from './art-resolution.ts';
 import { ChatUI } from './chat-ui.ts';
 import { playerIdentity } from './identity.ts';
 import { ArcadeUI } from './arcade-ui.ts';
@@ -32,7 +33,7 @@ import type { BuddyKind } from './buddies.ts';
 import Phaser from 'phaser';
 import { avatarTexture, createAvatarTextures, drawOffice, drawRoomObject } from './art.ts';
 import { Controls } from './controls.ts';
-import { Walker, areaAt, COLS, ROWS, TILE } from './world.ts';
+import { Walker, areaAt, ROWS, TILE } from './world.ts';
 import type { Direction, Furniture } from './world.ts';
 import { OfficeConnection } from '../network/OfficeConnection.ts';
 import type { ConnectionState } from '../network/OfficeConnection.ts';
@@ -144,6 +145,7 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   create(): void {
+    configureArtCamera(this);
     this.mapViews = drawOffice(this, this.roomId, () => { if (this.editMode === 'none') this.dailyUI?.openCalendar(); }, (game) => { if (this.editMode === 'none') this.arcadeUI?.open(game); }, (item) => this.openBoard(item));
     this.lostItems = new LostItemsView(this, this.inputController.signal, (item) => {
       if (this.editMode !== 'none' || document.querySelector('dialog[open]')) return;
@@ -697,7 +699,7 @@ export class OfficeScene extends Phaser.Scene {
     if (!this.objectsReady || this.pendingEdit || (this.editMode !== 'place' && !(this.editMode === 'move' && this.selectedObject))) return;
     const selected = this.objects.find((o) => o.id === this.selectedObject);
     const object: RoomObject = { id: selected?.id ?? 'preview', owner: this.owner(), roomId: this.roomId,
-      kind: selected?.kind ?? this.objectKind, x: Math.floor(pointer.x / TILE), y: Math.floor(pointer.y / TILE), rotation: this.objectRotation };
+      kind: selected?.kind ?? this.objectKind, x: Math.floor((pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2).x / TILE), y: Math.floor((pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2).y / TILE), rotation: this.objectRotation };
     const error = placementProblem(object, this.objects, [...this.players.values()]);
     this.ghost = drawRoomObject(this, object).setAlpha(error ? 0.25 : 0.65).setDepth(2000);
     const { w, h } = objectSize(object.kind);
@@ -709,7 +711,7 @@ export class OfficeScene extends Phaser.Scene {
     if (target) this.linksUI?.open(target);
   }
   private editAt(pointer: Phaser.Input.Pointer): void {
-    const x = Math.floor(pointer.x / TILE), y = Math.floor(pointer.y / TILE);
+    const x = Math.floor((pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2).x / TILE), y = Math.floor((pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2).y / TILE);
     if (this.editMode === 'none') {
       const door = getRoom(this.roomId).door;
       if (this.roomId !== 'arena' && x === door.x && y === door.y) this.openRoomPicker();
@@ -836,7 +838,7 @@ export class OfficeScene extends Phaser.Scene {
 export function startOffice(parent: HTMLElement, slack: SlackIdentity | null = null, loginRequired = false): { game: Phaser.Game; scene: OfficeScene } {
   const scene = new OfficeScene(slack, loginRequired);
   const game = new Phaser.Game({
-    type: Phaser.AUTO, parent, width: COLS * TILE, height: ROWS * TILE,
+    type: Phaser.AUTO, parent, width: ART_WIDTH, height: ART_HEIGHT,
     backgroundColor: '#ead3a5', pixelArt: true, roundPixels: true,
     render: { antialias: false },
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },

@@ -22,7 +22,7 @@ export class SkyWindowView {
     this.roomId = roomId; this.key = ''; this.tick = -1;
     const outlook = getRoom(roomId).outlook;
     this.canvas.hidden = outlook === 'none'; this.canvas.dataset.outlook = outlook;
-    this.canvas.height = outlook === 'open' ? ROOFTOP_VIEW_HEIGHT : WINDOW_VIEW_HEIGHT;
+    this.canvas.width = 960; this.canvas.height = (outlook === 'open' ? ROOFTOP_VIEW_HEIGHT : WINDOW_VIEW_HEIGHT) * 2;
     if (this.canvas.parentElement?.classList.contains('window-wall')) {
       this.canvas.parentElement.hidden = outlook === 'none';
       this.canvas.parentElement.dataset.outlook = outlook;
@@ -44,8 +44,9 @@ export class SkyWindowView {
     if (key === this.key) return;
     this.key = key;
     const ctx = this.canvas.getContext('2d')!;
-    const w = 480, h = this.canvas.height;
-    const rect = (color: string, x: number, y: number, width: number, height: number) => { ctx.fillStyle = color; ctx.fillRect(Math.round(x), Math.round(y), width, height); };
+    const w = 480, h = elevated ? ROOFTOP_VIEW_HEIGHT : WINDOW_VIEW_HEIGHT;
+    ctx.setTransform(2,0,0,2,0,0); ctx.imageSmoothingEnabled = false;
+    const rect = (color: string, x: number, y: number, width: number, height: number) => { ctx.fillStyle = color; ctx.fillRect(Math.round(x * 2) / 2, Math.round(y * 2) / 2, width, height); };
     const night = phase === 'night';
     const sky = weather === 'clear'
       ? { morning: ['#b9d9e1', '#f3e5bd'], day: ['#86b9cf', '#c0dcd8'], evening: ['#b5839b', '#eeb28b'], night: ['#192b4a', '#3e5872'] }[phase]
