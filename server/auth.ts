@@ -1,3 +1,4 @@
+import { userIdentity } from '../src/game/identity.ts';
 import { randomBytes } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import * as oidc from 'openid-client';
@@ -10,7 +11,7 @@ const FLOW_COOKIE = 'waiwai_login';
 const FLOW_MS = 10 * 60_000;
 const SESSION_MS = 8 * 60 * 60_000;
 const random = () => randomBytes(32).toString('base64url');
-export type AuthConfig = { clientId: string; clientSecret: string; redirectUri: string; required?: boolean; teamId?: string };
+export type AuthConfig = { clientId: string; clientSecret: string; redirectUri: string; required?: boolean; teamId?: string; provider?: 'entra'; tenantId?: string };
 type Session = { user: AuthUser; expires: number };
 type Flow = { state: string; nonce: string; verifier: string; expires: number };
 
@@ -74,7 +75,7 @@ export class SlackAuth {
   private config?: AuthConfig;
   constructor(config?: AuthConfig, options: { client?: oidc.Configuration; now?: () => number } = {}) {
     this.config = config;
-    this.client = options.client ?? (config ? slackConfiguration(config) : undefined);
+    this.client = options.client ?? (config ? (config.provider === 'entra' ? entraConfiguration(config) : slackConfiguration(config)) : undefined);
     this.origin = config ? new URL(config.redirectUri).origin : undefined;
     this.now = options.now ?? Date.now;
     this.timer = setInterval(() => this.sweep(), 15_000);
@@ -91,7 +92,7 @@ export class SlackAuth {
   onRevoke(notify: (id: string) => void): () => void { this.revoked.add(notify); return () => { this.revoked.delete(notify); }; }
   canJoin(request: IncomingMessage): boolean {
     const identity = this.identify(request);
-    return !this.config?.required || (!!identity && (!this.config.teamId || identity.user.slack.teamId === this.config.teamId));
+    return !this.config?.required || (!!identity && (!this.config.teamId || identity.user.slack?.teamId === this.config.teamId));
   }
   identify(request: IncomingMessage): { id: string; user: AuthUser } | undefined {
     const id = cookie(request, SESSION_COOKIE);
@@ -102,9 +103,11 @@ export class SlackAuth {
   }
   private canonicalHost(request: IncomingMessage): boolean { return request.headers.host === new URL(this.origin!).host; }
 
+  private get route(): string { return this.config?.provider === 'entra' ? '/auth/microsoft' : '/auth/slack'; }
+
   async handle(request: IncomingMessage, response: ServerResponse): Promise<boolean> {
     const url = new URL(request.url ?? '/', 'http://localhost');
-    if (!['/api/auth/session', '/auth/slack', '/auth/slack/callback', '/auth/logout'].includes(url.pathname)) return false;
+    if (!['/api/auth/session', this.route, this.route + '/callback', '/auth/logout'].includes(url.pathname)) return false;
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('Referrer-Policy', 'no-referrer');
     response.setHeader('X-Content-Type-Options', 'nosniff');
@@ -112,13 +115,13 @@ export class SlackAuth {
       if (request.method !== 'GET') { response.writeHead(405).end(); return true; }
       const session = this.config && this.canonicalHost(request) ? this.identify(request) : undefined;
       response.writeHead(200, { 'Content-Type': 'application/json' });
-      response.end(JSON.stringify({ configured: !!this.config, loginUrl: this.origin ? this.origin + '/auth/slack' : null, user: session?.user ?? null,
+      response.end(JSON.stringify({ configured: !!this.config, loginUrl: this.origin ? this.origin + this.route : null, user: session?.user ?? null,
         ...(this.config?.required ? { required: true } : {}) }));
       return true;
     }
     if (!this.config || !this.client) { response.writeHead(503).end('Slack login is not configured.'); return true; }
     if (!this.canonicalHost(request)) {
-      if (url.pathname === '/auth/slack' && request.method === 'GET') redirect(response, this.origin + '/auth/slack');
+      if (url.pathname === this.route && request.method === 'GET') redirect(response, this.origin + this.route);
       else response.writeHead(400).end('Unexpected host');
       return true;
     }
@@ -131,7 +134,7 @@ export class SlackAuth {
       response.writeHead(204).end();
       return true;
     }
-    if (url.pathname === '/auth/slack') {
+    if (url.pathname === this.route) {
       if (request.method !== 'GET') { response.writeHead(405).end(); return true; }
       this.sweep();
       if (this.flows.size >= 1000 || this.sessions.size >= 1000) { response.writeHead(503).end('Please try again later.'); return true; }
@@ -140,7 +143,7 @@ export class SlackAuth {
       const id = random();
       const flow: Flow = { state: oidc.randomState(), nonce: oidc.randomNonce(), verifier: oidc.randomPKCECodeVerifier(), expires: this.now() + FLOW_MS };
       const target = oidc.buildAuthorizationUrl(this.client, {
-        redirect_uri: this.config.redirectUri, response_type: 'code', response_mode: 'form_post', scope: 'openid profile',
+        redirect_uri: this.config.redirectUri, response_type: 'code', response_mode: 'form_post', scope: this.config.provider === 'entra' ? 'openid profile email' : 'openid profile',
         state: flow.state, nonce: flow.nonce, code_challenge: await oidc.calculatePKCECodeChallenge(flow.verifier), code_challenge_method: 'S256',
       });
       this.flows.set(id, flow);
@@ -163,11 +166,13 @@ export class SlackAuth {
         expectedState: flow.state, expectedNonce: flow.nonce, pkceCodeVerifier: flow.verifier, idTokenExpected: true,
       });
       const claims = tokens.claims()!;
-      const slack = parseSlackIdentity({ teamId: claims['https://slack.com/team_id'], userId: claims['https://slack.com/user_id'] });
-      if (!slack || typeof claims.name !== 'string' || !claims.name.trim() || claims.sub !== slack.userId) throw new Error('Missing Slack identity');
-      if (this.config.teamId && slack.teamId !== this.config.teamId) throw new Error('Workspace not allowed');
+      const user = this.config.provider === 'entra' ? entraUser(claims, this.config.tenantId!) : (() => {
+        const slack = parseSlackIdentity({ teamId: claims['https://slack.com/team_id'], userId: claims['https://slack.com/user_id'] });
+        if (!slack || typeof claims.name !== 'string' || !claims.name.trim() || claims.sub !== slack.userId) throw new Error('Missing Slack identity');
+        if (this.config!.teamId && slack.teamId !== this.config!.teamId) throw new Error('Workspace not allowed');
+        return { name: normalizeName(claims.name), slack };
+      })();
       if (this.sessions.size >= 1000) throw new Error('Session capacity');
-      const user = { name: normalizeName(claims.name), slack };
       const previous = cookie(request, SESSION_COOKIE);
       if (previous) this.revoke(previous);
       const sessionId = random();
@@ -181,4 +186,57 @@ export class SlackAuth {
     return true;
   }
   close(): void { clearInterval(this.timer); for (const id of this.sessions.keys()) this.revoke(id); this.flows.clear(); }
+}
+
+const validUUID = (v: unknown): v is string => typeof v === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(v);
+export function readEntraConfig(env: Record<string, string | undefined>): AuthConfig | undefined {
+  if (env.REQUIRE_ENTRA_LOGIN && !['true', 'false'].includes(env.REQUIRE_ENTRA_LOGIN)) throw new Error('Invalid REQUIRE_ENTRA_LOGIN');
+  const values = [env.ENTRA_TENANT_ID, env.ENTRA_CLIENT_ID, env.ENTRA_CLIENT_SECRET, env.ENTRA_REDIRECT_URI];
+  if (values.every(v => !v) && env.REQUIRE_ENTRA_LOGIN !== 'true') return;
+  if (values.some(v => !v?.trim()) || !validUUID(values[0]) || !validUUID(values[1])) throw new Error('Configure ENTRA_TENANT_ID, ENTRA_CLIENT_ID, ENTRA_CLIENT_SECRET and ENTRA_REDIRECT_URI together.');
+  const url = new URL(values[3]!);
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.pathname !== '/auth/microsoft/callback') throw new Error('ENTRA_REDIRECT_URI must be https://<host>/auth/microsoft/callback');
+  return { provider: 'entra', tenantId: values[0]!.toLowerCase(), clientId: values[1]!, clientSecret: values[2]!, redirectUri: url.href, required: env.REQUIRE_ENTRA_LOGIN === 'true' };
+}
+export function entraConfiguration(config: AuthConfig): oidc.Configuration {
+  const base = `https://login.microsoftonline.com/${config.tenantId}/`;
+  const client = new oidc.Configuration({ issuer: base + 'v2.0', authorization_endpoint: base + 'oauth2/v2.0/authorize', token_endpoint: base + 'oauth2/v2.0/token', jwks_uri: base + 'discovery/v2.0/keys', id_token_signing_alg_values_supported: ['RS256'], response_types_supported: ['code'] }, config.clientId, { id_token_signed_response_alg: 'RS256' }, oidc.ClientSecretPost(config.clientSecret));
+  oidc.enableNonRepudiationChecks(client); client.timeout = 10; return client;
+}
+export function entraUser(claims: Record<string, unknown>, tenant: string): AuthUser {
+  if (!validUUID(claims.tid) || claims.tid.toLowerCase() !== tenant || !validUUID(claims.oid) || typeof claims.name !== 'string' || !claims.name.trim()) throw new Error('Invalid tenant identity');
+  const email = typeof claims.email === 'string' && claims.email.length <= 254 ? claims.email : undefined;
+  return { name: normalizeName(claims.name), accountId: `entra:${tenant}:${claims.oid.toLowerCase()}`, provider: 'entra', ...(email ? { email } : {}) };
+}
+export type OfficeIdentity = { id: string; user: AuthUser };
+export type OfficeAuthService = Pick<SlackAuth, 'identify' | 'onRevoke' | 'canJoin'>;
+/** Both providers use server-side validated sessions. Entra-required mode cannot be bypassed with Slack. */
+export class OfficeAuth {
+  private slack: SlackAuth;
+  private entra: SlackAuth;
+  private slackConfig?: AuthConfig;
+  private entraConfig?: AuthConfig;
+  constructor(slackConfig?: AuthConfig, entraConfig?: AuthConfig) {
+    this.slackConfig = slackConfig; this.entraConfig = entraConfig;
+    if (slackConfig && entraConfig && new URL(slackConfig.redirectUri).origin !== new URL(entraConfig.redirectUri).origin) throw new Error('Login providers must use the same origin');
+    this.slack = new SlackAuth(slackConfig); this.entra = new SlackAuth(entraConfig);
+  }
+  identify(request: IncomingMessage): OfficeIdentity | undefined { return this.entra.identify(request) ?? (this.entraConfig?.required ? undefined : this.slack.identify(request)); }
+  canJoin(request: IncomingMessage): boolean {
+    const identity = this.identify(request);
+    return identity ? !!userIdentity(identity.user) : !this.entraConfig?.required && !this.slackConfig?.required;
+  }
+  onRevoke(notify: (id: string) => void): () => void { const a = this.slack.onRevoke(notify), b = this.entra.onRevoke(notify); return () => { a(); b(); }; }
+  async handle(request: IncomingMessage, response: ServerResponse): Promise<boolean> {
+    const path = request.url?.split('?')[0];
+    if (path === '/api/auth/session') {
+      if (request.method !== 'GET') { response.writeHead(405).end(); return true; }
+      const config = this.entraConfig ?? this.slackConfig;
+      const identity = config && request.headers.host === new URL(config.redirectUri).host ? this.identify(request) : undefined;
+      response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ configured: !!config, loginUrl: this.slackConfig && !this.entraConfig?.required ? '/auth/slack' : null, microsoftLoginUrl: this.entraConfig ? '/auth/microsoft' : null, required: !!this.entraConfig?.required || !!this.slackConfig?.required, user: identity?.user ?? null })); return true;
+    }
+    if (path === '/auth/logout') return (this.entra.identify(request) ? this.entra : this.slack).handle(request, response);
+    return (path?.startsWith('/auth/microsoft') ? this.entra : this.slack).handle(request, response);
+  }
+  close(): void { this.slack.close(); this.entra.close(); }
 }

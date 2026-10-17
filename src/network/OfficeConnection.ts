@@ -1,3 +1,4 @@
+import type { ChatAction, ChatEvent } from '../game/chat.ts';
 import type { ArcadeAction } from '../game/arcade.ts';
 import type { BirthdayAction } from '../game/birthdays.ts';
 import type { DevWorldAction } from '../game/dev-world.ts';
@@ -21,6 +22,7 @@ import type { ReactionKind } from '../game/reactions.ts';
 
 export type ConnectionState = 'connecting' | 'online' | 'reconnecting';
 export type ConnectionHandlers = {
+  chat?: (event: ChatEvent) => void;
   ice?: (message: Extract<ServerMessage, { type: 'ice-state' }>) => void;
   arena?: (message: Extract<ServerMessage, { type: 'arena-state' }>) => void;
   arenaResult?: (message: Extract<ServerMessage, { type: 'arena-result' }>) => void;
@@ -139,6 +141,7 @@ export class OfficeConnection {
         if (player) this.slots.delete(player.slot);
         this.players.delete(message.id); this.handlers.left(message.id);
       }
+      else if (message.type === 'chat-state' || message.type === 'chat-history' || message.type === 'chat-message' || message.type === 'chat-result') this.handlers.chat?.(message);
       else if (message.type === 'ice-state') this.handlers.ice?.(message);
       else if (message.type === 'arena-state') this.handlers.arena?.(message);
       else if (message.type === 'arena-result') this.handlers.arenaResult?.(message);
@@ -235,6 +238,7 @@ export class OfficeConnection {
   robot(action: RobotAction, actionId: string): boolean { if (!this.online) return false; this.send({ type: 'robot-action', action, actionId }); return true; }
 
   announcement(action: AnnouncementAction): boolean { if (!this.online) return false; this.send(action); return true; }
+  chat(action: ChatAction): boolean { if (!this.online) return false; this.send(action); return true; }
   birthday(action: BirthdayAction): boolean { if (!this.online) return false; this.send(action); return true; }
   devWorld(action: DevWorldAction): boolean { if (!this.online) return false; this.send(action); return true; }
   castSpell(action: SpellAction): boolean { if (!this.online) return false; this.send(action); return true; }

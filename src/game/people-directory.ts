@@ -56,7 +56,7 @@ export class PeopleDirectory {
       const name = document.createElement('strong'); name.textContent = person.name + (person.playerId === this.localId ? '（あなた）' : '');
       const detail = document.createElement('span');
       detail.textContent = !this.connected ? '接続状態を確認中' : person.online && person.roomId ? getRoom(person.roomId).name : '現在は入室していません';
-      const identity = document.createElement('small'); identity.textContent = person.verified ? `Slackメンバー · ${person.slack!.userId}` : 'ゲスト';
+      const identity = document.createElement('small'); identity.textContent = person.verified ? person.slack ? `Slackメンバー · ${person.slack.userId}` : 'Microsoftログイン済み' : 'ゲスト';
       info.append(name, detail, identity);
       const presence = document.createElement('span'); presence.className = 'person-presence';
       presence.dataset.online = String(this.connected && person.online);
@@ -69,7 +69,7 @@ export class PeopleDirectory {
       if (focusId === person.id) warp.focus({ preventScroll: true });
     }
     document.querySelector('#people-result-count')!.textContent = !this.connected ? '接続を確認中' : `${results.length}人 · オンライン ${this.people.filter((p) => p.online).length}人 / 全${this.people.length}人`;
-    document.querySelector('#people-empty')!.textContent = !this.connected ? 'サーバーへの接続後に検索できます。' : this.people.length ? '条件に合う人が見つかりません。' : 'まだメンバーがいません。Slackで入室すると記録されます。';
+    document.querySelector('#people-empty')!.textContent = !this.connected ? 'サーバーへの接続後に検索できます。' : this.people.length ? '条件に合う人が見つかりません。' : 'まだメンバーがいません。ログインして入室すると記録されます。';
     (document.querySelector('#people-empty') as HTMLElement).hidden = results.length > 0;
     document.querySelector('#people-warning')!.textContent = this.warning ?? '';
   }

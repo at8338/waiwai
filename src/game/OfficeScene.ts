@@ -1,3 +1,5 @@
+import { ChatUI } from './chat-ui.ts';
+import { playerIdentity } from './identity.ts';
 import { ArcadeUI } from './arcade-ui.ts';
 import { ARCADE_GAMES, ARCADE_IDS } from './arcade.ts';
 import { CockpitUI } from './cockpit-ui.ts';
@@ -37,7 +39,6 @@ import type { ConnectionState } from '../network/OfficeConnection.ts';
 import type { Player } from '../network/protocol.ts';
 import { ProximityVoice } from '../audio/ProximityVoice.ts';
 import type { VoiceUI } from '../audio/ProximityVoice.ts';
-import { activateSlackDM, slackDMUrl } from '../slack/dm.ts';
 import type { SlackIdentity } from '../slack/dm.ts';
 import { DEFAULT_APPEARANCE, parseAppearance } from './avatar.ts';
 import type { Appearance } from './avatar.ts';
@@ -98,7 +99,6 @@ export class OfficeScene extends Phaser.Scene {
   private voice?: ProximityVoice;
   private speaking = new Set<string>();
   private slack: SlackIdentity | null;
-  private selectedPlayer?: string;
   private participantsDirty = false;
   private lastParticipantsAt = 0;
   private loginRequired: boolean;
@@ -116,6 +116,7 @@ export class OfficeScene extends Phaser.Scene {
   private pendingEdit?: string;
   private ghost?: Phaser.GameObjects.Graphics;
   private atDoor = false;
+  private chatUI?: ChatUI;
   private directoryUI?: PeopleDirectory;
   private linksUI?: ObjectLinksEditor;
   private frontBoard?: string;
@@ -203,13 +204,14 @@ export class OfficeScene extends Phaser.Scene {
     this.linksUI = new ObjectLinksEditor({ signal: this.inputController.signal, owner: () => this.owner(),
       resolve: (id) => objectTargets(this.roomId, this.objects).find((o) => o.id === id),
       send: (edit) => this.connection?.editLinks(edit), open: () => this.controls.clear() });
+    this.chatUI = new ChatUI(this.inputController.signal, action => this.connection?.chat(action) ?? false, () => { this.controls.clear(); this.setEditMode('none'); }, id => [...this.players.values()].find(p => playerIdentity(p) === id)?.slack);
     this.directoryUI = new PeopleDirectory({ signal: this.inputController.signal,
       open: () => this.controls.clear(),
       warp: (id) => { this.controls.clear(); this.setEditMode('none'); return this.connection?.warpTo(id) ?? false; },
     });
     document.querySelector('#participants')?.addEventListener('click', (event) => {
       const target = (event.target as Element).closest<HTMLButtonElement>('[data-dm-player]');
-      if (target) this.openSlackDM(target.dataset.dmPlayer!);
+      if (target) this.openDirectMessage(target.dataset.dmPlayer!);
     }, { signal: this.inputController.signal });
     this.voice = new ProximityVoice({
       sendState: (state) => this.connection?.setVoice(state),
@@ -247,6 +249,7 @@ export class OfficeScene extends Phaser.Scene {
       dailyEvent: (state) => { this.dailyUI?.receive(state); this.dailyView?.receive(state); this.skyWindow?.setDailyEvent(state); },
       announcements: (state) => { this.announcementsUI?.snapshot(state); this.dailyUI?.receiveSchedules(state); },
       birthdays: (state) => { this.birthdaysUI?.receive(state); this.dailyUI?.receiveBirthdays(state); },
+      chat: event => this.chatUI?.receive(event),
       birthdayThread: (state) => this.birthdaysUI?.receiveThread(state),
       devWorld: (state) => this.devWorldUI?.receive(state),
       devWorldResult: (id, error) => this.devWorldUI?.result(id, error),
@@ -280,7 +283,7 @@ export class OfficeScene extends Phaser.Scene {
         }
       },
       left: (id) => this.removePlayer(id),
-      directory: (people, warning) => { this.directoryUI?.setPeople(people, warning); this.spellsUI?.setPeople(people); },
+      directory: (people, warning) => { this.directoryUI?.setPeople(people, warning); this.spellsUI?.setPeople(people); this.chatUI?.peopleChanged(people); },
       travelComplete: () => this.directoryUI?.complete(),
       travelError: (error) => this.directoryUI?.fail(error),
       objects: (roomId, objects) => {
@@ -312,6 +315,7 @@ export class OfficeScene extends Phaser.Scene {
       this.voice?.destroy();
       this.connection?.destroy();
       this.companions?.clear();
+      this.chatUI?.destroy();
       this.birthdaysUI?.destroy();
       this.devWorldUI?.destroy();
       this.combatUI?.destroy(); this.spellsUI?.destroy(); this.spellsView?.destroy();
@@ -344,7 +348,6 @@ export class OfficeScene extends Phaser.Scene {
       this.localId = undefined;
       this.objectsReady = false;
       this.setEditMode('none');
-      if (this.selectedPlayer) this.renderSlackTarget();
     }
     const messages = {
       connecting: 'オフィスに接続しています…',
@@ -357,6 +360,7 @@ export class OfficeScene extends Phaser.Scene {
     document.querySelector('#profile-presence')!.textContent = this.connected ? 'オフィスにいます' : '接続を待っています';
     (document.querySelector('#reset-position') as HTMLButtonElement).disabled = !this.connected;
     this.renderParticipants();
+    this.chatUI?.connection(this.connected);
     this.directoryUI?.setConnection(this.connected, this.localId);
     this.updateObjectTools();
     this.updateReactionTools();
@@ -410,7 +414,7 @@ export class OfficeScene extends Phaser.Scene {
         document.querySelector('#office-notice')!.textContent = '自販機でペットボトルを受け取りました。ひと息つこう。';
       }
       if (player.roomId !== this.roomId) this.showRoom(player.roomId);
-      if (player.slackVerified) {
+      if (player.accountId || player.slackVerified) {
         this.playerName = player.name;
         this.slack = player.slack ?? null;
         document.querySelector('#profile-name')!.textContent = player.name;
@@ -427,10 +431,10 @@ export class OfficeScene extends Phaser.Scene {
       if (!peer) {
         peer = { player, walker: new Walker(), view: this.makeAvatar(false) };
         peer.view.sprite.setInteractive({ useHandCursor: true })
-          .on('pointerup', () => { if (this.editMode === 'none') this.openSlackDM(player.id); });
-        peer.view.vehicle.setInteractive({ useHandCursor: true }).on('pointerup', () => { if (this.editMode === 'none') this.openSlackDM(player.id); });
+          .on('pointerup', () => { if (this.editMode === 'none') this.openDirectMessage(player.id); });
+        peer.view.vehicle.setInteractive({ useHandCursor: true }).on('pointerup', () => { if (this.editMode === 'none') this.openDirectMessage(player.id); });
         peer.view.label.setInteractive({ useHandCursor: true })
-          .on('pointerup', () => { if (this.editMode === 'none') this.openSlackDM(player.id); });
+          .on('pointerup', () => { if (this.editMode === 'none') this.openDirectMessage(player.id); });
         this.peers.set(player.id, peer);
         snap = true;
       }
@@ -441,7 +445,6 @@ export class OfficeScene extends Phaser.Scene {
     this.companions?.player(player, snap);
     this.participantsDirty = true;
     this.voice?.setWorld(this.localId, this.players, player.id);
-    if (this.selectedPlayer === player.id) this.renderSlackTarget();
   }
 
   private removePlayer(id: string): void {
@@ -453,7 +456,6 @@ export class OfficeScene extends Phaser.Scene {
     this.players.delete(id);
     this.voice?.setWorld(this.localId, this.players, id);
     this.renderParticipants();
-    if (this.selectedPlayer === id) this.renderSlackTarget();
   }
 
   private renderParticipants(): void {
@@ -498,9 +500,9 @@ export class OfficeScene extends Phaser.Scene {
       item.dataset.speaking = String(this.speaking.has(player.id));
       const name = item.children[0];
       name.textContent = player.name + (player.id === this.localId ? '（あなた）' : '');
-      if (player.id !== this.localId) name.setAttribute('aria-label', `${player.name}さんのSlack DMを開く`);
+      if (player.id !== this.localId) name.setAttribute('aria-label', `${player.name}さんのWaiwai内DMを開く`);
       item.children[1].textContent = areaAt(player);
-      item.children[2].textContent = player.slackVerified ? 'Slackログイン済み' : player.slack ? 'Slack手動設定' : 'Slack未設定';
+      item.children[2].textContent = player.accountId?.startsWith('entra:') ? 'Microsoftログイン済み' : player.slackVerified ? 'Slackログイン済み' : player.slack ? 'Slack手動設定' : 'ゲスト';
       const reaction = this.reactions.get(player.id);
       item.dataset.reaction = reaction?.kind ?? '';
       item.dataset.resting = String(!!player.resting);
@@ -540,34 +542,10 @@ export class OfficeScene extends Phaser.Scene {
     this.connection?.setProfile({ name: this.playerName, outfit: this.outfit, appearance: this.appearance, slack: this.slack, buddy: this.buddyChoice });
   }
 
-  private openSlackDM(id: string): void {
-    this.controls.clear();
-    this.selectedPlayer = id;
-    this.renderSlackTarget();
-    document.querySelector('#slack-target')?.scrollIntoView({ block: 'nearest' });
+  private openDirectMessage(id: string): void {
     const player = this.players.get(id);
     if (!this.connected || !player || id === this.localId) return;
-    if (!activateSlackDM(player.slack, (url) => window.location.assign(url)) && slackDMUrl(player.slack)) {
-      document.querySelector('#slack-target-message')!.textContent = 'Slackアプリを開けませんでした。インストール状態を確認し、下のリンクからもう一度お試しください。';
-    }
-  }
-
-  private renderSlackTarget(): void {
-    const card = document.querySelector<HTMLElement>('#slack-target')!;
-    card.hidden = false;
-    const selected = this.selectedPlayer ? this.players.get(this.selectedPlayer) : undefined;
-    const player = selected?.roomId === this.roomId ? selected : undefined;
-    const link = document.querySelector<HTMLAnchorElement>('#slack-dm-link')!;
-    const url = player && this.connected ? slackDMUrl(player.slack) : undefined;
-    document.querySelector('#slack-target-name')!.textContent = player ? `${player.name}さんのSlack DM` : '相手はオフィスにいません';
-    const message = !this.connected ? 'オフィスへの接続が切れています。再接続後に相手を選び直してください。'
-      : !player ? '相手が退出しました。Slackのリンクを解除しました。'
-      : url ? 'SlackアプリでDMを開きます。開かなかった場合は、下のリンクからもう一度開けます。'
-      : '相手のSlackが未設定です。相手にワークスペースIDとメンバーIDの設定をお願いしてください。';
-    document.querySelector('#slack-target-message')!.textContent = message;
-    document.querySelector('#slack-target-ids')!.textContent = url && player?.slack ? `${player.slack.teamId} / ${player.slack.userId}` : '';
-    if (url) { link.href = url; link.hidden = false; }
-    else { link.removeAttribute('href'); link.hidden = true; }
+    this.chatUI?.openDM(playerIdentity(player));
   }
 
   private openRoomPicker(): void {
@@ -607,7 +585,6 @@ export class OfficeScene extends Phaser.Scene {
     for (const button of document.querySelectorAll<HTMLButtonElement>('[data-room]')) button.disabled = button.dataset.room === id;
     // Other-room roster entries are kept for occupancy, but avatars stay local.
     for (const player of this.players.values()) if (player.id !== this.localId && player.roomId === id) this.receivePlayer(player, true);
-    if (this.selectedPlayer) this.renderSlackTarget();
     this.updateObjectTools();
   }
 
@@ -683,7 +660,7 @@ export class OfficeScene extends Phaser.Scene {
 
   private owner(): string {
     const player = this.localId ? this.players.get(this.localId) : undefined;
-    return player?.slackVerified && player.slack ? `slack:${player.slack.teamId}:${player.slack.userId}` : `guest:${this.localId}`;
+    return player ? playerIdentity(player) : `guest:${this.localId}`;
   }
   private objectStatus(message: string): void { document.querySelector('#object-status')!.textContent = message; }
   private updateObjectTools(): void {

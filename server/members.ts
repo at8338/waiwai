@@ -1,7 +1,7 @@
+import { persistentIdentity, userIdentity } from '../src/game/identity.ts';
 import { readFileSync } from 'node:fs';
 import { mkdir, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { memberId } from '../src/game/directory.ts';
 import type { Member } from '../src/game/directory.ts';
 import type { AuthUser } from '../src/slack/auth.ts';
 import { parseSlackIdentity } from '../src/slack/dm.ts';
@@ -20,7 +20,7 @@ export class MemberStore {
       const parsed = JSON.parse(raw);
       if (parsed.version !== 1 || !Array.isArray(parsed.members) || parsed.members.length > 5000 || !parsed.members.every((m: Member) => {
         const slack = m && parseSlackIdentity(m.slack);
-        return slack && m.id === memberId(slack) && typeof m.name === 'string' && m.name === normalizeName(m.name);
+        return persistentIdentity(m.id) && (!m.slack || slack && m.id === `slack:${slack.teamId}:${slack.userId}`) && typeof m.name === 'string' && m.name === normalizeName(m.name);
       }) || new Set(parsed.members.map((m: Member) => m.id)).size !== parsed.members.length) throw new Error('Invalid member directory');
       this.members = parsed.members;
     } catch (error) {
@@ -30,7 +30,7 @@ export class MemberStore {
   list(): readonly Member[] { return this.members; }
   // Called only with a server-verified identity, never with a client profile.
   remember(user: AuthUser): Promise<void> {
-    const member: Member = { id: memberId(user.slack), name: normalizeName(user.name), slack: { ...user.slack } };
+    const member: Member = { id: userIdentity(user), name: normalizeName(user.name), ...(user.slack ? { slack: { ...user.slack } } : {}) };
     const operation = this.queue.then(async () => {
       const old = this.members.find((m) => m.id === member.id);
       if (old?.name === member.name) return;

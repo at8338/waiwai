@@ -1,3 +1,4 @@
+import { persistentIdentity as persistent } from '../src/game/identity.ts';
 import { readFileSync } from 'node:fs';
 import { mkdir, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
@@ -6,7 +7,6 @@ import { validAnnouncementId } from '../src/game/announcements.ts';
 import type { BirthdayAction, BirthdaySnapshot, BirthdayComment, BirthdayThread } from '../src/game/birthdays.ts';
 type Entry = { id: string; name: string; month: number; day: number; version: number };
 type State = { entries: Entry[]; day: string; cheers: Record<string, string[]>; comments: BirthdayComment[] };
-const persistent = (id: string) => /^slack:[A-Z0-9]{1,40}:[A-Z0-9]{1,40}$/.test(id);
 export class BirthdayError extends Error {}
 export class BirthdayStore {
   private state: State = { entries: [], day: '', cheers: {}, comments: [] };

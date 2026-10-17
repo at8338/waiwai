@@ -100,7 +100,7 @@ export class BirthdaysUI {
       const comments = document.createElement('button'); comments.type = 'button'; comments.dataset.birthdayComments = entry.id; comments.dataset.birthdayDate = this.day; comments.textContent = 'お祝いコメント'; comments.disabled = disabled;
       card.append(title, count, button, comments); people.append(card);
     }
-    el('birthday-storage-help').textContent = this.state?.persistent ? 'Slackアカウントに紐づけて保存します。登録した月日と名前は館内で共有され、ログインしていない日もお祝いに表示されます。' : 'ゲストのお試し登録です。月日と名前は滞在中だけ館内で共有され、退出すると消えます。Slackログインで毎年の登録を保存できます。';
+    el('birthday-storage-help').textContent = this.state?.persistent ? 'ログインしたアカウントに紐づけて保存します。登録した月日と名前は館内で共有され、ログインしていない日もお祝いに表示されます。' : 'ゲストのお試し登録です。月日と名前は滞在中だけ館内で共有され、退出すると消えます。MicrosoftまたはSlackログインで毎年の登録を保存できます。';
     for (const id of ['birthday-month', 'birthday-day', 'birthday-save', 'birthday-delete']) el<HTMLInputElement | HTMLButtonElement>(id).disabled = disabled;
     el('birthday-delete').hidden = !entries.some((entry) => entry.id === this.state?.selfId);
     this.renderThread();
@@ -114,6 +114,6 @@ export class BirthdaysUI {
     }
     el('birthday-comments-empty').hidden = !this.thread || !!this.thread.comments.length;
     el<HTMLButtonElement>('birthday-comment-send').disabled = !this.connected || !this.thread || !!this.pending || !this.state?.entries.some(e => e.id === this.target?.id);
-    el('birthday-comment-storage').textContent = this.state?.persistent && this.target?.id.startsWith('slack:') ? 'コメントはサーバーに保存され、相手が後からログインしても読めます。200文字まで。' : 'ゲスト参加中のお祝いはお試しです。退出すると消えます。Slackログインで保存できます。';
+    el('birthday-comment-storage').textContent = this.state?.persistent && !this.target?.id.startsWith('guest:') ? 'コメントはサーバーに保存され、相手が後からログインしても読めます。200文字まで。' : 'ゲスト参加中のお祝いはお試しです。退出すると消えます。MicrosoftまたはSlackログインで保存できます。';
   }
 }

@@ -15,7 +15,8 @@
     "start": "node server/index.ts",
     "test:load": "node tests/load-office.ts",
     "infra:check": "node scripts/azure/check.mjs",
-    "infra:fmt": "terraform fmt -recursive infra"
+    "infra:fmt": "terraform fmt -recursive infra",
+    "test:chat-load": "node tests/load-chat.ts"
   },
   "dependencies": {
     "openid-client": "^6.8.8",

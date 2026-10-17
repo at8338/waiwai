@@ -1,3 +1,4 @@
+import { buildAuthEnv } from './auth-config.ts';
 // Run after an approved Terraform apply and Slack Redirect URL registration.
 // Secrets are uploaded over SSH, never passed in command arguments or Terraform.
 import { execFileSync } from 'node:child_process';
@@ -14,9 +15,7 @@ const run = (cmd, args, options = {}) => execFileSync(cmd, args, { cwd: root, st
 const output = JSON.parse(run('terraform', ['-chdir=infra/environments/dev', 'output', '-json'], { encoding: 'utf8', stdio: 'pipe' }));
 const { domain, publicIp: ip, privateIp, target } = deploymentConfig(output);
 const source = parseEnv(await readFile(resolve(root, '.env'), 'utf8'));
-for (const key of ['SLACK_CLIENT_ID', 'SLACK_CLIENT_SECRET']) if (!source[key] || /[\r\n]/.test(source[key])) throw new Error(`Set ${key} in local .env.`);
-const team = process.env.SLACK_TEAM_ID ?? 'T1MK78MV4';
-if (!/^T[A-Z0-9]{8,39}$/.test(team)) throw new Error('Invalid Slack team.');
+const authEnv = buildAuthEnv(source, domain);
 const temp = await mkdtemp(resolve(tmpdir(), 'waiwai-deploy-'));
 const identity = resolve(root, '.local/azure/dev/id_ed25519');
 const sshArgs = ['-i', identity, '-o', 'IdentitiesOnly=yes', '-o', 'StrictHostKeyChecking=accept-new', '-o', `UserKnownHostsFile=${resolve(root, '.local/azure/dev/known_hosts')}`];
@@ -26,15 +25,13 @@ let remote;
 try {
   run('npm', ['ci']); run('npm', ['run', 'build']);
   const archive = resolve(temp, 'app.tar.gz');
-  run('tar', ['-czf', archive, 'dist', 'server', 'src', 'package.json', 'package-lock.json']);
+  run('tar', ['-czf', archive, 'dist', 'server', 'src', 'scripts/chat', 'package.json', 'package-lock.json']);
   // Preserve the existing relay secret across releases; generate only on first deploy.
   let secret;
   const existing = ssh('sudo test -f /etc/waiwai/app.env && sudo cat /etc/waiwai/app.env || true', { encoding: 'utf8', stdio: 'pipe' });
   secret = parseEnv(existing).TURN_SHARED_SECRET || randomBytes(48).toString('hex');
   if (!/^[a-f0-9]{96}$/.test(secret)) throw new Error('Unexpected existing TURN secret; handle rotation explicitly.');
-  const env = { HOST: '127.0.0.1', PORT: '5173', NODE_ENV: 'production', WAIWAI_DATA_FILE: '/var/lib/waiwai/office-objects.json', WAIWAI_MEMBERS_FILE: '/var/lib/waiwai/office-members.json', WAIWAI_LINKS_FILE: '/var/lib/waiwai/office-links.json', REQUIRE_SLACK_LOGIN: 'true', SLACK_TEAM_ID: team,
-    SLACK_CLIENT_ID: source.SLACK_CLIENT_ID, SLACK_CLIENT_SECRET: source.SLACK_CLIENT_SECRET,
-    SLACK_REDIRECT_URI: `https://${domain}/auth/slack/callback`, TURN_SHARED_SECRET: secret,
+  const env = { HOST: '127.0.0.1', PORT: '5173', NODE_ENV: 'production', WAIWAI_DATA_FILE: '/var/lib/waiwai/office-objects.json', WAIWAI_MEMBERS_FILE: '/var/lib/waiwai/office-members.json', WAIWAI_LINKS_FILE: '/var/lib/waiwai/office-links.json', WAIWAI_CHAT_FILE: '/var/lib/waiwai/office-chat.sqlite', ...authEnv, TURN_SHARED_SECRET: secret,
     TURN_URLS: `turn:${domain}:3478?transport=udp,turn:${domain}:3478?transport=tcp,turns:${domain}:5349?transport=tcp` };
   const escaped = (value) => '"' + value.replaceAll('\\', '\\\\').replaceAll('"', '\\"') + '"';
   await writeFile(resolve(temp, 'app.env'), Object.entries(env).map(([k, v]) => `${k}=${escaped(v)}`).join('\n') + '\n', { mode: 0o600 });
