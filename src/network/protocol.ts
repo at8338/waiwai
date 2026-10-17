@@ -1,3 +1,5 @@
+import { parseAnnouncementAction } from '../game/announcements.ts';
+import type { AnnouncementAction, AnnouncementSnapshot } from '../game/announcements.ts';
 import { isVehicleKind } from '../game/transport.ts';
 import type { Riding, VehicleKind, VehicleUnit } from '../game/transport.ts';
 import { isBuddyKind } from '../game/buddies.ts';
@@ -28,6 +30,7 @@ export type Position = [slot: number, x: number, y: number, flags: number, buddy
 export const MAX_PLAYERS = 150;
 export const POSITION_FRAME_MS = 50;
 export type ClientMessage =
+  | AnnouncementAction
   | { type: 'vehicle-take'; kind: VehicleKind; actionId: string }
   | { type: 'vehicle-return'; actionId: string }
   | LinkEdit
@@ -43,6 +46,8 @@ export type ClientMessage =
   | { type: 'move'; direction: Direction; requestId: number }
   | { type: 'reset'; requestId: number };
 export type ServerMessage =
+  | ({ type: 'announcements'; warning?: string } & AnnouncementSnapshot)
+  | { type: 'announcement-result'; actionId: string; error?: string }
   | { type: 'vehicles'; units: VehicleUnit[] }
   | { type: 'vehicle-result'; actionId: string; error?: string }
   | { type: 'pets'; roomId: RoomId; pets: RoomPet[] }
@@ -70,6 +75,7 @@ export function parseClientMessage(raw: string): ClientMessage | undefined {
   try { value = JSON.parse(raw); } catch { return; }
   if (!value || typeof value !== 'object') return;
   const data = value as Record<string, unknown>;
+  const announcement = parseAnnouncementAction(data); if (announcement) return announcement;
   if (typeof data.actionId === 'string' && /^[a-f0-9-]{36}$/.test(data.actionId)) {
     if (data.type === 'vehicle-take' && isVehicleKind(data.kind)) return { type: 'vehicle-take', kind: data.kind, actionId: data.actionId };
     if (data.type === 'vehicle-return') return { type: 'vehicle-return', actionId: data.actionId };
