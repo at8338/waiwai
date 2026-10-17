@@ -1,7 +1,7 @@
 import { ARCADE_GAMES, ARCADE_IDS } from './arcade.ts';
 import { VEHICLE_DOCKS, VEHICLES } from './transport.ts';
 import type { Furniture, Point } from './world.ts';
-export const ROOM_IDS = ['office', 'focus', 'meeting', 'cafe', 'library', 'garden', 'studio', 'arcade', 'wellness', 'workshop', 'sky', 'ops', 'cockpit', 'project', 'canteen'] as const;
+export const ROOM_IDS = ['office', 'focus', 'meeting', 'cafe', 'library', 'garden', 'studio', 'arcade', 'wellness', 'workshop', 'sky', 'ops', 'cockpit', 'project', 'canteen', 'arena'] as const;
 export type RoomId = typeof ROOM_IDS[number];
 export type RoomSection = Point & { id: string; name: string; w: number; h: number; color: number; entrance: Point & { w: number } };
 export const PROJECT_SECTIONS: readonly RoomSection[] = [
@@ -84,6 +84,8 @@ export const ROOMS: Room[] = [
       ...[8, 14].flatMap((y) => [3, 12, 21].map((x) => ({ ...f('table', x, y, 5, 2), tableSetting: 'meal' as const }))),
       f('plant', 1, 6), f('plant', 28, 17),
     ] },
+  { id: 'arena', name: '魔法闘技場', description: 'ファイアと氷の盾で、気軽に魔法対決。HP100、先に0になったら負け。観戦もどうぞ。', icon: '⚔', floor: 0x716780, grain: 0x62586f, wall: 0xd5c9de, rug: 0xb4a0bf, style: 'checker', outlook: 'none', ...common,
+    furniture: [tool('monitor', 'MAGIC ARENA', 11, 1, 8, 2), ...[8,21].flatMap((x) => [f('reactor', x, 5, 2, 2), f('reactor', x, 13, 2, 2)])] },
 ];
 // A hanging calendar on the north wall, away from the window panes.
 for (const room of ROOMS) room.furniture.push({ kind: 'calendar', x: 27, y: 0, w: 2, h: 1, label: '館内カレンダー' });

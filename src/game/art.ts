@@ -345,11 +345,13 @@ export function drawOffice(scene: Phaser.Scene, roomId: RoomId = 'office', openC
     const label = scene.add.text(x + 24, y + 55, game.label, { fontFamily: 'monospace', fontSize: '7px', color: game.color, backgroundColor: '#30364c', padding: { x: 3, y: 2 } }).setOrigin(.5).setDepth(338);
     if (openArcade) label.setInteractive({ useHandCursor: true }).on('pointerup', () => openArcade(id));
   }
-  const door = scene.add.graphics().setDepth(-90);
-  rect(door, 0x526e65, room.door.x * TILE, room.door.y * TILE, TILE, TILE);
-  rect(door, 0xebe3ba, room.door.x * TILE + 3, room.door.y * TILE + 3, 10, 10);
-  rect(door, 0x526e65, room.door.x * TILE + 7, room.door.y * TILE + 4, 2, 8);
-  rect(door, 0x526e65, room.door.x * TILE + 5, room.door.y * TILE + 6, 6, 2);
+  if (roomId !== 'arena') {
+    const door = scene.add.graphics().setDepth(-90);
+    rect(door, 0x526e65, room.door.x * TILE, room.door.y * TILE, TILE, TILE);
+    rect(door, 0xebe3ba, room.door.x * TILE + 3, room.door.y * TILE + 3, 10, 10);
+    rect(door, 0x526e65, room.door.x * TILE + 7, room.door.y * TILE + 4, 2, 8);
+    rect(door, 0x526e65, room.door.x * TILE + 5, room.door.y * TILE + 6, 6, 2);
+  }
   return scene.children.list.filter((child) => !before.has(child));
 }
 

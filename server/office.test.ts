@@ -1055,3 +1055,37 @@ test('floor vehicles synchronize to newcomers, survive the dropper leaving, and 
   winner.send({ type: 'vehicle-pickup', unitId, actionId: winnerId });
   assert.equal((await winner.next('vehicle-result', (m) => m.actionId === winnerId)).error, undefined);
 });
+
+test('magic duel synchronizes HP, rejects interference and announces the winner to other floors and late arrivals', async (t) => {
+  const { connect } = await fixture(t); const a = await connect(), b = await connect(), audience = await connect();
+  for (const client of [a, b]) { client.send({ type: 'change-room', roomId: 'arena', requestId: 1 }); await client.next('player', m => m.reason === 'room' && m.player.id === client.welcome.id); }
+  audience.send({ type: 'change-room', roomId: 'library', requestId: 1 }); await audience.next('player', m => m.reason === 'room' && m.player.id === audience.welcome.id);
+  for (const client of [a, b]) { const actionId = randomUUID(); client.send({ type: 'arena-action', command: 'join', actionId, hp: 999 }); assert.equal((await client.next('arena-result', m => m.actionId === actionId)).error, undefined); }
+  assert.deepEqual((await a.next('arena-state', m => m.state.phase === 'playing')).state.fighters.map(f => f.hp), [100, 100]);
+  const call = randomUUID(); audience.send({ type: 'spell-cast', spell: 'call', targetIds: [a.welcome.id], actionId: call }); assert.match((await audience.next('spell-result', m => m.actionId === call)).error!, /対戦中/);
+  for (let i = 0; i < 4; i++) {
+    const actionId = randomUUID(); a.send({ type: 'spell-cast', spell: 'fire', actionId }); assert.equal((await a.next('spell-result', m => m.actionId === actionId)).error, undefined);
+    await b.next('arena-state', m => m.state.fighters[1]?.hp === 100 - (i + 1) * 25);
+    if (i < 3) await new Promise(r => setTimeout(r, 1250));
+  }
+  const result = await audience.next('announcements', m => m.announcements.some(a => a.category === 'arena'));
+  const broadcast = result.announcements.find(a => a.category === 'arena')!; assert.match(broadcast.message, /勝ち.*HP0/);
+  const late = await connect(); assert.equal((await late.next('announcements')).announcements.filter(a => a.id === broadcast.id).length, 1);
+  const leaveId = randomUUID(); a.send({ type: 'arena-action', command: 'leave', actionId: leaveId }); await a.next('arena-result', m => m.actionId === leaveId);
+  assert.equal(audience.seen.filter(m => m.type === 'announcements').at(-1)!.announcements.filter(a => a.category === 'arena').length, 1);
+});
+
+test('dash moves up to five tiles, respects walls and its cooldown; ice recast is rejected until expiry', async (t) => {
+  const { connect } = await fixture(t); const a = await connect();
+  a.send({ type: 'change-room', roomId: 'arena', requestId: 1 }); await a.next('player', m => m.reason === 'room');
+  await new Promise(r => setTimeout(r, STEP_MS + 20));
+  a.send({ type: 'dash', direction: 'up', requestId: 2 }); const dash = await a.next('player', m => m.requestId === 2);
+  assert.equal(dash.player.y, 12); assert.equal(dash.player.x, 15);
+  a.send({ type: 'dash', direction: 'up', requestId: 3 }); assert.equal((await a.next('player', m => m.requestId === 3)).player.y, 12);
+  let id = randomUUID(); a.send({ type: 'spell-cast', spell: 'blizzard', actionId: id }); assert.equal((await a.next('spell-result', m => m.actionId === id)).error, undefined);
+  const shield = await a.next('ice-state', m => !!m.shields.length); assert.equal(shield.shields[0].y, 11);
+  id = randomUUID(); a.send({ type: 'spell-cast', spell: 'blizzard', actionId: id }); assert.ok((await a.next('spell-result', m => m.actionId === id)).error);
+  await new Promise(r => setTimeout(r, 950)); a.send({ type: 'dash', direction: 'up', requestId: 4 }); assert.equal((await a.next('player', m => m.requestId === 4)).player.y, 12);
+  await new Promise(r => setTimeout(r, 2150));
+  id = randomUUID(); a.send({ type: 'spell-cast', spell: 'blizzard', actionId: id }); assert.equal((await a.next('spell-result', m => m.actionId === id)).error, undefined);
+});

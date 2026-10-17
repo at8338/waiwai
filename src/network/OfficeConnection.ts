@@ -2,6 +2,8 @@ import type { ArcadeAction } from '../game/arcade.ts';
 import type { BirthdayAction } from '../game/birthdays.ts';
 import type { DevWorldAction } from '../game/dev-world.ts';
 import type { SpellAction } from '../game/spells.ts';
+import { DASH_MS } from '../game/dash.ts';
+import type { ArenaAction } from '../game/arena.ts';
 import type { RobotAction } from '../game/robot.ts';
 import type { AnnouncementAction } from '../game/announcements.ts';
 import type { RoomPet } from '../game/buddies.ts';
@@ -19,6 +21,9 @@ import type { ReactionKind } from '../game/reactions.ts';
 
 export type ConnectionState = 'connecting' | 'online' | 'reconnecting';
 export type ConnectionHandlers = {
+  ice?: (message: Extract<ServerMessage, { type: 'ice-state' }>) => void;
+  arena?: (message: Extract<ServerMessage, { type: 'arena-state' }>) => void;
+  arenaResult?: (message: Extract<ServerMessage, { type: 'arena-result' }>) => void;
   spellEffect?: (message: Extract<ServerMessage, { type: 'spell-effect' }>) => void;
   spellResult?: (message: Extract<ServerMessage, { type: 'spell-result' }>) => void;
   devWorld?: (message: Extract<ServerMessage, { type: 'dev-world-state' }>) => void;
@@ -125,13 +130,16 @@ export class OfficeConnection {
           if (!previous || id === this.id) continue;
           const player = { ...previous, x, y, facing: directions[flags & 3], ...(buddyX !== undefined && buddyY !== undefined && buddyFacing !== undefined ? { buddyPosition: { x: buddyX, y: buddyY, facing: directions[buddyFacing] } } : {}) };
           this.players.set(id, player);
-          this.handlers.player(player, (flags & 4) !== 0);
+          this.handlers.player(player, (flags & 4) !== 0, flags & 8 ? 'dash' : undefined);
         }
       } else if (message.type === 'left') {
         const player = this.players.get(message.id);
         if (player) this.slots.delete(player.slot);
         this.players.delete(message.id); this.handlers.left(message.id);
       }
+      else if (message.type === 'ice-state') this.handlers.ice?.(message);
+      else if (message.type === 'arena-state') this.handlers.arena?.(message);
+      else if (message.type === 'arena-result') this.handlers.arenaResult?.(message);
       else if (message.type === 'spell-effect') this.handlers.spellEffect?.(message);
       else if (message.type === 'spell-result') this.handlers.spellResult?.(message);
       else if (message.type === 'lost-items') this.handlers.lostItems?.(message);
@@ -196,6 +204,7 @@ export class OfficeConnection {
     if (!this.readyToMove) return;
     this.request({ type: 'move', direction, requestId: ++this.sequence });
   }
+  dash(direction: Direction): void { if (this.readyToMove) { this.request({ type: 'dash', direction, requestId: ++this.sequence }); this.nextRequestAt = performance.now() + DASH_MS; } }
 
   changeRoom(roomId: RoomId): void {
     if (this.online) this.request({ type: 'change-room', roomId, requestId: ++this.sequence });
@@ -221,6 +230,7 @@ export class OfficeConnection {
   birthday(action: BirthdayAction): boolean { if (!this.online) return false; this.send(action); return true; }
   devWorld(action: DevWorldAction): boolean { if (!this.online) return false; this.send(action); return true; }
   castSpell(action: SpellAction): boolean { if (!this.online) return false; this.send(action); return true; }
+  arenaAction(action: ArenaAction): boolean { if (!this.online) return false; this.send(action); return true; }
 
   vehicle(action: VehicleAction, actionId: string): boolean {
     if (!this.online) return false;

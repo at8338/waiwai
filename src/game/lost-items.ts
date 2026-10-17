@@ -54,7 +54,7 @@ export function lostItemsForOffice(timestamp: number, objects: readonly RoomObje
   if (!Number.isFinite(timestamp)) return [];
   const period = lostItemPeriod(timestamp), salt = override.salt ?? 0;
   const deck = drawLostKinds(period, salt, override.kind);
-  const roomDraw = shuffle(ROOM_IDS, mix(period ^ salt ^ 0x72b91c3));
+  const roomDraw = shuffle(ROOM_IDS.filter((room) => room !== 'arena'), mix(period ^ salt ^ 0x72b91c3));
   const rooms = override.roomId ? [override.roomId, ...roomDraw.filter((room) => room !== override.roomId)] : roomDraw;
   return rooms.slice(0, MAX_LOST_ITEMS).flatMap((roomId, index) => {
     const room = getRoom(roomId), seats = seatSpots(roomId, objects);

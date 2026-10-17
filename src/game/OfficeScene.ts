@@ -20,8 +20,10 @@ import { CompanionsView } from './companions-view.ts';
 import { PokemonJournalUI } from './pokemon-journal-ui.ts';
 import { BirthdaysUI } from './birthdays-ui.ts';
 import { DevWorldUI } from './dev-world-ui.ts';
+import { CombatUI } from './combat-ui.ts';
 import { SpellsUI } from './spells-ui.ts';
 import { SpellsView } from './spells-view.ts';
+import { DASH_MS } from './dash.ts';
 import { isPokemonKind } from './pokemon-journal.ts';
 import { BUDDIES } from './buddies.ts';
 import type { BuddyKind } from './buddies.ts';
@@ -78,6 +80,7 @@ export class OfficeScene extends Phaser.Scene {
   private birthdaysUI?: BirthdaysUI;
   private devWorldUI?: DevWorldUI;
   private spellsUI?: SpellsUI;
+  private combatUI?: CombatUI;
   private spellsView?: SpellsView;
   private buddyChoice: BuddyKind | null = null;
   readonly walker = new Walker();
@@ -182,6 +185,7 @@ export class OfficeScene extends Phaser.Scene {
     this.setupRoomTools();
     this.setupReactions();
     this.spellsView = new SpellsView(this);
+    this.combatUI = new CombatUI(this, this.inputController.signal, (action) => this.connection?.arenaAction(action) ?? false);
     this.spellsUI = new SpellsUI(this.inputController.signal, (action) => { this.controls.clear(); this.setEditMode('none'); return this.connection?.castSpell(action) ?? false; }, () => {
       if (document.querySelector('dialog[open]')) return false; this.controls.clear(); this.setEditMode('none'); return true;
     });
@@ -243,6 +247,9 @@ export class OfficeScene extends Phaser.Scene {
       birthdays: (state) => { this.birthdaysUI?.receive(state); this.dailyUI?.receiveBirthdays(state); },
       devWorld: (state) => this.devWorldUI?.receive(state),
       devWorldResult: (id, error) => this.devWorldUI?.result(id, error),
+      ice: (state) => { this.combatUI?.receiveIce(state); this.spellsUI?.receiveIce(state.activeUntil, state.serverNow); },
+      arena: (state) => this.combatUI?.receive(state.state),
+      arenaResult: (result) => this.combatUI?.result(result.actionId, result.error),
       spellResult: (result) => this.spellsUI?.result(result.actionId, result.error),
       spellEffect: (effect) => {
         if (effect.roomId !== this.roomId) return;
@@ -300,7 +307,7 @@ export class OfficeScene extends Phaser.Scene {
       this.companions?.clear();
       this.birthdaysUI?.destroy();
       this.devWorldUI?.destroy();
-      this.spellsUI?.destroy(); this.spellsView?.destroy();
+      this.combatUI?.destroy(); this.spellsUI?.destroy(); this.spellsView?.destroy();
       this.lighting?.destroy();
       this.vehicleDocks?.destroy(); this.vehicleUI?.destroy(); this.announcementsUI?.destroy(); this.dailyUI?.destroy(); this.arcadeUI?.destroy(); this.cockpitUI?.destroy(); this.cockpitView?.destroy(); this.dailyView?.destroy(); this.lostItems?.destroy();
     };
@@ -316,7 +323,7 @@ export class OfficeScene extends Phaser.Scene {
     this.announcementsUI?.setConnected(this.connected); this.dailyUI?.setConnected(this.connected); this.cockpitUI?.setConnected(this.connected); this.arcadeUI?.setConnected(this.connected);
     this.birthdaysUI?.setConnected(this.connected);
     this.devWorldUI?.setConnected(this.connected);
-    this.spellsUI?.setConnected(this.connected, this.localId); if (!this.connected) this.spellsView?.clear();
+    this.combatUI?.setConnected(this.connected, this.localId); this.spellsUI?.setConnected(this.connected, this.localId); if (!this.connected) this.spellsView?.clear();
     this.lostItems?.setConnected(this.connected);
     this.vehicleUI?.setConnected(this.connected); this.vehicleDocks?.setConnected(this.connected);
     this.voice?.setConnected(this.connected);
@@ -398,8 +405,8 @@ export class OfficeScene extends Phaser.Scene {
         this.slack = player.slack ?? null;
         document.querySelector('#profile-name')!.textContent = player.name;
       }
-      this.walker.setStepMs(movementStep(player.riding?.kind));
-      this.walker.receive(player, player.facing, snap);
+      this.walker.setStepMs(reason === 'dash' ? DASH_MS : movementStep(player.riding?.kind));
+      this.walker.receive(player, player.facing, snap, reason === 'dash');
       this.vehicleUI?.setPlayer(player);
     } else if (player.roomId !== this.roomId) {
       const peer = this.peers.get(player.id);
@@ -418,8 +425,8 @@ export class OfficeScene extends Phaser.Scene {
         snap = true;
       }
       peer.player = player;
-      peer.walker.setStepMs(movementStep(player.riding?.kind));
-      peer.walker.receive(player, player.facing, snap);
+      peer.walker.setStepMs(reason === 'dash' ? DASH_MS : movementStep(player.riding?.kind));
+      peer.walker.receive(player, player.facing, snap, reason === 'dash');
     }
     this.companions?.player(player, snap);
     this.participantsDirty = true;
@@ -561,7 +568,7 @@ export class OfficeScene extends Phaser.Scene {
   private showRoom(id: RoomId): void {
     this.spellsView?.clear();
     this.reactions.clear();
-    this.roomId = id; this.arcadeUI?.setRoom(id); this.cockpitUI?.setRoom(id); this.cockpitView?.setRoom(id);
+    this.roomId = id; this.combatUI?.setRoom(id); this.arcadeUI?.setRoom(id); this.cockpitUI?.setRoom(id); this.cockpitView?.setRoom(id);
     this.companions?.setRoom(id);
     this.lighting?.setRoom(id);
     this.vehicleDocks?.setRoom(id);
@@ -624,6 +631,7 @@ export class OfficeScene extends Phaser.Scene {
     }, { signal });
     this.game.canvas.addEventListener('keydown', (event) => {
       if (event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (event.code === 'KeyF' || event.code === 'KeyB') { event.preventDefault(); this.spellsUI?.quick(event.code === 'KeyF' ? 'fire' : 'blizzard'); return; }
       if (event.code === 'KeyE' && this.editMode === 'none') { event.preventDefault(); this.vehicleUI?.quickAction(); return; }
       const index = ['Digit1', 'Digit2', 'Digit3', 'Digit4'].indexOf(event.code);
       if (index !== -1) { event.preventDefault(); this.playReaction(REACTION_KINDS[index]); }
@@ -699,7 +707,7 @@ export class OfficeScene extends Phaser.Scene {
     const x = Math.floor(pointer.x / TILE), y = Math.floor(pointer.y / TILE);
     if (this.editMode === 'none') {
       const door = getRoom(this.roomId).door;
-      if (x === door.x && y === door.y) this.openRoomPicker();
+      if (this.roomId !== 'arena' && x === door.x && y === door.y) this.openRoomPicker();
       else if (this.connected && this.objectsReady) { const target = targetAt(this.roomId, this.objects, { x, y }); if (target?.kind === 'calendar') this.dailyUI?.openCalendar(); else if (target?.kind === 'arcade' && this.roomId === 'arcade') this.arcadeUI?.open(ARCADE_IDS.find((id) => x >= ARCADE_GAMES[id].x && x < ARCADE_GAMES[id].x + 3 && y >= ARCADE_GAMES[id].y && y < ARCADE_GAMES[id].y + 3)); else if (target && this.roomId === 'cockpit' && (ROBOT_CONSOLE_KINDS as readonly string[]).includes(target.kind)) this.cockpitUI?.open(); else if (target) this.linksUI?.open(target); }
       return;
     }
@@ -781,11 +789,11 @@ export class OfficeScene extends Phaser.Scene {
       this.renderParticipants();
     }
     this.companions?.update(time, delta, this.reducedMotion);
-    this.spellsView?.update(this.reducedMotion);
+    this.spellsView?.update(this.reducedMotion); this.combatUI?.update(this.reducedMotion);
     this.walker.update(delta);
     if (this.editMode === 'none' && !this.walker.moving && this.connection?.readyToMove) {
-      const direction = this.controls.direction();
-      if (direction) { if (this.localId) this.reactions.delete(this.localId); this.connection.move(direction); }
+      const dash = this.controls.takeDash(), direction = dash ?? this.controls.direction();
+      if (direction) { if (this.localId) this.reactions.delete(this.localId); if (dash) this.connection.dash(direction); else this.connection.move(direction); }
     }
     this.drawAvatar(this.avatar, this.walker, this.appearance, this.playerName, time, this.localId);
     this.avatar.sprite.setAlpha(this.connected ? 1 : 0.45);
@@ -799,7 +807,7 @@ export class OfficeScene extends Phaser.Scene {
       document.querySelectorAll('[data-current-area]').forEach((element) => { element.textContent = area; });
     }
     const door = getRoom(this.roomId).door;
-    const atDoor = this.walker.tile.x === door.x && this.walker.tile.y === door.y;
+    const atDoor = this.roomId !== 'arena' && this.walker.tile.x === door.x && this.walker.tile.y === door.y;
     if (atDoor && !this.atDoor && this.connected && this.editMode === 'none') this.openRoomPicker();
     this.atDoor = atDoor;
     const board = boardInFront(this.roomId, this.walker.tile);

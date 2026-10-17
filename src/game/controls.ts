@@ -1,4 +1,5 @@
 import type { Direction } from './world.ts';
+import { DoubleTap } from './dash.ts';
 
 const bindings: Record<string, Direction> = {
   ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down',
@@ -8,6 +9,8 @@ const bindings: Record<string, Direction> = {
 export class Controls {
   private held = new Map<string, Direction>();
   private tapped?: Direction;
+  private dash?: Direction;
+  private doubleTap = new DoubleTap();
   private controller = new AbortController();
 
   attach(canvas: HTMLCanvasElement): void {
@@ -20,6 +23,7 @@ export class Controls {
       const direction = bindings[event.code];
       if (direction && !event.metaKey && !event.ctrlKey && !event.altKey) {
         event.preventDefault();
+        if (event.code.startsWith('Arrow') && this.doubleTap.press(direction, performance.now(), event.repeat)) this.dash = direction;
         this.held.set(event.code, direction);
         if (!event.repeat) this.tapped = direction;
       }
@@ -61,7 +65,9 @@ export class Controls {
     this.tapped = undefined;
     return next;
   }
+  takeDash(): Direction | undefined { const dash = this.dash; this.dash = undefined; if (dash) this.tapped = undefined; return dash; }
   clear(): void {
+    this.dash = undefined; this.doubleTap.clear();
     this.held.clear();
     this.tapped = undefined;
     document.querySelectorAll('.pressed').forEach((button) => button.classList.remove('pressed'));
