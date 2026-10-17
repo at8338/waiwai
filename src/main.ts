@@ -101,14 +101,14 @@ app.innerHTML = `
   <dialog id="object-links-dialog" class="object-links-dialog" aria-labelledby="object-links-title">
     <span class="eyebrow">OPEN TOGETHER</span><h2 id="object-links-title">オブジェクトのリンク</h2>
     <div class="object-links-body">
-      <p class="links-help">使いたいリンクを選んで、作業をはじめよう。</p>
+      <p id="object-links-help" class="links-help">使いたいリンクを選んで、作業をはじめよう。</p>
       <ul id="object-link-list" aria-label="登録済みのリンク"></ul>
       <p id="object-links-empty">まだリンクがありません。「リンクを設定」から追加できます。</p>
       <details id="object-links-settings"><summary>リンクを設定 · お気に入りから選択</summary>
         <p id="object-links-permission" class="links-help"></p>
         <div id="link-favorites" role="group" aria-label="共有のお気に入り"></div>
         <div class="link-save-row"><span id="object-links-selection"></span><button type="button" id="object-links-save">この選択を保存</button></div>
-        <details id="favorite-add-section"><summary>共有のお気に入りを追加</summary>
+        <details id="favorite-add-section"><summary id="favorite-add-title">共有のお気に入りを追加</summary>
           <form id="favorite-form"><label>リンクの名前<input name="title" maxlength="60" placeholder="チームのMiroボード" required /></label><label>URL<input name="url" type="url" maxlength="2048" placeholder="https://…" required /></label><p class="links-help">オフィス全体で共有されます。HTTPSのURLを登録できます。</p><button type="submit">お気に入りに追加</button></form>
         </details>
       </details>

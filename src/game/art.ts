@@ -252,6 +252,14 @@ export function drawRoomObject(scene: Phaser.Scene, object: RoomObject): Paint {
   if (object.kind === 'monitor' || object.kind === 'rack') {
     const { w, h } = objectSize(object.kind);
     if (object.kind === 'monitor') monitor(p, w * TILE, h * TILE); else serverRack(p, w * TILE, h * TILE);
+  } else if (object.kind === 'bookshelf') {
+    const width = base.w * TILE;
+    p(0x725039, 0, 0, width, 16); p(0xa87548, 2, 1, width - 4, 13);
+    const colors = [0x799e8a, 0xc98162, 0xe6cb7e, 0x708f9c];
+    for (let i = 4; i < width - 4; i += 5) {
+      p(colors[(i - 4) / 5 % 4], i, 3, 3, 9); p(0xf0dfb7, i, 5, 3, 1);
+    }
+    p(0xdda96e, 0, 13, width, 3);
   } else if (object.kind === 'desk') {
     p(0x694d3c, 0, 2, 48, 27); p(0xb57f50, 2, 4, 44, 21); p(0xe5b574, 2, 4, 44, 3);
     p(0x76513a, 4, 25, 4, 7); p(0x76513a, 40, 25, 4, 7);

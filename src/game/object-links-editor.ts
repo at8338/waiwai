@@ -61,7 +61,7 @@ export class ObjectLinksEditor {
     this.form.reset();
     document.querySelector<HTMLDetailsElement>('#object-links-settings')!.open = false;
     document.querySelector<HTMLDetailsElement>('#favorite-add-section')!.open = false;
-    this.status('リンクを選ぶと別タブで開きます。'); this.render(); this.options.open(); this.dialog.showModal();
+    this.status(this.isShelf() ? '資料名を選ぶと、Confluenceなどの資料を別タブで開きます。' : 'リンクを選ぶと別タブで開きます。'); this.render(); this.options.open(); this.dialog.showModal();
   }
   result(message: Extract<ServerMessage, { type: 'link-result' }>): void {
     if (this.pending?.id !== message.editId) return;
@@ -75,6 +75,7 @@ export class ObjectLinksEditor {
     } else { this.dirty = false; this.selected = new Set(this.assigned()); this.status('リンクの設定をみんなに共有・保存しました。'); }
     this.render();
   }
+  private isShelf(): boolean { return this.target?.kind === 'shelf' || this.target?.kind === 'bookshelf'; }
   private assigned(): string[] { return this.state.bindings.find((b) => b.objectId === this.target?.id)?.linkIds ?? []; }
   private editable(): boolean { return this.ready && !!this.target && (!this.target.owner || this.target.owner === this.options.owner()); }
   private status(text: string): void { document.querySelector('#object-links-status')!.textContent = text; }
@@ -101,7 +102,18 @@ export class ObjectLinksEditor {
       : 'このオブジェクトのリンクを、共有のお気に入りから複数選べます。設定は参加者に共有されます。';
   }
   private render(): void {
-    document.querySelector('#object-links-title')!.textContent = `${this.target?.name ?? 'オブジェクト'}のリンク`;
+    const shelf = this.isShelf();
+    document.querySelector('#object-links-title')!.textContent = this.target?.kind === 'bookshelf'
+      ? '本棚の資料一覧' : `${this.target?.name ?? 'オブジェクト'}の${shelf ? '資料一覧' : 'リンク'}`;
+    document.querySelector('#object-links-help')!.textContent = shelf
+      ? 'この棚に並んだ手順書やマニュアルをひらこう。Confluenceなど、いつもの資料をまとめて置けます。'
+      : '使いたいリンクを選んで、作業をはじめよう。';
+    this.list.setAttribute('aria-label', shelf ? 'この棚の資料' : '登録済みのリンク');
+    document.querySelector('#object-links-empty')!.textContent = shelf
+      ? 'この棚にはまだ資料がありません。「リンクを設定」を開き、資料名とURLを追加して、この棚に保存しましょう。'
+      : 'まだリンクがありません。「リンクを設定」から追加できます。';
+    document.querySelector('#favorite-add-title')!.textContent = shelf ? '資料を追加 · 名前とURLを登録' : '共有のお気に入りを追加';
+    this.form.querySelector<HTMLInputElement>('[name="title"]')!.placeholder = shelf ? '例：本番リリース手順書' : 'チームのMiroボード';
     this.list.replaceChildren();
     for (const id of this.assigned()) {
       const favorite = this.state.favorites.find((f) => f.id === id); if (!favorite) continue;
