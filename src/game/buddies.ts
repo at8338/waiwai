@@ -1,4 +1,5 @@
 import { extraBuddyPixels } from './extra-buddy-art.ts';
+import { catalogPokemonPixels } from './pokemon-sprites.ts';
 import { POKEMON } from './pokemon.ts';
 import type { PokemonKind } from './pokemon.ts';
 import type { Pixel } from './avatar.ts';
@@ -39,6 +40,7 @@ export function facingBetween(from: Point, to: Point, fallback: Direction): Dire
 
 export function buddyPixels(kind: BuddyKind, direction: Direction = 'down', frame = 0): Pixel[] {
   const extra = extraBuddyPixels(kind, direction, frame); if (extra) return extra;
+  const pokemon = catalogPokemonPixels(kind, direction, frame); if (pokemon) return pokemon;
   const pixels: Pixel[] = [];
   const p = (color: number, x: number, y: number, w: number, h: number) => pixels.push({ color, x, y, w, h });
   const foot = frame === 1 ? 1 : frame === 2 ? -1 : 0;
