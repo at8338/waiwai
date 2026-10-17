@@ -28,6 +28,10 @@ cloud-init status --wait >/dev/null
 install -m 0640 -o root -g waiwai "$staging/app.env" /etc/waiwai/app.env
 install -d -m 0750 -o root -g turnserver /etc/waiwai-turn
 install -m 0640 -o root -g turnserver "$staging/turnserver.conf" /etc/waiwai-turn/turnserver.conf
+install -d -m 0750 -o waiwai -g waiwai /var/lib/waiwai
+if [ ! -e /var/lib/waiwai/office-links.json ] && [ -f "$staging/office-links.seed.json" ]; then
+  install -m 0600 -o waiwai -g waiwai "$staging/office-links.seed.json" /var/lib/waiwai/office-links.json
+fi
 target="/opt/waiwai/releases/$release"
 install -d -m 0755 "$target"
 tar -xzf "$bundle" -C "$target"

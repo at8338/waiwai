@@ -3,6 +3,8 @@ import type { Appearance } from '../game/avatar.ts';
 import { isRoomId } from '../game/rooms.ts';
 import type { RoomId } from '../game/rooms.ts';
 import type { Person } from '../game/directory.ts';
+import { parseFavorite, MAX_OBJECT_LINKS, validObjectId, validLinkId } from '../game/object-links.ts';
+import type { Favorite, LinkBinding, LinkEdit } from '../game/object-links.ts';
 import { isObjectKind } from '../game/objects.ts';
 import type { ObjectKind, RoomObject } from '../game/objects.ts';
 import type { Direction } from '../game/world.ts';
@@ -20,6 +22,7 @@ export type Position = [slot: number, x: number, y: number, flags: number];
 export const MAX_PLAYERS = 150;
 export const POSITION_FRAME_MS = 50;
 export type ClientMessage =
+  | LinkEdit
   | { type: 'warp-to'; targetId: string; requestId: number }
   | { type: 'change-room'; roomId: RoomId; requestId: number }
   | { type: 'object-place'; kind: ObjectKind; x: number; y: number; rotation: number; editId: string }
@@ -33,6 +36,8 @@ export type ClientMessage =
 export type ServerMessage =
   | VoiceSnapshot
   | VoiceSignal
+  | { type: 'object-links'; roomId: RoomId; favorites: Favorite[]; bindings: LinkBinding[] }
+  | { type: 'link-result'; editId: string; error?: string; favoriteId?: string }
   | { type: 'directory'; people: Person[]; warning?: string }
   | { type: 'travel-error'; requestId: number; error: string }
   | { type: 'welcome'; id: string; players: Player[] }
@@ -65,6 +70,15 @@ export function parseClientMessage(raw: string): ClientMessage | undefined {
   if (data.type === 'warp-to' && typeof data.targetId === 'string' && /^[a-f0-9-]{36}$/.test(data.targetId) && validRequest) return { type: 'warp-to', targetId: data.targetId, requestId: data.requestId as number };
   if (data.type === 'change-room' && isRoomId(data.roomId) && validRequest) return { type: 'change-room', roomId: data.roomId, requestId: data.requestId as number };
   if (typeof data.editId === 'string' && /^[a-f0-9-]{36}$/.test(data.editId)) {
+    if (data.type === 'favorite-add') {
+      const favorite = parseFavorite(data);
+      if (favorite) return { type: 'favorite-add', ...favorite, editId: data.editId };
+      return;
+    }
+    if (data.type === 'object-links-set' && validObjectId(data.objectId) && Array.isArray(data.linkIds) &&
+        data.linkIds.length <= MAX_OBJECT_LINKS && data.linkIds.every(validLinkId) && new Set(data.linkIds).size === data.linkIds.length) {
+      return { type: 'object-links-set', objectId: data.objectId, linkIds: data.linkIds, editId: data.editId };
+    }
     const id = typeof data.id === 'string' && /^[a-f0-9-]{36}$/.test(data.id) ? data.id : undefined;
     if (data.type === 'object-remove' && id) return { type: 'object-remove', id, editId: data.editId };
     if (Number.isInteger(data.x) && Number.isInteger(data.y) && (data.x as number) > 0 && (data.x as number) < 29 && (data.y as number) > 0 && (data.y as number) < 19 && Number.isInteger(data.rotation) && (data.rotation as number) >= 0 && (data.rotation as number) < 4) {

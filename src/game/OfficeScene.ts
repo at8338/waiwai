@@ -16,6 +16,8 @@ import { ROOMS, getRoom } from './rooms.ts';
 import type { RoomId } from './rooms.ts';
 import { MAX_ROOM_OBJECTS, OBJECT_CATALOG, objectContains, objectSize, placementProblem } from './objects.ts';
 import type { ObjectKind, RoomObject } from './objects.ts';
+import { ObjectLinksEditor } from './object-links-editor.ts';
+import { boardInFront, objectTargets, targetAt } from './object-links.ts';
 import { PeopleDirectory } from './people-directory.ts';
 
 type AvatarView = {
@@ -59,6 +61,8 @@ export class OfficeScene extends Phaser.Scene {
   private ghost?: Phaser.GameObjects.Graphics;
   private atDoor = false;
   private directoryUI?: PeopleDirectory;
+  private linksUI?: ObjectLinksEditor;
+  private frontBoard?: string;
 
   constructor(slack: SlackIdentity | null = null, loginRequired = false) { super('office'); this.slack = slack; this.loginRequired = loginRequired; }
 
@@ -79,6 +83,9 @@ export class OfficeScene extends Phaser.Scene {
     this.avatar = this.makeAvatar(true);
     this.controls.attach(this.game.canvas);
     this.setupRoomTools();
+    this.linksUI = new ObjectLinksEditor({ signal: this.inputController.signal, owner: () => this.owner(),
+      resolve: (id) => objectTargets(this.roomId, this.objects).find((o) => o.id === id),
+      send: (edit) => this.connection?.editLinks(edit), open: () => this.controls.clear() });
     this.directoryUI = new PeopleDirectory({ signal: this.inputController.signal,
       open: () => this.controls.clear(),
       warp: (id) => { this.controls.clear(); this.setEditMode('none'); return this.connection?.warpTo(id) ?? false; },
@@ -123,7 +130,10 @@ export class OfficeScene extends Phaser.Scene {
       objects: (roomId, objects) => {
         if (roomId !== this.roomId) return;
         this.objects = objects; this.objectsReady = true; this.drawObjects(); this.updateObjectTools();
+        this.linksUI?.refreshTarget(); this.linksUI?.setReady(this.connected);
       },
+      objectLinks: (snapshot) => { if (snapshot.roomId === this.roomId) { this.linksUI?.snapshot(snapshot); this.linksUI?.setReady(this.connected && this.objectsReady); } },
+      linkResult: (result) => this.linksUI?.result(result),
       objectResult: (editId, error) => {
         if (editId !== this.pendingEdit) return;
         this.pendingEdit = undefined;
@@ -156,6 +166,7 @@ export class OfficeScene extends Phaser.Scene {
   private setConnectionState(state: ConnectionState): void {
     this.connected = state === 'online';
     this.voice?.setConnected(this.connected);
+    this.linksUI?.setReady(this.connected && this.objectsReady);
     if (!this.connected) {
       this.controls.clear();
       this.clearPeers();
@@ -353,6 +364,7 @@ export class OfficeScene extends Phaser.Scene {
 
   private showRoom(id: RoomId): void {
     this.roomId = id;
+    this.frontBoard = undefined; this.linksUI?.reset();
     this.atDoor = false;
     this.lastArea = '';
     this.clearPeers();
@@ -367,7 +379,7 @@ export class OfficeScene extends Phaser.Scene {
     document.querySelector('#room-description')!.textContent = room.description;
     document.querySelector('#map-title')!.textContent = `${room.name}へ、ようこそ。`;
     document.querySelector('#room-number')!.textContent = String(ROOMS.indexOf(room) + 1).padStart(2, '0');
-    document.querySelector('.map-legend')!.textContent = `${room.description} 近づいて会話、クリックしてSlackへ。`;
+    document.querySelector('.map-legend')!.textContent = `${room.description} 近づいて会話。人をクリックしてSlackへ、家具をクリックしてリンクへ。`;
     for (const button of document.querySelectorAll<HTMLButtonElement>('[data-room]')) button.disabled = button.dataset.room === id;
     // Other-room roster entries are kept for occupancy, but avatars stay local.
     for (const player of this.players.values()) if (player.id !== this.localId && player.roomId === id) this.receivePlayer(player, true);
@@ -394,7 +406,10 @@ export class OfficeScene extends Phaser.Scene {
     document.querySelector('#object-rotate')!.addEventListener('click', () => { this.objectRotation = (this.objectRotation + 1) % 4; this.updateObjectTools(); }, { signal });
     document.addEventListener('keydown', (event) => { if (event.key === 'Escape') this.setEditMode('none'); }, { signal });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => this.previewObject(pointer));
-    this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => this.editAt(pointer));
+    this.input.on('pointerup', (pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
+      if (this.editMode === 'none' && over.length) return;
+      this.editAt(pointer);
+    });
   }
 
   private owner(): string {
@@ -421,7 +436,7 @@ export class OfficeScene extends Phaser.Scene {
     this.selectedObject = undefined;
     this.ghost?.destroy(); this.ghost = undefined;
     this.controls.clear();
-    const hints = { none: '家具・小物を選び、「置く」を押してマップをクリック。配置はみんなに共有されます。',
+    const hints = { none: '家具のクリックでリンクを開けます。家具・小物を選び、「置く」を押してマップをクリック。配置はみんなに共有されます。',
       place: '置きたい位置の左上のマスをクリック。「回転」で向きを変更。Escでおわります。',
       move: '自分が置いた家具・小物をクリックし、移動先のマスをクリックしてください。', remove: '片づけたい自分の家具・小物をクリックしてください。' };
     this.objectStatus(hints[mode]); this.updateObjectTools();
@@ -446,6 +461,7 @@ export class OfficeScene extends Phaser.Scene {
     if (this.editMode === 'none') {
       const door = getRoom(this.roomId).door;
       if (x === door.x && y === door.y) this.openRoomPicker();
+      else if (this.connected && this.objectsReady) { const target = targetAt(this.roomId, this.objects, { x, y }); if (target) this.linksUI?.open(target); }
       return;
     }
     if (!this.connected || !this.objectsReady || this.pendingEdit) return;
@@ -508,6 +524,12 @@ export class OfficeScene extends Phaser.Scene {
     const atDoor = this.walker.tile.x === door.x && this.walker.tile.y === door.y;
     if (atDoor && !this.atDoor && this.connected && this.editMode === 'none') this.openRoomPicker();
     this.atDoor = atDoor;
+    const board = boardInFront(this.roomId, this.walker.tile);
+    if (!board) this.frontBoard = undefined;
+    else if (board.id !== this.frontBoard && this.connected && this.editMode === 'none' && !this.walker.moving &&
+      !document.querySelector('dialog[open]') && this.linksUI?.hasLinks(board.id)) {
+      this.frontBoard = board.id; this.linksUI.open(board);
+    }
     this.game.canvas.dataset.roomId = this.roomId;
     this.game.canvas.dataset.roomObjects = String(this.objects.length);
     this.game.canvas.dataset.tileX = String(this.walker.tile.x);
