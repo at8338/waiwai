@@ -1,3 +1,4 @@
+import { setupBuddyEditor } from './game/buddy-editor.ts';
 import { setupAvatarEditor } from './game/avatar-editor.ts';
 import { ROOMS } from './game/rooms.ts';
 import { OBJECT_CATALOG, OBJECT_KINDS } from './game/objects.ts';
@@ -42,6 +43,7 @@ app.innerHTML = `
         <fieldset class="color-picker"><legend>ふくの色</legend><button type="button" class="swatch green" data-outfit="0" aria-label="みどりの服" aria-pressed="true"></button><button type="button" class="swatch orange" data-outfit="1" aria-label="オレンジの服" aria-pressed="false"></button><button type="button" class="swatch blue" data-outfit="2" aria-label="あおの服" aria-pressed="false"></button></fieldset>
         <button type="button" id="avatar-edit" class="avatar-edit">見た目を変える</button>
       </section>
+      <section class="buddy-section"><h2 class="section-label">あなたのバディ</h2><p id="buddy-current"></p><button type="button" id="buddy-edit" class="avatar-edit">バディを選ぶ</button><p class="field-hint">あなたの歩いた道を、一歩うしろから。</p></section>
       <section class="slack-settings" aria-labelledby="slack-settings-title">
         <h2 class="section-label" id="slack-settings-title">あなたのSlack</h2>
         <form id="slack-settings-form" novalidate>
@@ -120,6 +122,8 @@ app.innerHTML = `
     <ul id="people-results" aria-label="メンバー検索結果"></ul><p id="people-empty"></p>
     <p id="people-status" role="status">接続を確認しています。</p><button type="button" id="people-close" class="dialog-close">閉じる</button>
   </dialog>
+  <dialog id="buddy-dialog" class="buddy-dialog" aria-labelledby="buddy-title"><form id="buddy-form"><span class="eyebrow">A LITTLE FRIEND, A LITTLE ADVENTURE</span><h2 id="buddy-title">今日の相棒は、だれにする？</h2><p>お気に入りを見つけて、一緒にオフィスを歩こう。</p><label class="buddy-filter"><input type="checkbox" id="buddy-favorites-only"> お気に入りだけ表示</label><div id="buddy-cards"></div><p class="field-hint">選択とお気に入りは、このブラウザーに保存します。</p><div class="dialog-actions"><button type="button" id="buddy-cancel">キャンセル</button><button type="submit">このバディと歩く</button></div></form></dialog>
+  <dialog id="buddy-info" aria-labelledby="buddy-info-title"><h2 id="buddy-info-title"></h2><p id="buddy-info-owner"></p><p id="buddy-info-description"></p><p>今は一緒に歩く、小さな仲間です。</p><div class="dialog-actions"><button type="button" id="buddy-info-close">閉じる</button></div></dialog>
   <dialog id="avatar-dialog" class="avatar-dialog" aria-labelledby="avatar-title"><form id="avatar-form"><span class="eyebrow">MAKE YOUR OWN CHARACTER</span><h2 id="avatar-title">あなたらしい姿に。</h2><div class="avatar-editor-layout"><div class="avatar-draft-backdrop"><canvas id="avatar-draft" width="20" height="28" aria-label="変更中のアバター"></canvas><p>性別や体型にかかわらず<br>すべての服と髪型を選べます。</p></div><div id="avatar-fields"></div></div><div class="dialog-actions"><button type="button" id="avatar-cancel">キャンセル</button><button type="submit">この見た目にする</button></div></form></dialog>
   <dialog id="room-dialog" class="room-dialog" aria-labelledby="room-dialog-title"><span class="eyebrow">FIND YOUR NEXT PLACE</span><h2 id="room-dialog-title">どの部屋へ行こう？</h2><p>部屋を変えると、移動先の近くの人と音声がつながります。</p><div class="room-grid">${ROOMS.map((room, i) => `<button type="button" data-room="${room.id}" style="--card-accent:#${room.rug.toString(16)}"><span class="room-card-number">${String(i + 1).padStart(2, '0')} / ${room.icon}</span><strong>${room.name}</strong><span>${room.description}</span><small data-room-occupancy="${room.id}">0人</small></button>`).join('')}</div><form method="dialog"><button class="dialog-close">いまの部屋にもどる</button></form></dialog>
   <dialog id="help-dialog" aria-labelledby="help-title"><span class="eyebrow">HOW TO WALK</span><h2 id="help-title">オフィスを歩いてみよう</h2><p>マップをクリックするか、Tabキーでマップにフォーカスしてから、<strong>矢印キー / WASD</strong> を押すと移動します。</p><p>スマートフォンやタブレットでは、マップ下の方向ボタンを使えます。</p><p>リアクションのボタン、またはマップ操作中の<strong>1〜4キー</strong>で、お辞儀・ジャンプ・バンザイ・よろこぶ動作を同じ部屋の人に伝えられます。歩くと動作が終わります。</p><p>家具や小物をクリックすると、登録済みのリンクを選んで開けます。「リンクを設定」で共有のお気に入りから複数選べます。リンクのあるホワイトボードは、前に立っても一覧が開きます。</p><p>壁や家具のあるマスは通れません。部屋の入口を探してみてください。</p><p>「入口にもどる」で最初の場所に戻れます。Tabキーでマップの操作を抜けられます。</p><form method="dialog"><button class="dialog-close">わかった、歩いてみる</button></form></dialog>
@@ -128,6 +132,7 @@ app.innerHTML = `
 const parent = document.querySelector<HTMLElement>('#game')!;
 const { game, scene } = startOffice(parent, initialSlack, authUnavailable || (!!auth.required && !auth.user));
 setupAvatarEditor(scene);
+setupBuddyEditor(scene);
 const nameInput = document.querySelector<HTMLInputElement>('#display-name')!;
 const loginStatus = document.querySelector<HTMLElement>('#slack-login-status')!;
 const loginLink = document.querySelector<HTMLAnchorElement>('#slack-login-link')!;

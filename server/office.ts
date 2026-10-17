@@ -1,3 +1,5 @@
+import { RoomPets, resetBuddy, advanceBuddy } from './companions.ts';
+import { PET_STEP_MS } from '../src/game/buddies.ts';
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, Server } from 'node:http';
 import type { Duplex } from 'node:stream';
@@ -55,6 +57,13 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
   frame.unref();
   const roomObjects = (roomId: RoomId) => store.list().filter((o) => o.roomId === roomId);
   const sendObjects = (ws: WebSocket, roomId: RoomId) => send(ws, { type: 'objects', roomId, objects: roomObjects(roomId) });
+  const pets = new RoomPets();
+  const sendPets = (ws: WebSocket, roomId: RoomId) => send(ws, { type: 'pets', roomId, pets: pets.list(roomId) });
+  const petTimer = setInterval(() => {
+    const changed = pets.step(store.list(), players.values());
+    for (const [ws, person] of players) if (changed.has(person.roomId)) sendPets(ws, person.roomId);
+  }, PET_STEP_MS);
+  petTimer.unref();
   const sendLinks = (ws: WebSocket, roomId: RoomId) => {
     const targets = new Set(objectTargets(roomId, store.list()).map((o) => o.id));
     send(ws, { type: 'object-links', roomId, favorites: links.list().favorites,
@@ -94,6 +103,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
     send(ws, { type: 'welcome', id: player.id, players: [...players.values()] });
     broadcast({ type: 'player', player, reason: 'join' }, ws);
     sendObjects(ws, player.roomId);
+    sendPets(ws, player.roomId);
     send(ws, directory());
     sendLinks(ws, player.roomId);
     let lastMove = -Infinity;
@@ -167,9 +177,11 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
         const destination = adjacentTile(target, player.id, players.values(), roomObjects(target.roomId));
         if (!destination) { fail('相手の隣に空いているマスがありません。少し待ってから試してください。'); return; }
         Object.assign(player, destination, { roomId: target.roomId, facing: 'down' });
+        resetBuddy(player, roomObjects(player.roomId));
         pending.delete(player.id);
         broadcast({ type: 'player', player, reason: 'warp', requestId: message.requestId });
         sendObjects(ws, player.roomId);
+        sendPets(ws, player.roomId);
         sendLinks(ws, player.roomId);
         directoryDirty = true;
         voice.refresh();
@@ -194,6 +206,9 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
           else objects.push(candidate);
         }).then(() => {
           for (const [client, person] of players) if (person.roomId === roomId) sendObjects(client, roomId);
+          for (const person of players.values()) if (person.roomId === roomId && person.buddyPosition && !walkableWithObjects(person.buddyPosition.x, person.buddyPosition.y, roomId, roomObjects(roomId))) {
+            resetBuddy(person, roomObjects(roomId)); pending.delete(person.id); broadcast({ type: 'player', player: person, reason: 'profile' });
+          }
           send(ws, { type: 'object-result', editId: message.editId });
         }).catch((error: unknown) => send(ws, { type: 'object-result', editId: message.editId,
           error: error instanceof EditError ? error.message : '家具・小物を保存できませんでした。時間をおいて試してください。' }));
@@ -203,13 +218,17 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
         player.name = identity?.user.name ?? message.name;
         player.outfit = message.outfit;
         player.appearance = message.appearance;
+        if (message.buddy !== undefined && (message.buddy !== player.buddy || (message.buddy && !player.buddyPosition))) { player.buddy = message.buddy; resetBuddy(player, roomObjects(player.roomId)); }
+        pending.delete(player.id);
         player.slack = identity?.user.slack ?? message.slack ?? null;
       } else if (message.type === 'change-room') {
         player.roomId = message.roomId;
         Object.assign(player, spawn(player.roomId, ws), { facing: 'down' });
+        resetBuddy(player, roomObjects(player.roomId));
         pending.delete(player.id);
         broadcast({ type: 'player', player, reason: 'room', requestId: message.requestId });
         sendObjects(ws, player.roomId);
+        sendPets(ws, player.roomId);
         sendLinks(ws, player.roomId);
         directoryDirty = true;
         voice.refresh();
@@ -217,13 +236,16 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
         return;
       } else if (message.type === 'reset') {
         Object.assign(player, spawn(player.roomId, ws), { facing: 'down' });
+        resetBuddy(player, roomObjects(player.roomId));
         lastMove = now;
       } else {
         player.facing = message.direction;
         const [dx, dy] = vectors[message.direction];
         if (now - lastMove >= STEP_MS && walkableWithObjects(player.x + dx, player.y + dy, player.roomId, roomObjects(player.roomId))) {
+          const previous = { x: player.x, y: player.y };
           player.x += dx;
           player.y += dy;
+          advanceBuddy(player, previous);
           lastMove = now;
         }
       }
@@ -231,8 +253,10 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
       else {
         // Immediate authoritative acknowledgment keeps local movement responsive.
         send(ws, { type: 'player', player, reason: message.type, requestId: message.requestId });
-        pending.set(player.id, [player.slot, player.x, player.y, directions.indexOf(player.facing) |
-          (message.type === 'reset' || ((pending.get(player.id)?.[3] ?? 0) & 4) ? 4 : 0)]);
+        const position: Position = [player.slot, player.x, player.y, directions.indexOf(player.facing) |
+          (message.type === 'reset' || ((pending.get(player.id)?.[3] ?? 0) & 4) ? 4 : 0)];
+        if (player.buddyPosition) position.push(player.buddyPosition.x, player.buddyPosition.y, directions.indexOf(player.buddyPosition.facing));
+        pending.set(player.id, position);
         voice.markDirty();
       }
     });
@@ -269,6 +293,7 @@ export function attachOffice(server: Server, auth?: SlackAuth, options: { object
   return () => {
     clearInterval(heartbeat);
     clearInterval(frame);
+    clearInterval(petTimer);
     unsubscribe?.();
     server.off('upgrade', upgrade);
     for (const ws of wss.clients) ws.terminate();

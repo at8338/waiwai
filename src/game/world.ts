@@ -46,9 +46,11 @@ export class Walker {
   tile: Point = { ...SPAWN };
   facing: Direction = 'down';
   private from: Point = { ...SPAWN };
-  private elapsed = STEP_MS;
+  private elapsed: number;
+  private stepMs: number;
+  constructor(stepMs = STEP_MS) { this.stepMs = stepMs; this.elapsed = stepMs; }
 
-  get moving(): boolean { return this.elapsed < STEP_MS; }
+  get moving(): boolean { return this.elapsed < this.stepMs; }
 
   step(direction: Direction): boolean {
     if (this.moving) return false;
@@ -62,10 +64,10 @@ export class Walker {
     return true;
   }
 
-  update(delta: number): void { this.elapsed = Math.min(STEP_MS, this.elapsed + Math.max(0, delta)); }
+  update(delta: number): void { this.elapsed = Math.min(this.stepMs, this.elapsed + Math.max(0, delta)); }
 
   position(): Point {
-    const progress = this.elapsed / STEP_MS;
+    const progress = this.elapsed / this.stepMs;
     return {
       x: (this.from.x + (this.tile.x - this.from.x) * progress + 0.5) * TILE,
       y: (this.from.y + (this.tile.y - this.from.y) * progress + 0.5) * TILE,
@@ -80,14 +82,14 @@ export class Walker {
     this.from = { x: current.x / TILE - 0.5, y: current.y / TILE - 0.5 };
     this.tile = { ...tile };
     const distance = Math.abs(this.from.x - tile.x) + Math.abs(this.from.y - tile.y);
-    this.elapsed = snap || distance > 2 ? STEP_MS : 0;
-    if (this.elapsed === STEP_MS) this.from = { ...tile };
+    this.elapsed = snap || distance > 2 ? this.stepMs : 0;
+    if (this.elapsed === this.stepMs) this.from = { ...tile };
   }
 
   reset(): void {
     this.tile = { ...SPAWN };
     this.from = { ...SPAWN };
-    this.elapsed = STEP_MS;
+    this.elapsed = this.stepMs;
     this.facing = 'down';
   }
 }

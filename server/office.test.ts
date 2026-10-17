@@ -517,3 +517,32 @@ test('reactions share only with the current room, use the authenticated connecti
   await a.next('reaction', (m) => m.kind === 'jump');
   assert.equal(b.seen.filter((m) => m.type === 'reaction').length, 1);
 });
+
+test('buddies share authoritative trail positions and pets stay scoped to the current room', async (t) => {
+  const { connect } = await fixture(t); const a = await connect(), b = await connect();
+  const initial = a.welcome.players[0];
+  const petsA = await a.next('pets'), petsB = await b.next('pets');
+  assert.deepEqual(petsA.pets, petsB.pets); assert.equal(petsA.pets.length, 2);
+  a.send({ type: 'profile', name: 'buddy-owner', outfit: 0, buddy: 'robot', buddyPosition: { x: 99, y: 99 } });
+  const shared = await b.next('player', (m) => m.player.id === initial.id && m.reason === 'profile');
+  assert.equal(shared.player.buddy, 'robot'); assert.ok(canWalk(shared.player.buddyPosition!.x, shared.player.buddyPosition!.y));
+  const c = await connect(); assert.equal(c.welcome.players.find((p) => p.id === initial.id)!.buddy, 'robot');
+  a.send({ type: 'move', direction: 'right', requestId: 1 });
+  const moved = await a.next('player', (m) => m.player.id === initial.id && m.requestId === 1);
+  assert.deepEqual(moved.player.buddyPosition, { x: initial.x, y: initial.y, facing: 'down' });
+  const frame = await b.next('positions', (m) => m.positions.some((p) => p[0] === initial.slot));
+  assert.deepEqual(frame.positions.find((p) => p[0] === initial.slot)!.slice(4), [initial.x, initial.y, directions.indexOf('down')]);
+  await new Promise((resolve) => setTimeout(resolve, STEP_MS + 5));
+  a.send({ type: 'move', direction: 'down', requestId: 2 });
+  const corner = await a.next('player', (m) => m.player.id === initial.id && m.requestId === 2);
+  assert.deepEqual(corner.player.buddyPosition, { x: moved.player.x, y: moved.player.y, facing: 'right' });
+  a.send({ type: 'change-room', roomId: 'garden', requestId: 3 });
+  const room = await a.next('player', (m) => m.player.id === initial.id && m.requestId === 3);
+  assert.ok(canWalk(room.player.buddyPosition!.x, room.player.buddyPosition!.y, 'garden'));
+  assert.equal((await a.next('pets', (m) => m.roomId === 'garden')).pets.every((p) => p.roomId === 'garden'), true);
+  const after = a.seen.length; await new Promise((resolve) => setTimeout(resolve, 700));
+  assert.equal(a.seen.slice(after).some((m) => m.type === 'pets' && m.roomId === 'office'), false);
+  a.send({ type: 'profile', name: 'buddy-owner', outfit: 0, buddy: null });
+  const none = await b.next('player', (m) => m.player.id === initial.id && m.reason === 'profile' && m.player.buddy === null);
+  assert.equal(none.player.buddyPosition, undefined);
+});
