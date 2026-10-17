@@ -6,6 +6,7 @@ import type { RoomId } from './rooms.ts';
 import { avatarPixels, appearanceKey, DEFAULT_APPEARANCE, SHIRTS } from './avatar.ts';
 import type { Appearance } from './avatar.ts';
 import type { RoomObject } from './objects.ts';
+import { objectSize } from './objects.ts';
 
 type Paint = Phaser.GameObjects.Graphics;
 const rect = (g: Paint, color: number, x: number, y: number, w: number, h: number) => {
@@ -204,10 +205,21 @@ export function avatarTexture(scene: Phaser.Scene, appearance: Appearance, direc
 }
 
 export function drawRoomObject(scene: Phaser.Scene, object: RoomObject): Paint {
-  const g = scene.add.graphics().setPosition(object.x * TILE + 8, object.y * TILE + 8).setDepth(object.y * TILE + TILE);
+  const base = objectSize(object.kind), rotated = objectSize(object.kind, object.rotation);
+  const g = scene.add.graphics().setPosition((object.x + rotated.w / 2) * TILE, (object.y + rotated.h / 2) * TILE).setDepth((object.y + rotated.h) * TILE);
   g.setRotation(object.rotation * Math.PI / 2);
-  const p = (color: number, x: number, y: number, w: number, h: number) => rect(g, color, x - 8, y - 8, w, h);
-  if (object.kind === 'plant' || object.kind === 'flowers') {
+  const p = (color: number, x: number, y: number, w: number, h: number) => rect(g, color, x - base.w * TILE / 2, y - base.h * TILE / 2, w, h);
+  if (object.kind === 'desk') {
+    p(0x694d3c, 0, 2, 48, 27); p(0xb57f50, 2, 4, 44, 21); p(0xe5b574, 2, 4, 44, 3);
+    p(0x76513a, 4, 25, 4, 7); p(0x76513a, 40, 25, 4, 7);
+    p(0x3e4846, 15, 0, 18, 13); p(0x8bb6a6, 17, 2, 14, 8);
+    p(0xd4edc3, 19, 4, 7, 1); p(0xd4edc3, 19, 6, 10, 1); p(0x424f49, 22, 13, 4, 3);
+    p(0xe3dac0, 15, 19, 16, 4); p(0xf8edcf, 36, 14, 7, 7); p(0x7a5340, 37, 14, 5, 2);
+  } else if (object.kind === 'chair') {
+    p(0x424f49, 7, 10, 2, 5); p(0x424f49, 3, 14, 10, 2);
+    p(0x476957, 2, 1, 12, 11); p(0x729481, 3, 2, 10, 4); p(0x9bb49a, 4, 2, 8, 1);
+    p(0x88a48a, 4, 7, 8, 4); p(0x547365, 1, 6, 3, 6); p(0x547365, 12, 6, 3, 6);
+  } else if (object.kind === 'plant' || object.kind === 'flowers') {
     p(0xb7815b, 4, 9, 8, 6); p(0xe2b17b, 3, 8, 10, 3); p(0x577c51, 7, 1, 2, 8);
     p(0x83a36b, 3, 3, 5, 5); p(0x608b5b, 8, 0, 5, 6);
     if (object.kind === 'flowers') { p(0xdca0a2, 2, 2, 4, 4); p(0xe9cb80, 9, 0, 4, 4); p(0xe4b7c7, 6, 4, 4, 4); }

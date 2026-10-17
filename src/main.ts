@@ -73,10 +73,10 @@ app.innerHTML = `
       </div>
       <div class="under-map"><p id="map-instructions"><span class="keycaps"><kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd></span><span>または <strong>W A S D</strong> で移動 <span class="instruction-extra">· マップをクリックして操作</span></span></p><button type="button" class="reset-button" id="reset-position"><span aria-hidden="true">↩</span> 入口にもどる</button></div>
       <section id="object-tools" class="object-tools" aria-labelledby="object-title">
-        <div class="object-heading"><h2 id="object-title">小物で、じぶんたちの部屋に。</h2><span id="object-count">0 / 60</span></div>
-        <div class="object-actions"><label for="object-kind">置くもの<select id="object-kind">${OBJECT_KINDS.map((kind) => `<option value="${kind}">${OBJECT_CATALOG[kind].icon} ${OBJECT_CATALOG[kind].name}</option>`).join('')}</select></label>
+        <div class="object-heading"><h2 id="object-title">家具と小物で、じぶんたちの部屋に。</h2><span id="object-count">0 / 60</span></div>
+        <div class="object-actions"><label for="object-kind">置くもの<select id="object-kind">${OBJECT_KINDS.map((kind) => `<option value="${kind}">${OBJECT_CATALOG[kind].icon} ${OBJECT_CATALOG[kind].name}</option>`).join('')}</select><span id="object-dimensions"></span></label>
         <button type="button" data-object-mode="place" aria-pressed="false" disabled>置く</button><button type="button" data-object-mode="move" aria-pressed="false" disabled>動かす</button><button type="button" data-object-mode="remove" aria-pressed="false" disabled>片づける</button><button type="button" id="object-rotate" disabled>回転 0°</button><button type="button" data-object-mode="none" aria-pressed="true">おわる</button></div>
-        <p id="object-status" role="status">小物を選び、「置く」を押してマップをクリック。配置はみんなに共有されます。</p>
+        <p id="object-status" role="status">家具・小物を選び、「置く」を押してマップをクリック。配置はみんなに共有されます。</p>
       </section>
       <p class="slack-map-hint">相手のアバター・名前をクリックすると、設定されたSlackのDMを開きます。</p>
       <section id="slack-target" class="slack-target" aria-labelledby="slack-target-name" hidden><h2 id="slack-target-name"></h2><p id="slack-target-message" role="status"></p><code id="slack-target-ids"></code><a id="slack-dm-link" hidden>SlackアプリでDMを開く</a></section>

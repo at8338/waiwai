@@ -325,3 +325,44 @@ test('shared objects are room scoped, owner editable, solid and persistent', asy
   assert.equal((await b.next('objects', (m) => m.roomId === 'cafe' && m.objects.length === 0)).objects.length, 0);
   assert.equal(new ObjectStore(file).list().length, 0);
 });
+
+test('desks and chairs share, persist, move, rotate and remove with full-footprint collision', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'waiwai-furniture-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = join(dir, 'objects.json');
+  const { connect } = await fixture(t, file); const a = await connect(); const b = await connect();
+  a.send({ type: 'change-room', roomId: 'cafe', requestId: 1 });
+  b.send({ type: 'change-room', roomId: 'cafe', requestId: 1 });
+  await a.next('objects', (m) => m.roomId === 'cafe'); await b.next('objects', (m) => m.roomId === 'cafe');
+  a.send({ type: 'object-place', kind: 'desk', x: 18, y: 15, rotation: 0, editId: randomUUID() });
+  assert.equal((await a.next('object-result')).error, undefined);
+  const desk = (await b.next('objects', (m) => m.objects.some((o) => o.kind === 'desk'))).objects[0];
+  for (let i = 0; i < 5; i++) {
+    await new Promise((resolve) => setTimeout(resolve, STEP_MS + 10));
+    a.send({ type: 'move', direction: 'right', requestId: i + 2 }); await a.next('player', (m) => m.requestId === i + 2);
+  }
+  await new Promise((resolve) => setTimeout(resolve, STEP_MS + 10));
+  a.send({ type: 'move', direction: 'up', requestId: 7 });
+  const blocked = await a.next('player', (m) => m.requestId === 7);
+  assert.deepEqual([blocked.player.x, blocked.player.y], [20, 17]);
+  a.send({ type: 'object-place', kind: 'chair', x: 22, y: 17, rotation: 2, editId: randomUUID() });
+  assert.equal((await a.next('object-result')).error, undefined);
+  const chair = (await b.next('objects', (m) => m.objects.length === 2)).objects.find((o) => o.kind === 'chair')!;
+  assert.equal(chair.rotation, 2);
+  await new Promise((resolve) => setTimeout(resolve, 360));
+  a.send({ type: 'object-move', id: desk.id, x: 18, y: 12, rotation: 1, editId: randomUUID() });
+  assert.equal((await a.next('object-result')).error, undefined);
+  const moved = (await b.next('objects', (m) => m.objects.some((o) => o.id === desk.id && o.rotation === 1))).objects;
+  assert.deepEqual(new ObjectStore(file).list(), moved);
+  b.send({ type: 'object-move', id: chair.id, x: 23, y: 17, rotation: 3, editId: randomUUID() });
+  assert.match((await b.next('object-result')).error!, /自分が置いた/);
+  await new Promise((resolve) => setTimeout(resolve, 360));
+  a.send({ type: 'object-remove', id: desk.id, editId: randomUUID() });
+  assert.equal((await a.next('object-result')).error, undefined);
+  assert.equal((await b.next('objects', (m) => m.objects.length === 1)).objects[0].id, chair.id);
+  await new Promise((resolve) => setTimeout(resolve, 360));
+  a.send({ type: 'object-remove', id: chair.id, editId: randomUUID() });
+  assert.equal((await a.next('object-result')).error, undefined);
+  await b.next('objects', (m) => m.objects.length === 0);
+  assert.equal(new ObjectStore(file).list().length, 0);
+});
