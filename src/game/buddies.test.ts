@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { BUDDY_KINDS, buddyPixels, BUDDY_WIDTH, BUDDY_HEIGHT, isBuddyKind } from './buddies.ts';
 import { parseClientMessage, directions } from '../network/protocol.ts';
 import { Walker } from './world.ts';
-test('all eight companions have distinct bounded pixel art in every animation frame', () => {
+test('all companions have distinct bounded pixel art in every animation frame', () => {
   const distinct = new Set();
   for (const kind of BUDDY_KINDS) {
     distinct.add(JSON.stringify(buddyPixels(kind)));
@@ -14,7 +14,7 @@ test('all eight companions have distinct bounded pixel art in every animation fr
       }
     }
   }
-  assert.equal(distinct.size, 8);
+  assert.equal(distinct.size, BUDDY_KINDS.length);
   assert.equal(isBuddyKind('__proto__'), false);
 });
 test('buddy profile validates choices and ignores client supplied coordinates', () => {

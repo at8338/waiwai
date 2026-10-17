@@ -1,8 +1,8 @@
 import { canWalk } from '../src/game/world.ts';
 import type { Direction, Point } from '../src/game/world.ts';
-import { getRoom, ROOMS } from '../src/game/rooms.ts';
+import { getRoom } from '../src/game/rooms.ts';
 import type { RoomId } from '../src/game/rooms.ts';
-import { facingBetween } from '../src/game/buddies.ts';
+import { facingBetween, ROAMING_RESIDENTS } from '../src/game/buddies.ts';
 import type { RoomPet } from '../src/game/buddies.ts';
 import { walkableWithObjects } from '../src/game/objects.ts';
 import type { RoomObject } from '../src/game/objects.ts';
@@ -27,10 +27,8 @@ export class RoomPets {
   private random: () => number;
   constructor(random = Math.random) {
     this.random = random;
-    this.pets = ROOMS.flatMap((room) => (['dog', 'cat'] as const).map((kind, i) => {
-      const desired = i ? { x: 23, y: 16 } : { x: 7, y: 15 };
-      const point = this.floorNear(room.id, desired, []);
-      return { id: `pet:${room.id}:${kind}`, roomId: room.id, kind, ...point, facing: 'down' as Direction };
+    this.pets = ROAMING_RESIDENTS.map(({ kind, roomId, x, y }) => ({
+      id: `pet:${kind}`, roomId, kind, ...this.floorNear(roomId, { x, y }, []), facing: 'down' as Direction,
     }));
   }
   list(roomId: RoomId): RoomPet[] { return this.pets.filter((p) => p.roomId === roomId).map((p) => ({ ...p })); }
