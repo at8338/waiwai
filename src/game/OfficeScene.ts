@@ -17,6 +17,8 @@ import { TransportUI } from './transport-ui.ts';
 import { SkyWindowView } from './SkyWindowView.ts';
 import { RoomLighting } from './RoomLighting.ts';
 import { CompanionsView } from './companions-view.ts';
+import { PokemonJournalUI } from './pokemon-journal-ui.ts';
+import { isPokemonKind } from './pokemon-journal.ts';
 import { BUDDIES } from './buddies.ts';
 import type { BuddyKind } from './buddies.ts';
 import Phaser from 'phaser';
@@ -68,6 +70,7 @@ export class OfficeScene extends Phaser.Scene {
   private skyWindow?: SkyWindowView;
   private lighting?: RoomLighting;
   private companions?: CompanionsView;
+  private pokemonJournal?: PokemonJournalUI;
   private buddyChoice: BuddyKind | null = null;
   readonly walker = new Walker();
   private controls = new Controls();
@@ -153,8 +156,13 @@ export class OfficeScene extends Phaser.Scene {
     this.lighting = new RoomLighting(this);
     this.skyWindow = new SkyWindowView(document.querySelector<HTMLCanvasElement>('#sky-window')!);
     createAvatarTextures(this);
+    this.pokemonJournal = new PokemonJournalUI(this.inputController.signal, () => {
+      if (document.querySelector('dialog[open]')) return false;
+      this.controls.clear(); this.setEditMode('none'); return true;
+    });
     this.companions = new CompanionsView(this, (kind, owner) => {
       if (this.editMode !== 'none') return;
+      if (isPokemonKind(kind)) { this.pokemonJournal?.inspect(kind, this.roomId); return; }
       this.controls.clear();
       document.querySelector('#buddy-info-title')!.textContent = `${BUDDIES[kind].icon} ${BUDDIES[kind].name}`;
       document.querySelector('#buddy-info-owner')!.textContent = owner;
