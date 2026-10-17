@@ -72,8 +72,8 @@ app.innerHTML = `
       <p id="people-travel-status" role="status"></p>
       <div class="game-frame">
         <div class="game-topline"><span><i></i> <span data-current-area>エントランス</span></span><span><span data-room-name>ひだまりオフィス</span> <b id="room-number">01</b></span></div>
-        <div class="map-surround"><div id="game" aria-describedby="map-instructions"><p class="loading">オフィスを準備しています…</p></div></div>
-        <div class="game-bottomline"><span class="location"><span aria-hidden="true">⌖</span> <span data-current-area>エントランス</span></span><span>歩いて、お気に入りの場所へ。</span></div>
+        <div class="map-surround"><div class="window-wall"><canvas id="sky-window" width="480" height="56" role="img" aria-label="日本時間に合わせて変わる窓の風景"></canvas></div><div id="game" aria-describedby="map-instructions"><p class="loading">オフィスを準備しています…</p></div></div>
+        <div class="game-bottomline"><span class="location"><span aria-hidden="true">⌖</span> <span data-current-area>エントランス</span></span><span id="lighting-status">JSTの時刻に合わせて照明を調整</span></div>
         <div class="reaction-toolbar" role="group" aria-label="アバターのリアクション"><span class="reaction-heading">気持ちを伝える</span>${REACTION_KINDS.map((kind, index) => `<button type="button" data-reaction="${kind}" disabled><span aria-hidden="true">${REACTIONS[kind].icon}</span> ${REACTIONS[kind].label}<kbd aria-hidden="true">${index + 1}</kbd></button>`).join('')}</div>
       </div>
       <p id="reaction-status" class="reaction-status" role="status">ボタンで気持ちを伝えよう。マップ操作中は1〜4キーでも使えます。歩くと動作が終わります。</p>
