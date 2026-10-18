@@ -14,6 +14,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ServerMessage } from '../src/network/protocol.ts';
 import { MemberStore } from './members.ts';
+import { isPokemonKind } from '../src/game/pokemon.ts';
+import { pokemonGeneration } from '../src/game/pokemon-generations.ts';
 
 const config = { clientId: 'client123', clientSecret: 'test-secret', redirectUri: 'https://office.example/auth/slack/callback' };
 const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -203,6 +205,23 @@ test('administrator policy uses signed verified Slack email, denies spoofing, ev
   const state = await late.next('world-policy'); assert.equal(state.administrator, false); assert.equal(state.policy.revision, revision);
   assert.ok((await late.next('pets')).pets.every(p => ['dog', 'cat', 'vacuum'].includes(p.kind)));
   assert.equal((await late.next('daily-event')).disabled, true);
+});
+
+test('generation bans remove active Pokemon buddies and reach late arrivals without granting guests editing rights', async t => {
+  const f=await fixture(t); f.change({email:'tt-asahara@kddi.com',email_verified:true});
+  const admin=await f.connect(await f.login()), guest=await f.connect('');
+  const profile=async(buddy:string)=>{guest.ws.send(JSON.stringify({type:'profile',name:'guest',outfit:0,buddy}));return (await guest.next('player',m=>m.reason==='profile' && m.player.id===guest.welcome.id)).player;};
+  assert.equal((await profile('pikachu')).buddy,'pikachu');
+  const ban=randomUUID();admin.ws.send(JSON.stringify({type:'policy-set',actionId:ban,revision:0,group:'pokemon',id:'generation:1',allowed:false}));
+  assert.equal((await admin.next('policy-result',m=>m.actionId===ban)).error,undefined);
+  assert.equal((await guest.next('player',m=>m.reason==='profile' && m.player.id===guest.welcome.id)).player.buddy,null);
+  assert.equal((await profile('eevee')).buddy,null); assert.equal((await profile('chikorita')).buddy,'chikorita');
+  const late=await f.connect(''); assert.ok((await late.next('world-policy')).policy.blocked.pokemon.includes('generation:1'));
+  assert.ok((await late.next('pets')).pets.every(p=>!isPokemonKind(p.kind) || pokemonGeneration(p.kind).id!=='generation:1'));
+  const forged=randomUUID();guest.ws.send(JSON.stringify({type:'policy-set',actionId:forged,revision:1,group:'pokemon',id:'generation:2',allowed:false}));
+  assert.match((await guest.next('policy-result',m=>m.actionId===forged)).error!,/管理者/);
+  const allow=randomUUID();admin.ws.send(JSON.stringify({type:'policy-set',actionId:allow,revision:1,group:'pokemon',id:'generation:1',allowed:true}));
+  assert.equal((await admin.next('policy-result',m=>m.actionId===allow)).error,undefined); assert.equal((await profile('pikachu')).buddy,'pikachu');
 });
 
 test('only the verified administrator can enable dummies; floor bans relocate them and hiding cancels pending replies', async t => {

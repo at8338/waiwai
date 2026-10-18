@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { WorldPolicyStore } from './world-policy.ts';
 import type { AuthUser } from '../src/slack/auth.ts';
 import type { PolicyAction } from '../src/game/world-policy.ts';
-import { allowedRooms } from '../src/game/world-policy.ts';
+import { allowedRooms, policyAllows } from '../src/game/world-policy.ts';
 const admin: AuthUser = { name: 'tt-asahara', provider: 'slack', email: 'tt-asahara@kddi.com', emailVerified: true, slack: { teamId: 'T012ABCDEF', userId: 'U012ABCDEF' } };
 const action = (revision = 0, group: PolicyAction['group'] = 'rooms', id = 'cafe', allowed = false): PolicyAction => ({ type: 'policy-set', actionId: randomUUID(), revision, group, id, allowed });
 test('only verified administrator identity can bootstrap, then immutable account ID is pinned across restarts', async t => {
@@ -25,6 +25,22 @@ test('only verified administrator identity can bootstrap, then immutable account
   assert.deepEqual(reloaded.snapshot(), store.snapshot()); assert.equal(reloaded.isAdministrator(otherAccount), false); assert.equal(reloaded.isAdministrator(admin), true);
   assert.match(await readFile(file, 'utf8'), /slack:T012ABCDEF:U012ABCDEF/);
 });
+test('generation switches persist atomically and enabling a generation leaves individual bans intact', async t => {
+  const dir=await mkdtemp(join(tmpdir(),'waiwai-generation-policy-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+  const file=join(dir,'policy.json'), store=new WorldPolicyStore(file);
+  await assert.rejects(store.apply(action(0,'pokemon','generation:1'),undefined,()=>true),/管理者/);
+  await store.apply(action(0,'pokemon','pikachu'),admin,()=>true);
+  await store.apply(action(1,'pokemon','generation:1'),admin,()=>true);
+  let reloaded=new WorldPolicyStore(file);
+  assert.equal(policyAllows(reloaded.snapshot(),'pokemon','eevee'),false);
+  assert.equal(policyAllows(reloaded.snapshot(),'pokemon','chikorita'),true);
+  await reloaded.apply(action(2,'pokemon','generation:1',true),admin,()=>true);
+  reloaded=new WorldPolicyStore(file);
+  assert.equal(policyAllows(reloaded.snapshot(),'pokemon','eevee'),true);
+  assert.equal(policyAllows(reloaded.snapshot(),'pokemon','pikachu'),false);
+  await assert.rejects(reloaded.apply(action(2,'pokemon','generation:2'),admin,()=>true),/更新/);
+});
+
 test('Microsoft administrator requires an explicitly provisioned immutable account ID', () => {
   const user: AuthUser = { name: 'tt-asahara', email: 'tt-asahara@kddi.com', provider: 'entra', accountId: 'entra:11111111-1111-1111-1111-111111111111:22222222-2222-2222-2222-222222222222' };
   assert.equal(new WorldPolicyStore().isAdministrator(user), false);
