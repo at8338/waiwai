@@ -57,7 +57,7 @@ export class DailyEventsView {
   }
   update(now: number, reducedMotion: boolean): void {
     const event = this.state?.event, serverNow = now + this.offset;
-    if (!event || !this.ready || event.roomId !== this.room || serverNow >= event.endsAt) { this.hide(); this.scene.game.canvas.dataset.dailyIncident = ''; return; }
+    if (!event || this.state?.disabled || !this.ready || event.roomId !== this.room || serverNow >= event.endsAt) { this.hide(); this.scene.game.canvas.dataset.dailyIncident = ''; return; }
     const frame = reducedMotion ? -1 : Math.floor(serverNow / 700), key = `${event.day}:${event.episodeId}:${frame}`;
     if (key === this.key) return; this.key = key;
     const episode = episodeById(event.episodeId)!, stage = roomEventStage(episode, this.room, this.objects, frame);

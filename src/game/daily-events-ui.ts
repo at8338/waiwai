@@ -5,16 +5,19 @@ import type { BirthdaySnapshot } from './birthdays.ts';
 import { drawEventPreview } from './daily-event-art.ts';
 import { eventStageDescription } from './daily-event-stage.ts';
 import { eventHistory } from './daily-events.ts';
+import { defaultWorldPolicy, policyEventAllowed } from './world-policy.ts';
+import type { WorldPolicy } from './world-policy.ts';
 import type { DailyEventSnapshot, DailyEvent } from './daily-events.ts';
 import { getRoom } from './rooms.ts';
 import type { RoomId } from './rooms.ts';
 import { jstInput, jstLabel, JST } from './announcements.ts';
 import type { AnnouncementSnapshot } from './announcements.ts';
-import { calendarDay, calendarCells, recordedEvent, schedulesOnDay } from './office-calendar.ts';
+import { calendarDay, calendarCells, schedulesOnDay } from './office-calendar.ts';
 const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id)! as T;
 const JOURNAL_KEY = 'waiwai:incident-discoveries:v1';
 export class DailyEventsUI {
   private snapshot?: DailyEventSnapshot;
+  private policy: WorldPolicy = defaultWorldPolicy();
   private offset = 0;
   private room: RoomId = 'office';
   private connected = false;
@@ -33,7 +36,7 @@ export class DailyEventsUI {
     } catch { /* The journal is readable even when local browser storage is unavailable. */ }
     const listen = (id: string, fn: () => void) => el(id).addEventListener('click', fn, { signal });
     listen('daily-event-go', () => {
-      const event = this.snapshot?.event; if (!event || !this.connected || this.now() >= event.endsAt) return;
+      const event = this.snapshot?.event; if (!event || this.snapshot?.disabled || !policyEventAllowed(this.policy, event) || !this.connected || this.now() >= event.endsAt) return;
       if (this.room === event.roomId) this.inspect(); else if (this.beforeOpen()) this.visit(event.roomId);
     });
     listen('event-journal-open', () => this.openJournal());
@@ -50,18 +53,30 @@ export class DailyEventsUI {
     }, { signal });
     listen('calendar-schedule-edit', () => { el<HTMLDialogElement>('office-calendar-dialog').close(); el<HTMLButtonElement>('schedule-open').click(); });
     this.refresh = setInterval(() => {
-      if (!this.snapshot) return;
+      if (!this.snapshot || this.snapshot.disabled) return;
       if (this.now() >= this.snapshot.event.endsAt) { el('daily-event-meta').textContent = '日付が変わりました。次の事件を接続先に確認しています…'; el<HTMLButtonElement>('daily-event-go').disabled = true; }
     }, 1000);
   }
   private now(): number { return Date.now() + this.offset; }
   setConnected(value: boolean): void { this.connected = value; this.renderBanner(); this.renderCalendar(); el<HTMLButtonElement>('calendar-schedule-edit').disabled = !value; }
   setRoom(room: RoomId): void { this.room = room; this.renderBanner(); }
+  setPolicy(policy: WorldPolicy): void {
+    this.policy = policy;
+    if (this.snapshot) {
+      if (!policyEventAllowed(policy, this.snapshot.event)) el<HTMLDialogElement>('event-detail-dialog').close();
+      this.receive(this.snapshot);
+    }
+  }
   receive(snapshot: DailyEventSnapshot): void {
     this.snapshot = snapshot; this.offset = snapshot.serverNow - Date.now();
-    this.history = eventHistory(snapshot.serverNow);
-    if (this.lastDay !== snapshot.event.day) {
-      this.lastDay = snapshot.event.day; this.selectedDay = this.month = snapshot.event.startsAt;
+    this.history = eventHistory(snapshot.serverNow).filter(event => policyEventAllowed(this.policy, event));
+    if (!snapshot.preview) {
+      this.history = this.history.filter(event => event.day !== snapshot.event.day);
+      if (!snapshot.disabled && policyEventAllowed(this.policy, snapshot.event)) this.history.unshift(snapshot.event);
+    }
+    {
+      if (this.lastDay !== snapshot.event.day) this.selectedDay = this.month = snapshot.event.startsAt;
+      this.lastDay = snapshot.event.day;
       const select = el<HTMLSelectElement>('event-history-select'), previous = select.value; select.replaceChildren();
       for (const event of this.history) { const option = new Option(`${event.day} · ${episodeById(event.episodeId)!.title}${this.found.has(event.day) ? ' ✓' : ''}`, event.day); select.add(option); }
       if (this.history.some((e) => e.day === previous)) select.value = previous;
@@ -73,6 +88,11 @@ export class DailyEventsUI {
   private renderBanner(): void {
     const event = this.snapshot?.event;
     if (!event) { el('daily-event-title').textContent = '今日の事件を確認しています…'; return; }
+    if (this.snapshot?.disabled || !policyEventAllowed(this.policy, event)) {
+      el('daily-event-title').textContent = '今日は、穏やかなオフィス。'; el('daily-event-meta').textContent = '管理者の公開設定により、事件をお休みしています。';
+      el('daily-event-found').textContent = ''; el<HTMLButtonElement>('daily-event-go').disabled = true;
+      delete el('daily-event-panel').dataset.eventId; delete el('daily-event-panel').dataset.eventRoom; return;
+    }
     const episode = episodeById(event.episodeId)!;
     el('daily-event-title').textContent = episode.title;
     el('daily-event-meta').textContent = `${event.day} · ${getRoom(event.roomId).name} · ${this.snapshot?.preview ? 'テスト表示（事件の図鑑には記録しません）' : this.connected ? '毎日0:00 JSTに更新' : '再接続を待っています'}`;
@@ -83,7 +103,7 @@ export class DailyEventsUI {
   }
   inspect(): void {
     const event = this.snapshot?.event;
-    if (!event || this.room !== event.roomId || !this.connected || this.now() >= event.endsAt || !this.beforeOpen()) return;
+    if (!event || this.snapshot?.disabled || !policyEventAllowed(this.policy, event) || this.room !== event.roomId || !this.connected || this.now() >= event.endsAt || !this.beforeOpen()) return;
     if (this.snapshot?.preview) {
       this.fillDetail(event, 'event-detail'); el('event-detail-stamp').textContent = 'テスト表示 · 事件の図鑑の発見記録は変更しません。'; el<HTMLDialogElement>('event-detail-dialog').showModal(); return;
     }
@@ -129,7 +149,7 @@ export class DailyEventsUI {
     const grid = el('calendar-grid'); grid.replaceChildren();
     for (const day of calendarCells(this.month)) {
       if (day === null) { const blank = document.createElement('span'); blank.setAttribute('aria-hidden', 'true'); grid.append(blank); continue; }
-      const event = recordedEvent(day, this.now()), meetings = schedulesOnDay(this.schedules, day), button = document.createElement('button');
+      const event = this.history.find(event => event.startsAt === day), meetings = schedulesOnDay(this.schedules, day), button = document.createElement('button');
       const birthdays = this.birthdays.filter((entry) => birthdayOnDay(entry, day));
       button.type = 'button'; button.dataset.calendarDay = String(day); button.setAttribute('aria-pressed', String(day === this.selectedDay));
       if (day === calendarDay(this.now())) button.setAttribute('aria-current', 'date');
@@ -149,7 +169,7 @@ export class DailyEventsUI {
         const button = document.createElement('button'); button.type = 'button'; button.dataset.birthdayComments = entry.id; button.dataset.birthdayDate = jstInput(this.selectedDay).slice(0, 10); button.textContent = `${entry.name}さんのお祝いコメントを見る・送る`; button.disabled = !this.connected; detail.append(button);
       }
     }
-    const incident = recordedEvent(this.selectedDay, this.now());
+    const incident = this.history.find(event => event.startsAt === this.selectedDay);
     if (incident) {
       add('h4', `✦ ${episodeById(incident.episodeId)!.title}`);
       add('p', `${getRoom(incident.roomId).name}${this.found.has(incident.day) ? ' · ✓ 発見済み' : ''}`);

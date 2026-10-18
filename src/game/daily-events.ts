@@ -11,7 +11,7 @@ const JST = 9 * 3_600_000;
 export const EVENT_JOURNAL_START = Date.UTC(2026, 9, 17) - JST;
 const EPOCH = EVENT_JOURNAL_START;
 export type DailyEvent = { day: string; episodeId: string; roomId: RoomId; startsAt: number; endsAt: number };
-export type DailyEventSnapshot = { event: DailyEvent; serverNow: number; preview?: boolean };
+export type DailyEventSnapshot = { event: DailyEvent; serverNow: number; preview?: boolean; disabled?: boolean };
 export function previewEventAt(now: number, episodeId: string, roomId?: RoomId): DailyEvent {
   const event = dailyEventAt(now), episode = episodeById(episodeId)!;
   const room = roomId ?? episode.direction.room;

@@ -4,6 +4,7 @@ import { BUDDIES, BUDDY_KINDS, isBuddyKind } from './buddies.ts';
 import type { BuddyKind } from './buddies.ts';
 import type { OfficeScene } from './OfficeScene.ts';
 import { isPokemonKind, pokemonMatches, pokemonQuery } from './pokemon.ts';
+import { policyAllows } from './world-policy.ts';
 const STORAGE = 'waiwai.buddy.v1';
 export function setupBuddyEditor(scene: OfficeScene): void {
   let selected: BuddyKind | null = null;
@@ -20,9 +21,12 @@ export function setupBuddyEditor(scene: OfficeScene): void {
   const searchLabel = document.createElement('label'); searchLabel.htmlFor = 'buddy-query'; searchLabel.textContent = '名前・ポケモンの図鑑番号で探す';
   const query = document.createElement('input'); query.id = 'buddy-query'; query.type = 'search'; query.maxLength = 40; query.placeholder = '例：ぴかちゅう、ルギア、1025'; searchLabel.append(query); cards.before(searchLabel);
   const save = () => { try { personalStorage.setItem(STORAGE, JSON.stringify({ selected, favorites: [...favorites] })); } catch { /* Keep preferences in memory. */ } };
+  let suspended = false;
   const apply = () => {
     scene.setBuddy(selected);
-    document.querySelector('#buddy-current')!.textContent = selected ? `${BUDDIES[selected].icon} ${BUDDIES[selected].name}` : 'お供を見つけよう';
+    const blocked = selected && isPokemonKind(selected) && !policyAllows(scene.getWorldPolicy(), 'pokemon', selected);
+    suspended = !!blocked;
+    document.querySelector('#buddy-current')!.textContent = selected ? `${BUDDIES[selected].icon} ${BUDDIES[selected].name}${blocked ? '（管理者設定によりお休み中）' : ''}` : 'お供を見つけよう';
   };
   const thumbnails = buddyThumbnails();
   const render = () => {
@@ -32,6 +36,7 @@ export function setupBuddyEditor(scene: OfficeScene): void {
     const input = document.createElement('input'); input.type = 'radio'; input.name = 'buddy'; input.value = ''; input.checked = draft === null;
     input.addEventListener('change', () => { draft = null; }); none.append(input, ' バディなし'); cards.append(none);
     for (const kind of BUDDY_KINDS) {
+      if (isPokemonKind(kind) && !policyAllows(scene.getWorldPolicy(), 'pokemon', kind)) continue;
       if (only.checked && !favorites.has(kind)) continue;
       if (isPokemonKind(kind) ? !pokemonMatches(kind, query.value) : !pokemonQuery(BUDDIES[kind].name).includes(pokemonQuery(query.value))) continue;
       const data = BUDDIES[kind], card = document.createElement('div'); card.className = 'buddy-card';
@@ -53,6 +58,11 @@ export function setupBuddyEditor(scene: OfficeScene): void {
   document.querySelector('#buddy-edit')!.addEventListener('click', () => { draft = selected; query.value = ''; render(); dialog.showModal(); });
   only.addEventListener('change', render);
   query.addEventListener('input', render);
+  document.addEventListener('waiwai-policy-changed', () => {
+    const blocked = !!selected && isPokemonKind(selected) && !policyAllows(scene.getWorldPolicy(), 'pokemon', selected);
+    if (blocked !== suspended) apply();
+    if (dialog.open) render();
+  });
   document.querySelector('#buddy-form')!.addEventListener('submit', (event) => { event.preventDefault(); selected = draft; save(); apply(); dialog.close(); });
   document.querySelector('#buddy-cancel')!.addEventListener('click', () => dialog.close());
   document.querySelector('#buddy-info-close')!.addEventListener('click', () => document.querySelector<HTMLDialogElement>('#buddy-info')!.close());

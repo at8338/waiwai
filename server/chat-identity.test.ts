@@ -24,3 +24,10 @@ test('Azure deployment enables Microsoft-required login without requiring Slack 
   const env=buildAuthEnv({ENTRA_TENANT_ID:'11111111-1111-1111-1111-111111111111',ENTRA_CLIENT_ID:'33333333-3333-3333-3333-333333333333',ENTRA_CLIENT_SECRET:'test-only',ENTRA_MFA_POLICY_ID:'44444444-4444-4444-4444-444444444444'},'office.example');
   assert.equal(env.REQUIRE_ENTRA_LOGIN,'true'); assert.equal(env.ENTRA_REDIRECT_URI,'https://office.example/auth/microsoft/callback');assert.equal(env.SLACK_CLIENT_ID,undefined);assert.throws(()=>buildAuthEnv({},'office.example'));
 });
+
+test('Azure forwards only an immutable administrator ID from its configured tenant', () => {
+  const source = { ENTRA_TENANT_ID: '11111111-1111-1111-1111-111111111111', ENTRA_CLIENT_ID: '33333333-3333-3333-3333-333333333333', ENTRA_CLIENT_SECRET: 'test-only', ENTRA_MFA_POLICY_ID: '44444444-4444-4444-4444-444444444444' };
+  const id = `entra:${source.ENTRA_TENANT_ID}:22222222-2222-2222-2222-222222222222`;
+  assert.equal(buildAuthEnv({ ...source, WAIWAI_ADMIN_ACCOUNT_ID: id }, 'office.example').WAIWAI_ADMIN_ACCOUNT_ID, id);
+  for (const invalid of ['tt-asahara@kddi.com', 'slack:T012ABCDEF:U012ABCDEF', id.replace(source.ENTRA_TENANT_ID, '99999999-9999-9999-9999-999999999999')]) assert.throws(() => buildAuthEnv({ ...source, WAIWAI_ADMIN_ACCOUNT_ID: invalid }, 'office.example'));
+});

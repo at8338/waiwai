@@ -9,6 +9,8 @@ import type { RoomObject } from '../src/game/objects.ts';
 import type { Player } from '../src/network/protocol.ts';
 import { pokemonRoster } from '../src/game/pokemon-spawns.ts';
 import { isPokemonKind } from '../src/game/pokemon.ts';
+import { policyAllows } from '../src/game/world-policy.ts';
+import type { WorldPolicy } from '../src/game/world-policy.ts';
 
 const vectors: Record<Direction, Point> = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
 const opposite: Record<Direction, Direction> = { up: 'down', down: 'up', left: 'right', right: 'left' };
@@ -39,6 +41,13 @@ export class RoomPets {
     for (const { kind, roomId, x, y } of roster) {
       const occupied = this.pets.filter((pet) => pet.roomId === roomId).map((pet) => ({ id: pet.id, owner: 'resident', kind: 'mug' as const, rotation: 0, roomId, x: pet.x, y: pet.y }));
       this.pets.push({ id: `pet:${kind}`, kind, roomId, ...this.floorNear(roomId, { x, y }, [...objects, ...occupied]), facing: 'down' });
+    }
+  }
+  configure(policy: WorldPolicy, objects: readonly RoomObject[]): void {
+    this.pets = this.pets.filter(pet => isPokemonKind(pet.kind));
+    for (const { kind, roomId, x, y } of ROAMING_RESIDENTS) {
+      if (policyAllows(policy, 'residents', kind) && policyAllows(policy, 'rooms', roomId))
+        this.pets.push({ id: `pet:${kind}`, kind, roomId, ...this.floorNear(roomId, { x, y }, objects), facing: 'down' });
     }
   }
   list(roomId: RoomId): RoomPet[] { return this.pets.filter((p) => p.roomId === roomId).map((p) => ({ ...p })); }

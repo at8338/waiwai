@@ -3,7 +3,7 @@ import type { AuthConfig } from './auth.ts';
 import type { TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, request as httpRequest } from 'node:http';
-import { createHash, createSign, generateKeyPairSync } from 'node:crypto';
+import { createHash, createSign, generateKeyPairSync, randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import WebSocket from 'ws';
 import * as oidc from 'openid-client';
@@ -135,11 +135,11 @@ test('unconfigured login preserves guests and does not expose credentials', asyn
   assert.equal((await f.request('/auth/slack')).status, 503);
 });
 
-test('login uses minimal scopes, browser-bound cookies, PKCE and a fixed Slack endpoint', async (t) => {
+test('login requests identity and email scopes with browser-bound cookies, PKCE and a fixed Slack endpoint', async (t) => {
   const f = await fixture(t);
   const { target, response } = await f.begin();
   assert.equal(target.origin + target.pathname, 'https://slack.com/openid/connect/authorize');
-  assert.equal(target.searchParams.get('scope'), 'openid profile');
+  assert.equal(target.searchParams.get('scope'), 'openid profile email');
   assert.equal(target.searchParams.get('response_mode'), 'form_post');
   assert.equal(target.searchParams.get('code_challenge_method'), 'S256');
   assert.equal(target.searchParams.get('redirect_uri'), config.redirectUri);
@@ -156,8 +156,53 @@ test('signed Slack identity persists across page reloads without exposing provid
     const response = await f.request('/api/auth/session', { headers: { Cookie: session } });
     const text = await response.text();
     assert.ok(!text.includes('secret') && !text.includes('id_token'));
-    assert.deepEqual(JSON.parse(text).user, { name: 'はな Slack', slack: { teamId: 'T012ABCDEF', userId: 'U012ABCDEF' } });
+    assert.deepEqual(JSON.parse(text).user, { name: 'はな Slack', provider: 'slack', slack: { teamId: 'T012ABCDEF', userId: 'U012ABCDEF' } });
   }
+});
+
+test('administrator policy uses signed verified Slack email, denies spoofing, evacuates closed floors and filters live content', async t => {
+  const f = await fixture(t);
+  f.change({ name: 'tt-asahara', email: 'tt-asahara@kddi.com', email_verified: false });
+  const unverified = await f.connect(await f.login());
+  assert.equal((await unverified.next('world-policy')).administrator, false);
+  const forged = randomUUID(); unverified.ws.send(JSON.stringify({ type: 'policy-set', actionId: forged, revision: 0, group: 'rooms', id: 'library', allowed: false, administrator: true, email: 'tt-asahara@kddi.com' }));
+  assert.match((await unverified.next('policy-result')).error!, /管理者/);
+  f.change({ email: 'tt-asahara@kddi.com', email_verified: true });
+  const admin = await f.connect(await f.login());
+  assert.equal((await admin.next('world-policy')).administrator, true);
+  f.change({ sub: 'U999ABCDEF', 'https://slack.com/user_id': 'U999ABCDEF', name: 'tt-asahara', email: 'other@example.test', email_verified: true });
+  const other = await f.connect(await f.login());
+  assert.equal((await other.next('world-policy')).administrator, false);
+  other.ws.send(JSON.stringify({ type: 'change-room', roomId: 'library', requestId: 1 }));
+  await other.next('player', m => m.reason === 'room' && m.requestId === 1);
+  let revision = 0;
+  const set = async (group: string, id: string, allowed = false) => {
+    const actionId = randomUUID(); admin.ws.send(JSON.stringify({ type: 'policy-set', actionId, revision, group, id, allowed }));
+    assert.equal((await admin.next('policy-result', m => m.actionId === actionId)).error, undefined); revision++;
+    return other.next('world-policy', m => m.policy.revision === revision);
+  };
+  await set('rooms', 'library');
+  assert.equal((await other.next('player', m => m.reason === 'policy')).player.roomId, 'office');
+  other.ws.send(JSON.stringify({ type: 'change-room', roomId: 'library', requestId: 2 }));
+  assert.equal((await other.next('player', m => m.reason === 'room' && m.requestId === 2)).player.roomId, 'office');
+  assert.match((await other.next('travel-error')).error, /停止/);
+  other.ws.send(JSON.stringify({ type: 'profile', name: 'tt-asahara', outfit: 0, buddy: 'pikachu', administrator: true }));
+  assert.equal((await other.next('player', m => m.reason === 'profile' && m.player.id === other.welcome.id)).player.buddy, 'pikachu');
+  await set('pokemon', 'pikachu');
+  assert.equal((await other.next('player', m => m.reason === 'profile' && m.player.id === other.welcome.id)).player.buddy, null);
+  other.ws.send(JSON.stringify({ type: 'profile', name: 'tt-asahara', outfit: 0, buddy: 'pikachu' }));
+  assert.equal((await other.next('player', m => m.reason === 'profile' && m.player.id === other.welcome.id)).player.buddy, null);
+  await set('residents', 'dog');
+  assert.ok(!(await other.next('pets', m => m.roomId === 'office' && !m.pets.some(p => p.kind === 'dog'))).pets.some(p => p.kind === 'dog'));
+  await set('residents', 'dog', true);
+  await other.next('pets', m => m.roomId === 'office' && m.pets.some(p => p.kind === 'dog'));
+  await set('incidents', '*');
+  assert.equal((await other.next('daily-event', m => !!m.disabled)).disabled, true);
+  await set('pokemon', '*');
+  const late = await f.connect('');
+  const state = await late.next('world-policy'); assert.equal(state.administrator, false); assert.equal(state.policy.revision, revision);
+  assert.ok((await late.next('pets')).pets.every(p => ['dog', 'cat', 'vacuum'].includes(p.kind)));
+  assert.equal((await late.next('daily-event')).disabled, true);
 });
 
 test('session cookies are secure and host-only; guest messages cannot claim a verified Slack identity', async (t) => {

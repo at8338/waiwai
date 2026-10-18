@@ -1,7 +1,8 @@
 import { LOST_ITEMS_EPOCH, LOST_ITEM_PERIOD_MS } from '../src/game/lost-items.ts';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { defaultWorldPolicy } from '../src/game/world-policy.ts';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DEFAULT_APPEARANCE } from '../src/game/avatar.ts';
@@ -21,9 +22,9 @@ import { MAX_VOICE_MEMBERS, MAX_VOICE_PEERS } from '../src/audio/proximity.ts';
 import { STEP_MS, canWalk } from '../src/game/world.ts';
 import { REACTION_COOLDOWN_MS } from '../src/game/reactions.ts';
 
-async function fixture(t: TestContext, objectsFile?: string, linksFile?: string, announcementsFile?: string, eventClock?: () => number, lostClock?: () => number, birthdayClock?: () => number, devControls = false) {
+async function fixture(t: TestContext, objectsFile?: string, linksFile?: string, announcementsFile?: string, eventClock?: () => number, lostClock?: () => number, birthdayClock?: () => number, devControls = false, policyFile?: string) {
   const server = createServer((_request, response) => response.end('ok'));
-  const dispose = attachOffice(server, undefined, { objectsFile, linksFile, announcementsFile, eventClock, lostClock, birthdayClock, devControls });
+  const dispose = attachOffice(server, undefined, { objectsFile, linksFile, announcementsFile, eventClock, lostClock, birthdayClock, devControls, policyFile });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const clients: WebSocket[] = [];
@@ -63,6 +64,25 @@ async function fixture(t: TestContext, objectsFile?: string, linksFile?: string,
   };
   return { connect, origin };
 }
+
+test('persisted administrator bans survive developer resets and cannot be bypassed by forced spawns', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'waiwai-dev-policy-')); t.after(() => rm(dir, { recursive: true, force: true }));
+  const policyFile = join(dir, 'policy.json'), policy = defaultWorldPolicy();
+  policy.blocked.pokemon = ['mew']; policy.blocked.incidents = ['meteor-01']; policy.blocked.rooms = ['cafe']; policy.blocked.residents = ['dog'];
+  await writeFile(policyFile, JSON.stringify({ version: 1, policy }));
+  const { connect } = await fixture(t, undefined, undefined, undefined, undefined, undefined, undefined, true, policyFile);
+  const a = await connect();
+  assert.deepEqual((await a.next('world-policy')).policy.blocked, policy.blocked);
+  const initialPets = await a.next('pets'); assert.ok(initialPets.pets.every(p => p.kind !== 'dog' && p.kind !== 'mew'));
+  for (const command of [{ command: 'pokemon', kinds: ['mew'] }, { command: 'event', episodeId: 'meteor-01' }, { command: 'pokemon', kinds: ['pikachu'], roomId: 'cafe' }]) {
+    const actionId = randomUUID(); a.send({ type: 'dev-world', actionId, ...command });
+    assert.match((await a.next('dev-world-result', m => m.actionId === actionId)).error!, /禁止/);
+  }
+  const reset = randomUUID(); a.send({ type: 'dev-world', command: 'reset', actionId: reset });
+  assert.equal((await a.next('dev-world-result', m => m.actionId === reset)).error, undefined);
+  const afterReset = await a.next('pets'); assert.ok(afterReset.pets.every(p => p.kind !== 'dog' && p.kind !== 'mew'));
+  const late = await connect(); assert.deepEqual((await late.next('world-policy')).policy.blocked, policy.blocked);
+});
 
 test('developer world controls synchronize previews and spawns while ordinary servers reject mutations', async (t) => {
   const { connect } = await fixture(t, undefined, undefined, undefined, undefined, undefined, undefined, true);
