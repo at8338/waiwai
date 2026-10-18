@@ -17,8 +17,8 @@ export class AdminUI {
   private desired?: PolicyAction;
   private timer?: ReturnType<typeof setTimeout>;
   constructor(signal: AbortSignal, private send: (action: PolicyAction) => boolean, beforeOpen: () => boolean) {
-    this.dialog.id = 'admin-dialog'; this.dialog.className = 'admin-dialog'; this.dialog.setAttribute('aria-labelledby', 'admin-title');
-    this.dialog.innerHTML = `<span class="eyebrow">OFFICE ADMINISTRATION</span><h2 id="admin-title" tabindex="-1" autofocus>オフィスの管理</h2><p>許可したものだけが館内に登場します。変更は全員に反映され、サーバーに保存されます。</p><div class="admin-tabs" role="group" aria-label="管理する種類">${Object.entries(labels).map(([id, name]) => `<button type="button" data-admin-group="${id}" aria-pressed="false">${name}</button>`).join('')}</div><label class="admin-search">名前・番号で探す<input id="admin-query" type="search" maxlength="80" placeholder="部屋名・キャラクター名など"></label><label class="admin-category"><input id="admin-category-enabled" type="checkbox"> <span></span></label><p id="admin-summary"></p><div id="admin-items" class="admin-items"></div><p id="admin-status" role="status"></p><p id="admin-updated" class="field-hint"></p><div class="dialog-actions"><button type="button" id="admin-close">閉じる</button></div>`;
+    this.dialog.id = 'admin-dialog'; this.dialog.className = 'admin-dialog dialog-list-layout'; this.dialog.setAttribute('aria-labelledby', 'admin-title');
+    this.dialog.innerHTML = `<span class="eyebrow">OFFICE ADMINISTRATION</span><h2 id="admin-title" tabindex="-1" autofocus>オフィスの管理</h2><p>許可したものだけが館内に登場します。変更は全員に反映され、サーバーに保存されます。</p><div class="admin-tabs" role="group" aria-label="管理する種類">${Object.entries(labels).map(([id, name]) => `<button type="button" data-admin-group="${id}" aria-pressed="false">${name}</button>`).join('')}</div><label class="admin-search">名前・番号で探す<input id="admin-query" type="search" maxlength="80" placeholder="部屋名・キャラクター名など"></label><label class="admin-category"><input id="admin-category-enabled" type="checkbox"> <span></span></label><p id="admin-summary"></p><div id="admin-items" class="admin-items dialog-scroll"></div><p id="admin-status" role="status"></p><p id="admin-updated" class="field-hint"></p><div class="dialog-actions"><button type="button" id="admin-close">閉じる</button></div>`;
     document.body.append(this.dialog);
     const generations = document.createElement('fieldset'); generations.id = 'admin-pokemon-generations'; generations.hidden = true;
     generations.innerHTML = '<legend>世代ごとに表示をON / OFF</legend><p>チェックした世代を館内に表示します。世代をOFFにしても、個別の禁止設定・図鑑の発見記録は保持します。</p><div class="admin-generation-grid"></div>';
@@ -28,7 +28,10 @@ export class AdminUI {
       detail.id = `admin-generation-${generation.id.replace(':', '-')}`;
       text.append(name, detail); row.append(input, text); generations.querySelector('.admin-generation-grid')!.append(row);
     }
-    this.dialog.querySelector('.admin-search')!.before(generations);
+    const generationOptions = document.createElement('details'); generationOptions.className = 'admin-generation-options';
+    const summary = document.createElement('summary'); summary.textContent = '世代ごとの表示を設定';
+    generationOptions.append(summary, generations);
+    this.dialog.querySelector('.admin-search')!.before(generationOptions);
     generations.addEventListener('change', event => { const input = event.target as HTMLInputElement; if (input.dataset.pokemonGeneration) this.change(input.dataset.pokemonGeneration, input.checked); }, { signal });
     this.button.addEventListener('click', () => { if (this.connected && this.snapshot?.administrator && beforeOpen()) { this.render(); this.dialog.showModal(); } }, { signal });
     this.get('admin-close').addEventListener('click', () => this.dialog.close(), { signal });
