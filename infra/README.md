@@ -9,7 +9,7 @@ infra/
 ├── modules/
 │   ├── naming/              # 命名・共通タグ（Azure APIを使わない）
 │   ├── network/             # VNet/Subnet/NSG/ルール/NIC/固定IP
-│   ├── office-vm/           # Linux VM、OSディスク、cloud-init
+│   ├── office-vm/           # Linux VM、独立ディスク、Backup、cloud-init
 │   └── terraform-state/     # state専用RG/Storage/Container/RBAC
 ├── tests/mocks/             # AzureRM共通モック
 └── azure/                   # 旧構成の実行を止める移行案内

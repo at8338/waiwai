@@ -26,3 +26,18 @@ variable "tags" {
   type    = map(string)
   default = {}
 }
+
+variable "web_allowed_cidrs" {
+  type        = list(string)
+  description = "Allowed company/VPN public IPv4 CIDRs for all Waiwai web routes. No Internet-wide range."
+  validation {
+    condition     = length(var.web_allowed_cidrs) > 0 && length(var.web_allowed_cidrs) <= 32 && alltrue([for cidr in var.web_allowed_cidrs : can(cidrnetmask(cidr)) && can(regex("/(2[4-9]|3[0-2])$", cidr))])
+    error_message = "Provide 1–32 company/VPN IPv4 CIDRs with prefixes /24–/32."
+  }
+}
+
+variable "public_slack_events" {
+  type        = bool
+  default     = false
+  description = "Expose only POST /api/slack/events for Slack's signed webhook; all office routes retain IP restriction."
+}

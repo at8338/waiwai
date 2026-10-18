@@ -27,6 +27,9 @@ dev-waiwai-jpe-vm-office-001
 | Public IP | pip | dev-waiwai-jpe-pip-office-001 |
 | Linux Virtual Machine | vm | dev-waiwai-jpe-vm-office-001 |
 | OS Managed Disk | osdisk | dev-waiwai-jpe-osdisk-office-001 |
+| Data Managed Disk | datadisk | dev-waiwai-jpe-datadisk-office-001 |
+| Recovery Services Vault | rsv | dev-waiwai-jpe-rsv-office-001 |
+| VM Backup Policy | bkp | dev-waiwai-jpe-bkp-office-001 |
 | state用Resource Group | rg | dev-waiwai-jpe-rg-tfstate-001 |
 
 VM本体の `office` はアプリ・HTTPS・TURN同居という責務を表します。台数を増やす前にアプリ状態の共有設計が必要です。
@@ -40,7 +43,7 @@ VM本体の `office` はアプリ・HTTPS・TURN同居という責務を表し�
 | Blob Container | Storage Accountの中で固定名 `tfstate` |
 | state Blob key | `waiwai.dev.tfstate`（プロジェクト名を変えたら連動） |
 | NIC IP configuration | NIC内で固定名 `primary` |
-| NSGルール | NSG内の固定名 `allow-ssh-admin`、`allow-web-turn-tcp`、`allow-turn-udp` |
+| NSGルール | NSG内の固定名 `allow-ssh-admin`、`allow-web-tcp`、`allow-turn-tcp`、`allow-turn-udp` |
 | RBAC割当 | AzureRMのGUID生成。人向け識別は対象スコープとロール名で行う |
 
 `hash8` は小文字化したsubscription ID、環境・完全なプロジェクト名・リージョン・連番から作るSHA-256の先頭8文字です。乱数ではないので毎回同じ名前になります。短縮前のプロジェクト名全体を含めるため、先頭6文字が同じ場合も区別します。ハッシュの一意性は保証ではないので、実際の名前の空きはAzure側のplan/apply時に確認します。Public IPは`SubscriptionReuse`スコープも使用します。

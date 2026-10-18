@@ -575,3 +575,16 @@ dialog .dialog-dismiss-button:hover { background: #e7edda; border-color: #6d8363
 dialog .dialog-dismiss-button:focus-visible { outline: 3px solid #98713c; outline-offset: 2px; }
 dialog.has-dismiss-controls #chat-close, dialog.has-dismiss-controls #arcade-close { display: none; }
 @media (max-width: 620px) { dialog .dialog-dismiss-bar { top: -8px; margin-top: -8px; margin-right: -8px; } }
+
+.personal-data-section { padding: 22px 0; border-bottom: 1px solid var(--border); }
+.personal-data-section p { font-size: 12px; line-height: 1.7; color: #617260; overflow-wrap: anywhere; }
+.personal-data-section button { display: block; width: 100%; margin-top: 10px; font-size: 12px; }
+.personal-data-dialog { width: min(600px, calc(100vw - 36px)); }
+.personal-data-dialog p { line-height: 1.8; overflow-wrap: anywhere; }
+.personal-data-dialog > button { margin: 6px 8px 6px 0; }
+.personal-data-dialog label { display: block; margin-top: 14px; }
+.personal-data-dialog input { display: block; margin-top: 8px; max-width: 100%; }
+@media (max-width: 760px) { .personal-data-section { grid-column: 1 / -1; } }
+.personal-data-section button, .personal-data-dialog > button, .personal-data-dialog form button { padding: 8px 12px; border: 1px solid #b8c7af; border-radius: 8px; background: #fffef8; color: #36523c; font: inherit; cursor: pointer; }
+.personal-data-dialog button:disabled { opacity: .5; cursor: default; }
+.personal-data-dialog [data-import]:not(:disabled) { background: #46694d; color: white; }

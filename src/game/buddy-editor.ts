@@ -1,3 +1,4 @@
+import { personalStorage } from './personal-storage.ts';
 import { buddyThumbnails } from './buddy-thumbnails.ts';
 import { BUDDIES, BUDDY_KINDS, isBuddyKind } from './buddies.ts';
 import type { BuddyKind } from './buddies.ts';
@@ -8,7 +9,7 @@ export function setupBuddyEditor(scene: OfficeScene): void {
   let selected: BuddyKind | null = null;
   let favorites = new Set<BuddyKind>(['robot', 'cat']);
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE) ?? 'null');
+    const saved = JSON.parse(personalStorage.getItem(STORAGE) ?? 'null');
     if (saved && (saved.selected === null || isBuddyKind(saved.selected))) selected = saved.selected;
     if (Array.isArray(saved?.favorites)) favorites = new Set(saved.favorites.filter(isBuddyKind));
   } catch { /* Personal preferences are optional. */ }
@@ -18,7 +19,7 @@ export function setupBuddyEditor(scene: OfficeScene): void {
   const only = document.querySelector<HTMLInputElement>('#buddy-favorites-only')!;
   const searchLabel = document.createElement('label'); searchLabel.htmlFor = 'buddy-query'; searchLabel.textContent = '名前・ポケモンの図鑑番号で探す';
   const query = document.createElement('input'); query.id = 'buddy-query'; query.type = 'search'; query.maxLength = 40; query.placeholder = '例：ぴかちゅう、ルギア、1025'; searchLabel.append(query); cards.before(searchLabel);
-  const save = () => { try { localStorage.setItem(STORAGE, JSON.stringify({ selected, favorites: [...favorites] })); } catch { /* Keep preferences in memory. */ } };
+  const save = () => { try { personalStorage.setItem(STORAGE, JSON.stringify({ selected, favorites: [...favorites] })); } catch { /* Keep preferences in memory. */ } };
   const apply = () => {
     scene.setBuddy(selected);
     document.querySelector('#buddy-current')!.textContent = selected ? `${BUDDIES[selected].icon} ${BUDDIES[selected].name}` : 'お供を見つけよう';

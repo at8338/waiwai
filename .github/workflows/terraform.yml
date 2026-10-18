@@ -18,5 +18,7 @@ jobs:
         with:
           terraform_version: '1.15.8'
           terraform_wrapper: false
+      - name: Install locked dependencies for deployment policy tests
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Format, validate and mock tests (no Azure credentials or apply)
         run: npm run infra:check

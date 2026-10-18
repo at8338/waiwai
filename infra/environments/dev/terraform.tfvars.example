@@ -8,3 +8,6 @@ admin_cidr = "203.0.113.10/32" # Replace with company VPN/operator public IPv4 C
 ssh_public_key = "ssh-ed25519 REPLACE_WITH_PUBLIC_KEY"
 acme_email = "ops@example.com"
 tags = { owner = "office-team", cost_center = "REPLACE_WITH_COMPANY_VALUE" }
+
+# Company/VPN public egress ranges. App, auth, WebSocket and healthz all use this gate.
+web_allowed_cidrs = ["203.0.113.20/32"]

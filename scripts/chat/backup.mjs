@@ -7,4 +7,4 @@ const destinationFile = await open(destination, 'wx', 0o600); await destinationF
 const db = new DatabaseSync(source, { readOnly: true });
 try { await backup(db, destination); await chmod(destination, 0o600); }
 finally { db.close(); }
-console.log('Chat backup completed.');
+console.log('SQLite backup completed.');

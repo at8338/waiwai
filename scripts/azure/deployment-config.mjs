@@ -19,3 +19,17 @@ export function buildTurnConfig({ domain, publicIp, privateIp, secret }) {
   const denied = ['0.0.0.0-0.255.255.255', '10.0.0.0-10.255.255.255', '100.64.0.0-100.127.255.255', '127.0.0.0-127.255.255.255', '169.254.0.0-169.254.255.255', '172.16.0.0-172.31.255.255', '192.168.0.0-192.168.255.255', '224.0.0.0-255.255.255.255', '::1', 'fc00::-fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 'fe80::-febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff'];
   return turn + denied.map((range) => `denied-peer-ip=${range}`).join('\n') + '\n';
 }
+
+// Fail closed: only a policy that unconditionally requires MFA for all Waiwai users is accepted.
+export function verifyMfaPolicy(policy, clientId) {
+  const c = policy?.conditions, users = c?.users, apps = c?.applications, grants = policy?.grantControls;
+  const empty = value => value == null || Array.isArray(value) && value.length === 0;
+  const mfa = grants?.builtInControls?.includes('mfa') && (grants.operator === 'AND' || grants.builtInControls.length === 1 && ['termsOfUse', 'customAuthenticationFactors', 'authenticationStrength'].every(k => empty(grants[k])));
+  const scoped = apps?.includeApplications?.some(id => id === 'All' || id.toLowerCase() === clientId.toLowerCase());
+  if (policy?.state !== 'enabled' || !users?.includeUsers?.includes('All') || !scoped || !mfa || !c.clientAppTypes?.includes('all') ||
+      ['excludeUsers','excludeGroups','excludeRoles','excludeGuestsOrExternalUsers'].some(k => !empty(users[k])) ||
+      ['excludeApplications','includeUserActions','applicationFilter'].some(k => !empty(apps[k])) ||
+      Object.entries(c).some(([k,v]) => !['users','applications','clientAppTypes'].includes(k) && !empty(v))) {
+    throw new Error('The configured Entra policy must be enabled and require MFA for all users of this app, without exclusions or conditional filters.');
+  }
+}

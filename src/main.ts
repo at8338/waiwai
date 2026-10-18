@@ -1,3 +1,5 @@
+import { configurePersonalStorage, setupPersonalDataUI, finishPersonalWrites } from './game/personal-storage.ts';
+import { userIdentity } from './game/identity.ts';
 import { SPELLS, SPELL_KINDS } from './game/spells.ts';
 import { POKEMON_KINDS } from './game/pokemon.ts';
 import { setupDialogDismissals } from './game/dialog-dismiss.ts';
@@ -24,6 +26,12 @@ try {
   auth = await response.json() as AuthStatus;
 } catch { authUnavailable = true; }
 
+try { await configurePersonalStorage(auth.user ? userIdentity(auth.user) : undefined, authUnavailable); }
+catch {
+  document.querySelector('#app')!.innerHTML = '<p role="alert">ユーザーデータを読み込めませんでした。接続とログインを確認してください。</p><button id="personal-load-retry">再読み込み</button>';
+  document.querySelector('#personal-load-retry')!.addEventListener('click', () => location.reload());
+  throw new Error('Personal data unavailable');
+}
 let initialSlack: SlackIdentity | null = null;
 try { initialSlack = readSlackSettings(window.sessionStorage.getItem(SLACK_STORAGE_KEY)); } catch { /* Settings remain available in memory. */ }
 if (auth.user) {
@@ -166,6 +174,8 @@ app.innerHTML = `
   <dialog id="help-dialog" aria-labelledby="help-title"><span class="eyebrow">HOW TO WALK</span><h2 id="help-title">オフィスを歩いてみよう</h2><p>マップをクリックするか、Tabキーでマップにフォーカスしてから、<strong>矢印キー / WASD</strong> を押すと移動します。</p><p>スマートフォンやタブレットでは、マップ下の方向ボタンを使えます。</p><p>リアクションのボタン、またはマップ操作中の<strong>1〜4キー</strong>で、お辞儀・ジャンプ・バンザイ・よろこぶ動作を同じ部屋の人に伝えられます。歩くと動作が終わります。</p><p>家具や小物をクリックすると、登録済みのリンクを選んで開けます。「リンクを設定」で共有のお気に入りから複数選べます。リンクのあるホワイトボードは、前に立っても一覧が開きます。</p><p>「館内放送を出す」で全フロアにテキストを届けられます。「予定・定例を設定」ではJSTの開始時刻と繰り返しを登録できます。</p><p>椅子・机・ソファの正面で止まると自動で座り、移動すると立ち上がります。カフェ・休憩室の自販機のすぐ横に行くとペットボトルを受け取れます。</p><p>オフィスの置き場で、自転車・スケボー・スケートを借りると速く移動できます。置き場に踏み入れると自動で乗り、乗って戻ると返却します。マップ操作中の<strong>Eキー</strong>で空き台数も確認できます。</p><p>床の不思議な落とし物は、クリックするとひと言読めます。「床の落とし物」からも選べます。</p><p>壁や家具のあるマスは通れません。部屋の入口を探してみてください。</p><p>「入口にもどる」で最初の場所に戻れます。Tabキーでマップの操作を抜けられます。</p><form method="dialog"><button class="dialog-close">わかった、歩いてみる</button></form></dialog>
 `;
 
+setupPersonalDataUI(auth.user?.name ?? 'ゲスト');
+if (auth.user) document.querySelector('#buddy-dialog .field-hint')!.textContent = '選択とお気に入りは、ログインしたアカウントに保存します。';
 const parent = document.querySelector<HTMLElement>('#game')!;
 const disposeDialogDismissals = setupDialogDismissals(document.body);
 const { game, scene } = startOffice(parent, initialSlack, authUnavailable || (!!auth.required && !auth.user));
@@ -202,6 +212,7 @@ if (callbackStatus === 'failed' || callbackStatus === 'expired') {
   window.history.replaceState(null, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
 }
 logout.addEventListener('click', async () => {
+  if (!await finishPersonalWrites()) { loginStatus.textContent = '未保存の設定があります。プロフィール欄で保存を再試行してからログアウトしてください。'; return; }
   logout.disabled = true;
   try {
     const response = await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin', signal: AbortSignal.timeout(5000) });

@@ -14,6 +14,8 @@
 
 Terraformは1.10以上2.0未満、開発検証は1.15.8。AzureRMはrootで`~> 4.81.0`、子で`>= 4.81.0, < 5.0`とし、rootのlockfileをコミットする。更新時は明示的な`init -upgrade`とplan差分をレビューする。
 
+MacとLinux CIで同じlockfileを使うため、公式Registryで`terraform providers lock -platform=darwin_arm64 -platform=linux_amd64`を実行し、両platformのh1を保持する。署名確認後に両rootのlockfileへ反映する。zipのzhだけではreadonly init後の展開済みパッケージ検証に不足する場合があるため、チェックサム検証を無効にしたり、lockfileを削除して回避しない。
+
 `.local/azure/dev`、state、plan、実tfvars、backend.hcl、秘密鍵はGit管理しない。共有可能な入力例は`.example`のみ。Terraformに渡すのはSSH公開鍵であり、Slack/TURNの秘密値は別のアプリ配備経路で扱う。
 
 ## 検証

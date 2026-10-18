@@ -1,3 +1,4 @@
+import { personalStorage, serverPersonalData } from './personal-storage.ts';
 import { DAILY_EPISODES, episodeById, EVENT_THEMES } from './daily-event-catalog.ts';
 import { birthdayOnDay } from './birthdays.ts';
 import type { BirthdaySnapshot } from './birthdays.ts';
@@ -27,8 +28,8 @@ export class DailyEventsUI {
   private refresh: ReturnType<typeof setInterval>;
   constructor(signal: AbortSignal, private visit: (room: RoomId) => void, private beforeOpen: () => boolean) {
     try {
-      const saved: unknown = JSON.parse(localStorage.getItem(JOURNAL_KEY) ?? '[]');
-      if (Array.isArray(saved)) for (const id of saved.slice(-400)) if (typeof id === 'string' && /^\d{4}-\d\d-\d\d$/.test(id)) this.found.add(id);
+      const saved: unknown = JSON.parse(personalStorage.getItem(JOURNAL_KEY) ?? '[]');
+      if (Array.isArray(saved)) for (const id of saved) if (typeof id === 'string' && /^\d{4}-\d\d-\d\d$/.test(id)) this.found.add(id);
     } catch { /* The journal is readable even when local browser storage is unavailable. */ }
     const listen = (id: string, fn: () => void) => el(id).addEventListener('click', fn, { signal });
     listen('daily-event-go', () => {
@@ -87,10 +88,10 @@ export class DailyEventsUI {
       this.fillDetail(event, 'event-detail'); el('event-detail-stamp').textContent = 'テスト表示 · 事件の図鑑の発見記録は変更しません。'; el<HTMLDialogElement>('event-detail-dialog').showModal(); return;
     }
     this.found.add(event.day);
-    this.found = new Set([...this.found].sort().slice(-400));
-    let stored = true; try { localStorage.setItem(JOURNAL_KEY, JSON.stringify([...this.found])); } catch { stored = false; }
+    this.found = new Set([...this.found].sort());
+    let stored = true; try { personalStorage.setItem(JOURNAL_KEY, JSON.stringify([...this.found])); } catch { stored = false; }
     this.fillDetail(event, 'event-detail');
-    el('event-detail-stamp').textContent = stored ? '✓ 発見済み · このブラウザの図鑑に記録しました' : '✓ 発見済み · この画面を開いている間、記録します';
+    el('event-detail-stamp').textContent = stored ? serverPersonalData() ? '✓ 発見済み · アカウントの図鑑に追加しました（保存状況はプロフィール欄）' : '✓ 発見済み · このブラウザの図鑑に記録しました' : '✓ 発見済み · この画面を開いている間、記録します';
     el<HTMLDialogElement>('event-detail-dialog').showModal(); this.renderBanner();
     const option = [...el<HTMLSelectElement>('event-history-select').options].find((o) => o.value === event.day);
     if (option && !option.text.endsWith(' ✓')) option.text += ' ✓';
