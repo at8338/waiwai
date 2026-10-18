@@ -55,7 +55,7 @@ export class BirthdaysUI {
   }
   private openComments(id: string, date: string): void {
     if (!this.connected || !this.state || this.pending) return;
-    if (!document.querySelector('dialog[open]') && !this.beforeOpen()) return;
+    if (!document.querySelector('dialog[open]:not(.chat-docked)') && !this.beforeOpen()) return;
     const entry = this.state.entries.find(e => e.id === id); if (!entry) return;
     this.target = { id, date }; this.thread = undefined;
     el('birthday-comments-title').textContent = `${entry.name}さん、お誕生日おめでとう！`;

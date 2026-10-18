@@ -56,7 +56,7 @@ export class ObjectLinksEditor {
   }
   hasLinks(id: string): boolean { return this.state.bindings.some((b) => b.objectId === id && b.linkIds.length > 0); }
   open(target: LinkTarget): void {
-    if (this.dialog.open || document.querySelector('dialog[open]')) return;
+    if (this.dialog.open || document.querySelector('dialog[open]:not(.chat-docked)')) return;
     this.target = target; this.selected = new Set(this.assigned()); this.dirty = false;
     this.form.reset();
     document.querySelector<HTMLDetailsElement>('#object-links-settings')!.open = false;

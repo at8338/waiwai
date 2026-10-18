@@ -7,6 +7,7 @@ const bindings: Record<string, Direction> = {
 };
 
 export class Controls {
+  constructor(private onClear?: () => void) {}
   private held = new Map<string, Direction>();
   private tapped?: Direction;
   private dash?: Direction;
@@ -22,6 +23,7 @@ export class Controls {
     canvas.addEventListener('keydown', (event) => {
       const direction = bindings[event.code];
       if (direction && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        this.onClear?.();
         event.preventDefault();
         if (event.code.startsWith('Arrow') && this.doubleTap.press(direction, performance.now(), event.repeat)) this.dash = direction;
         this.held.set(event.code, direction);
@@ -40,6 +42,7 @@ export class Controls {
 
     document.querySelectorAll<HTMLButtonElement>('[data-direction]').forEach((button) => {
       button.addEventListener('pointerdown', (event) => {
+        this.onClear?.();
         event.preventDefault();
         button.setPointerCapture(event.pointerId);
         this.held.set(`pointer-${event.pointerId}`, button.dataset.direction as Direction);
@@ -67,6 +70,7 @@ export class Controls {
   }
   takeDash(): Direction | undefined { const dash = this.dash; this.dash = undefined; if (dash) this.tapped = undefined; return dash; }
   clear(): void {
+    this.onClear?.();
     this.dash = undefined; this.doubleTap.clear();
     this.held.clear();
     this.tapped = undefined;

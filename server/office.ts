@@ -371,7 +371,7 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
         }).catch(error => { sendPolicy(ws); send(ws, { type: 'policy-result', actionId: message.actionId, error: error instanceof PolicyError ? error.message : '設定を保存できませんでした。時間をおいて試してください。' }); });
         return;
       }
-      if (message.type === 'chat-history' || message.type === 'chat-send' || message.type === 'chat-read') { chat.action(ws, message); return; }
+      if (message.type === 'chat-history' || message.type === 'chat-send' || message.type === 'chat-read' || message.type === 'chat-group-create') { chat.action(ws, message); return; }
       if (message.type === 'arena-action') {
         if (arenaRequests.has(message.actionId)) { const error = arenaRequests.get(message.actionId); send(ws, { type: 'arena-result', actionId: message.actionId, ...(error ? { error } : {}) }); return; }
         const error = message.command === 'join' ? arena.join(player, now) : (leaveArena(player.id), undefined);

@@ -147,7 +147,7 @@ export class OfficeConnection {
         if (player) this.slots.delete(player.slot);
         this.players.delete(message.id); this.handlers.left(message.id);
       }
-      else if (message.type === 'chat-state' || message.type === 'chat-history' || message.type === 'chat-message' || message.type === 'chat-result') this.handlers.chat?.(message);
+      else if (message.type === 'chat-state' || message.type === 'chat-history' || message.type === 'chat-message' || message.type === 'chat-result' || message.type === 'chat-group-created') this.handlers.chat?.(message);
       else if (message.type === 'ice-state') this.handlers.ice?.(message);
       else if (message.type === 'arena-state') this.handlers.arena?.(message);
       else if (message.type === 'arena-result') this.handlers.arenaResult?.(message);
