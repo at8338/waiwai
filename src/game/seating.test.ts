@@ -2,10 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { seatSpots, restingSeat } from './seating.ts';
-import { DEFAULT_APPEARANCE, avatarPixels } from './avatar.ts';
+import { DEFAULT_APPEARANCE, SHIRTS, avatarPixels } from './avatar.ts';
 import type { RoomObject } from './objects.ts';
 import { ROOMS } from './rooms.ts';
 import { walkableWithObjects } from './objects.ts';
+import { TILE } from './world.ts';
 test('fixed desks and table chairs have reachable seating positions and moving, reactions or riding stand up', () => {
   const seats = seatSpots('office', []), desk = seats.get('3,5')!;
   assert.equal(desk.id, 'fixed:office:desk:2:3'); assert.equal(desk.facing, 'up');
@@ -47,4 +48,24 @@ test('long sofas support neighboring seated avatars and remain room scoped', () 
   assert.equal(left.anchor.y, right.anchor.y); assert.equal(right.anchor.x - left.anchor.x, 16);
   assert.equal(seats.has('20,18'), false);
   assert.equal(seatSpots('library', []).get('20,17'), undefined);
+});
+
+test('back table seats keep the seated torso above the tabletop without changing approach tiles or foreground occlusion', () => {
+  let checked = 0;
+  for (const room of ROOMS) for (const table of room.furniture.filter(f => f.kind === 'table' && f.h > 1)) {
+    const prefix = `fixed:${room.id}:table:${table.x}:${table.y}:top:`;
+    for (const seat of seatSpots(room.id, []).values()) if (seat.id.startsWith(prefix)) {
+      checked++;
+      assert.equal(seat.approach.y, table.y - 1);
+      assert.equal(seat.facing, 'down');
+      assert.ok(seat.depth < (table.y + table.h) * TILE, 'the tabletop still occludes feet underneath it');
+      for (let height = 0; height < 3; height++) for (let body = 0; body < 3; body++) for (let clothing = 0; clothing < 4; clothing++) {
+        const torso = avatarPixels({ ...DEFAULT_APPEARANCE, height, body, clothing }, seat.facing, 0, 'sit').filter(p => p.color === SHIRTS[0]);
+        assert.ok(torso.length > 0);
+        // OfficeScene places a 28px-high sprite, bottom-origin, at anchor + 6.
+        assert.ok(torso.every(p => seat.anchor.y + 6 - 28 + p.y + p.h <= table.y * TILE), `${room.id}: seated shirt must remain visible`);
+      }
+    }
+  }
+  assert.ok(checked > 20, 'cover back seats across the actual room layouts');
 });

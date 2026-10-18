@@ -44,7 +44,9 @@ export function seatSpots(roomId: RoomId, objects: readonly RoomObject[]): Map<s
         const x = item.x * TILE + i + 6, bottom = side === 'bottom';
         const y = (item.y + (bottom ? item.h : 0)) * TILE;
         add({ id: `${id}:${side}:${i}`, name: 'テーブル', approach: { x: Math.floor(x / TILE), y: item.y + (bottom ? item.h : -1) },
-          anchor: { x, y: y + (bottom ? 1 : 3) }, facing: bottom ? 'up' : 'down', depth: y + 7 });
+          // The back chair is above the tabletop. Pulling the avatar into the
+          // table hides its torso because the table correctly draws in front.
+          anchor: { x, y: y + (bottom ? 1 : -5) }, facing: bottom ? 'up' : 'down', depth: y + 7 });
       }
     }
   }
