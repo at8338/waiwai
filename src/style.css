@@ -58,6 +58,28 @@ input::placeholder { color: #a0a595; }
 .map-surround { padding: 14px; background: #b5bf9c; border: 1px solid #93a281; position: relative; }
 .map-surround::before, .map-surround::after { content: ''; position: absolute; width: 4px; height: 4px; background: #819573; top: 5px; }
 .map-surround::before { left: 5px; }.map-surround::after { right: 5px; }
+.floor-layout { display: grid; grid-template-columns: minmax(0, 1fr) 168px; gap: 9px; }
+.floor-layout > .map-surround { min-width: 0; }
+.room-rail { position: relative; min-width: 0; }
+.room-shortcuts { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 3px 3px 3px 0; }
+.room-shortcuts-heading { margin: 0 4px 8px; color: #64775b; font-size: 10px; line-height: 1.7; }
+.room-shortcuts-heading > span { display: block; color: #929b86; font-size: 8px; }
+.room-shortcuts button { display: flex; align-items: center; gap: 5px; width: 100%; min-height: 29px; padding: 6px 5px; border: 0; border-left: 2px solid transparent; border-radius: 0 3px 3px 0; background: transparent; text-align: left; font-size: 10px; line-height: 1.5; }
+.room-shortcuts button:hover:not(:disabled) { background: #edf0e3; color: #355b49; border-left-color: #b4c09d; }
+.room-shortcuts button[aria-current='location'] { background: #e5eddb; border-left-color: #607d53; color: #355b49; font-weight: 600; opacity: 1; }
+.room-shortcut-number { flex-shrink: 0; color: #99a18c; font: 8px monospace; }
+.room-shortcut-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-shortcut-count { flex-shrink: 0; color: #88957b; font-size: 8px; font-weight: normal; }
+.room-shortcuts button:focus-visible { outline-offset: -3px; }
+@media (min-width: 761px) and (max-width: 1150px) { .floor-layout { grid-template-columns: minmax(0, 1fr) 143px; gap: 7px; }.room-shortcuts button { font-size: 9px; padding-inline: 3px; gap: 4px; } }
+@media (max-width: 760px) {
+  .floor-layout { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .room-shortcuts { position: static; display: flex; gap: 5px; overflow-x: auto; overflow-y: hidden; padding: 3px 3px 7px; }
+  .room-shortcuts-heading { flex-shrink: 0; align-self: center; margin: 0 5px 0 0; font-size: 9px; }
+  .room-shortcuts-heading > span { display: none; }
+  .room-shortcuts button { width: auto; flex-shrink: 0; min-height: 36px; padding: 7px 8px; border: 1px solid #e0e4d5; border-radius: 3px; }
+  .room-shortcuts button[aria-current='location'] { border-color: #9bad88; }
+}
 #game { position: relative; width: 100%; aspect-ratio: 3 / 2; background: #ead3a5; box-shadow: 0 0 0 3px #7d8968, 0 0 0 5px #d4d6b6; overflow: hidden; }
 #game canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
 #game canvas:focus-visible { outline: 2px solid #fff8c7; outline-offset: -4px; }
