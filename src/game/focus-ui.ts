@@ -74,7 +74,7 @@ export class FocusUI {
   receive(snapshot: AnnouncementSnapshot): void { this.broadcasts = snapshot; this.offset = snapshot.serverNow - Date.now(); this.renderTicker(); }
   private renderTicker(): void {
     const active = this.broadcasts.announcements.filter(a => a.expiresAt > Date.now() + this.offset).sort((a,b) => b.createdAt - a.createdAt);
-    const text = active.map(a => `${a.title} ― ${a.message}`).join('　　◆　　') || (this.connected ? 'ただいま館内放送はありません。今日も、よい一日を。' : '接続を確認しています。館内放送は再接続後に更新します。');
+    const text = active.map(a => `【${a.author || '館内放送'}】${a.title} ― ${a.message}`).join('　　◆　　') || (this.connected ? 'ただいま館内放送はありません。今日も、よい一日を。' : '接続を確認しています。館内放送は再接続後に更新します。');
     if (text === this.tickerKey) return; this.tickerKey = text;
     const line = this.shell.querySelector<HTMLElement>('#focus-broadcast-text')!; line.textContent = text;
     line.classList.toggle('is-scrolling', !!active.length); line.style.setProperty('--ticker-seconds', `${Math.max(18, text.length * 0.35)}s`);
