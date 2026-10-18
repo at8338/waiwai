@@ -127,7 +127,7 @@ export class ChatUI {
     const target = this.target, person = target.kind === 'dm' ? this.people.find(p => p.id === target.peerId) : undefined;
     const thread = this.state?.threads.find(t => key(t.target) === key(target));
     this.el('chat-target-title').textContent = target.kind === 'global' ? '全体チャット' : target.kind === 'room' ? getRoom(target.roomId).name + 'のチャット' : (person?.name ?? thread?.name ?? 'メンバー') + 'さんとのDM';
-    this.el('chat-target-detail').textContent = target.kind === 'global' ? '全フロアで共有する会話です。' : target.kind === 'room' ? 'この部屋にいる人と会話します。履歴はこの部屋への入室中に読めます。' : person?.online ? 'オンライン · 別の部屋に移動しても会話できます。' : 'オフライン · メッセージは次回ログイン時に届きます。';
+    this.el('chat-target-detail').textContent = target.kind === 'global' ? '全フロアで共有する会話です。' : target.kind === 'room' ? 'この部屋にいる人と会話します。履歴はこの部屋への入室中に読めます。' : person?.dummy ? 'テスト用の自動返信です。「ジャンプ」「お辞儀」「寝て」「起きて」も試せます。音声には参加しません。' : person?.online ? 'オンライン · 別の部屋に移動しても会話できます。' : 'オフライン · メッセージは次回ログイン時に届きます。';
     const link = this.el<HTMLAnchorElement>('chat-slack-dm'), url = slackDMUrl(person?.slack ?? (target.kind === 'dm' ? this.resolveSlack?.(target.peerId) : null));
     link.hidden = target.kind !== 'dm' || !url; if (url) link.href = url; else link.removeAttribute('href');
     this.el('chat-share-label').hidden = target.kind !== 'global' || !this.state?.slackEnabled;

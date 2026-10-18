@@ -631,3 +631,10 @@ dialog.has-dismiss-controls #chat-close, dialog.has-dismiss-controls #arcade-clo
 .personal-data-section button, .personal-data-dialog > button, .personal-data-dialog form button { padding: 8px 12px; border: 1px solid #b8c7af; border-radius: 8px; background: #fffef8; color: #36523c; font: inherit; cursor: pointer; }
 .personal-data-dialog button:disabled { opacity: .5; cursor: default; }
 .personal-data-dialog [data-import]:not(:disabled) { background: #46694d; color: white; }
+
+.dummy-admin { margin: 14px 0; padding: 12px; border: 1px solid #b9c5bb; background: #f2f7ef; border-radius: 8px; }
+.dummy-admin h3 { margin: 0 0 6px; font-size: 13px; }
+.dummy-admin p { margin: 6px 0; font-size: 11px; line-height: 1.7; }
+.dummy-admin .dialog-actions { justify-content: flex-start; flex-wrap: wrap; margin: 8px 0; }
+.dummy-admin button { padding: 8px 10px; font-size: 11px; }
+.dummy-avatar-hint { font-size: 10px; line-height: 1.7; color: #63766d; }

@@ -1,4 +1,5 @@
 import { ChatService } from './chat.ts';
+import { DummyAvatars } from './dummy-avatars.ts';
 import { WorldPolicyStore, PolicyError } from './world-policy.ts';
 import { allowedRooms, allowedDailyEvent, policyAllows } from '../src/game/world-policy.ts';
 import { persistentIdentity } from '../src/game/identity.ts';
@@ -45,9 +46,11 @@ import { REACTION_COOLDOWN_MS } from '../src/game/reactions.ts';
 
 class EditError extends Error {}
 
-export function attachOffice(server: Server, auth?: OfficeAuthService, options: { chat?: ChatService; objectsFile?: string; membersFile?: string; linksFile?: string; announcementsFile?: string; birthdaysFile?: string; policyFile?: string; administratorId?: string; devControls?: boolean; birthdayClock?: () => number; eventClock?: () => number; lostClock?: () => number } = {}): () => void {
+export function attachOffice(server: Server, auth?: OfficeAuthService, options: { chat?: ChatService; objectsFile?: string; membersFile?: string; linksFile?: string; announcementsFile?: string; birthdaysFile?: string; policyFile?: string; administratorId?: string; devControls?: boolean; dummyAvatars?: boolean; birthdayClock?: () => number; eventClock?: () => number; lostClock?: () => number } = {}): () => void {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 });
   const players = new Map<WebSocket, Player>();
+  const dummies = new DummyAvatars();
+  const allPeople = () => [...players.values(), ...dummies.list()];
   const requests = new Map<WebSocket, IncomingMessage>();
   const policies = new WorldPolicyStore(options.policyFile, options.administratorId);
   let policy = policies.snapshot();
@@ -162,7 +165,7 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
   }, 5000);
   announcementTimer.unref();
   const voice = new VoiceRoom(players, send, readIceProvider());
-  const directory = (): Extract<ServerMessage, { type: 'directory' }> => ({ type: 'directory', people: directoryPeople(members.list(), players.values()), ...(directoryWarning ? { warning: directoryWarning } : {}) });
+  const directory = (): Extract<ServerMessage, { type: 'directory' }> => ({ type: 'directory', people: directoryPeople(members.list(), allPeople()), ...(directoryWarning ? { warning: directoryWarning } : {}) });
   const fleet = new VehicleFleet();
   const sendFleet = (ws?: WebSocket) => { const message: ServerMessage = { type: 'vehicles', units: fleet.list() }; if (ws) send(ws, message); else broadcast(message); };
   const pending = new Map<string, Position>();
@@ -201,7 +204,7 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
     for (const client of devClients) if (!target || target === client) send(client, message);
   };
   const petTimer = setInterval(() => {
-    const changed = pets.step(store.list(), players.values());
+    const changed = pets.step(store.list(), allPeople());
     for (const [ws, person] of players) if (changed.has(person.roomId)) sendPets(ws, person.roomId);
   }, PET_STEP_MS);
   petTimer.unref();
@@ -213,7 +216,7 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
   const spawn = (roomId: RoomId = 'office', except?: WebSocket) => {
     const origin = getRoom(roomId).spawn;
     const objects = collisionObjects(roomId);
-    const occupied = new Set([...players].filter(([ws, player]) => ws !== except && player.roomId === roomId).map(([, { x, y }]) => `${x},${y}`));
+    const occupied = new Set(allPeople().filter(player => player.id !== players.get(except!)?.id && player.roomId === roomId).map(({ x, y }) => `${x},${y}`));
     const tiles = [];
     for (let y = 1; y < ROWS - 1; y++) for (let x = 1; x < COLS - 1; x++) {
       if (walkableWithObjects(x, y, roomId, objects) && !occupied.has(`${x},${y}`)) tiles.push({ x, y });
@@ -231,6 +234,7 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
     policy = policies.snapshot(); sendPolicy();
     pets.configure(policy, store.list()); pets.replacePokemon(currentRoster(), store.list());
     const fallback = allowedRooms(policy)[0];
+    if (dummies.list().some(person => !roomAllowed(person.roomId))) configureDummies(true, fallback);
     for (const [client, person] of players) {
       let changed = false;
       if (person.buddy && isPokemonKind(person.buddy) && !pokemonAllowed(person.buddy)) { person.buddy = null; delete person.buddyPosition; changed = true; }
@@ -243,11 +247,38 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
       } else if (changed) { pending.delete(person.id); broadcast({ type: 'player', player: person, reason: 'profile' }); }
       sendPets(client, person.roomId);
     }
-    directoryDirty = true; voice.refresh(); sendFleet(); sendDailyEvent(); sendLostItems(); sendDevWorld();
+    directoryDirty = true; voice.refresh(); sendFleet(); sendDailyEvent(); sendLostItems(); sendDevWorld(); sendDummies();
   };
 
   const identities = new Map<WebSocket, string>();
   let nextSlot = 0;
+  const sendDummies = (target?: WebSocket) => {
+    for (const client of players.keys()) if (!target || target === client) send(client, {
+      type: 'dummy-state', enabled: !!dummies.list().length, count: dummies.list().length,
+      ...(dummies.list()[0] ? { roomId: dummies.list()[0].roomId } : {}), editable: policies.isAdministrator(auth?.identify(requests.get(client)!)?.user),
+    });
+  };
+  const configureDummies = (enabled: boolean, roomId: RoomId) => {
+    const previous = dummies.list();
+    dummies.set(enabled, roomId, () => ++nextSlot, players.values(), collisionObjects(roomId));
+    for (const person of previous) { pending.delete(person.id); broadcast({ type: 'left', id: person.id }); }
+    chat.setTestParticipants(dummies.list().map(person => ({
+      actor: () => ({ id: playerIdentity(person), name: person.name, persistent: false, roomId: person.roomId }),
+      reply: text => {
+        const reply = dummies.respond(person.id, text); if (!reply) return;
+        pending.delete(person.id);
+        if (reply.posture) broadcast({ type: 'player', player: reply.player, reason: 'rest' });
+        if (reply.reaction) for (const [client, participant] of players) if (participant.roomId === person.roomId) send(client, { type: 'reaction', playerId: person.id, roomId: person.roomId, kind: reply.reaction });
+        return reply.text;
+      },
+    })));
+    for (const person of dummies.list()) broadcast({ type: 'player', player: person, reason: 'join' });
+    directoryDirty = true; sendDummies();
+  };
+  if (options.dummyAvatars) configureDummies(true, allowedRooms(policy)[0]);
+  const dummyTimer = setInterval(() => {
+    for (const person of dummies.tick(players.values(), [...store.list(), ...ice.objects(Date.now())])) pending.set(person.id, [person.slot, person.x, person.y, directions.indexOf(person.facing)]);
+  }, 1100); dummyTimer.unref();
   const unsubscribe = auth?.onRevoke((id) => {
     for (const [ws, session] of identities) if (session === id) ws.close(4001, 'Session ended');
   });
@@ -267,8 +298,9 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
     });
     alive.add(ws);
     if (allowDevWorld(options.devControls, request)) devClients.add(ws);
-    send(ws, { type: 'welcome', id: player.id, players: [...players.values()] });
+    send(ws, { type: 'welcome', id: player.id, players: allPeople() });
     sendPolicy(ws);
+    sendDummies(ws);
     chat.join(ws, () => ({ id: playerIdentity(player), name: player.name, persistent: persistentIdentity(playerIdentity(player)), roomId: player.roomId }));
     broadcast({ type: 'player', player, reason: 'join' }, ws);
     sendObjects(ws, player.roomId);
@@ -296,6 +328,8 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
     let lastVehicle = -Infinity;
     let lastBirthday = -Infinity;
     let lastDevWorld = -Infinity;
+    let lastDummyControl = -Infinity;
+    const dummyResults = new Map<string, string | undefined>();
     let lastDash = -Infinity;
     const arenaRequests = new Map<string, string | undefined>();
     const spellTimes = new Map<SpellKind, number>();
@@ -322,6 +356,14 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
       const message = parseClientMessage(data.toString());
       if (message?.type === 'voice-signal' ? ++signals > 120 : ++messages > 40) { ws.close(1008, 'Too many messages'); return; }
       if (!message) return;
+      if (message.type === 'dummy-control') {
+        if (dummyResults.has(message.actionId)) { const error = dummyResults.get(message.actionId); send(ws, { type: 'dummy-result', actionId: message.actionId, ...(error ? { error } : {}) }); return; }
+        const user = auth?.identify(request)?.user;
+        const error = !policies.isAdministrator(user) ? '管理者だけがダミーを変更できます。' : now - lastDummyControl < 1000 ? '少し待ってから操作してください。' : message.enabled && !roomAllowed(message.roomId ?? player.roomId) ? '公開中のフロアを選んでください。' : undefined;
+        if (!error) { lastDummyControl = now; configureDummies(message.enabled, message.roomId ?? player.roomId); }
+        dummyResults.set(message.actionId, error); if (dummyResults.size > 100) dummyResults.delete(dummyResults.keys().next().value!);
+        send(ws, { type: 'dummy-result', actionId: message.actionId, ...(error ? { error } : {}) }); return;
+      }
       if (message.type === 'policy-set') {
         const current = auth?.identify(request);
         void policies.apply(message, current?.user, () => players.has(ws) && !!current && auth?.identify(request)?.id === current.id && !!auth?.canJoin(request)).then(() => {
@@ -371,17 +413,18 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
         }
         if (arena.active(player.id)) { finish('対戦中はコールとルーラを使えません。'); return; }
         const ids = message.spell === 'call' ? message.targetIds : [message.targetId];
-        const targets = ids.map((id) => [...players.values()].find((person) => person.id === id));
+        const targets = ids.map((id) => allPeople().find((person) => person.id === id));
         if (ids.includes(player.id)) { finish('自分以外の人を選んでください。'); return; }
         if (targets.some((person) => !person)) { finish('選んだ人が退出しました。一覧を確認してください。'); return; }
         const selected = targets as Player[];
+        if (message.spell === 'call' && selected.some(person => person.dummy)) { finish('テスト用アバターは管理画面から呼べます。'); return; }
         if (selected.some((person) => arena.active(person.id))) { finish('その人は魔法対戦中です。終了後に呼んでください。'); return; }
         if (message.spell === 'call' && selected.some((person) => now - (summonedAt.get(person.id) ?? -Infinity) < SPELLS.call.cooldown)) { finish('その人はコールで移動したばかりです。少し待ってください。'); return; }
         if (message.spell === 'rura' && now - lastWarp < 1000) { finish('少し待ってから移動してください。'); return; }
         const destinationRoom = message.spell === 'call' ? player.roomId : selected[0].roomId;
         if (!roomAllowed(destinationRoom)) { finish('そのフロアは管理者により利用停止中です。'); return; }
         const movers = message.spell === 'call' ? selected : [player];
-        const destinations = message.spell === 'call' ? callDestinations(player, selected, players.values(), collisionObjects(destinationRoom)) : callDestinations(selected[0], [player], players.values(), collisionObjects(destinationRoom));
+        const destinations = message.spell === 'call' ? callDestinations(player, selected, allPeople(), collisionObjects(destinationRoom)) : callDestinations(selected[0], [player], allPeople(), collisionObjects(destinationRoom));
         if (!destinations) { finish('移動先の床を確認できません。相手が少し動いてから試してください。'); return; }
         spellTimes.set(message.spell, now); if (message.spell === 'rura') lastWarp = now;
         for (const [index, mover] of movers.entries()) {
@@ -528,13 +571,13 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
         const fail = (error: string) => send(ws, { type: 'travel-error', requestId: message.requestId, error });
         if (now - lastWarp < 1000) { fail('少し待ってから、もう一度ワープしてください。'); return; }
         lastWarp = now;
-        const target = [...players.values()].find((p) => p.id === message.targetId);
+        const target = allPeople().find((p) => p.id === message.targetId);
         if (!target) { fail('その人は現在オフラインです。'); return; }
         if (!roomAllowed(target.roomId)) { fail('そのフロアは管理者により利用停止中です。'); return; }
         if (target.id === player.id) { fail('自分の隣へはワープできません。'); return; }
         if (arena.active(player.id) || arena.active(target.id)) { fail('対戦中はワープできません。'); return; }
         leaveArena(player.id);
-        const destination = adjacentTile(target, player.id, players.values(), collisionObjects(target.roomId));
+        const destination = adjacentTile(target, player.id, allPeople(), collisionObjects(target.roomId));
         if (!destination) { fail('相手の隣に空いているマスがありません。少し待ってから試してください。'); return; }
         if (target.roomId !== player.roomId) leaveArcade(player.id);
         Object.assign(player, destination, { roomId: target.roomId, facing: 'down' });
@@ -565,7 +608,7 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
           if (message.type === 'object-remove') { objects.splice(objects.indexOf(existing!), 1); return; }
           const candidate = { id: existing?.id ?? randomUUID(), owner, roomId, kind: message.type === 'object-place' ? message.kind : existing!.kind,
             x: message.x, y: message.y, rotation: message.rotation };
-          const error = placementProblem(candidate, [...objects, ...ice.objects(now)], [...players.values()]);
+          const error = placementProblem(candidate, [...objects, ...ice.objects(now)], allPeople());
           if (error) throw new EditError(error);
           if (existing) objects.splice(objects.indexOf(existing), 1, candidate);
           else objects.push(candidate);
@@ -682,6 +725,7 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
   }, 15_000);
   heartbeat.unref();
   return () => {
+    clearInterval(dummyTimer);
     clearInterval(lostTimer);
     clearInterval(combatTimer);
     clearInterval(birthdayTimer);

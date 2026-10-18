@@ -22,9 +22,9 @@ import { MAX_VOICE_MEMBERS, MAX_VOICE_PEERS } from '../src/audio/proximity.ts';
 import { STEP_MS, canWalk } from '../src/game/world.ts';
 import { REACTION_COOLDOWN_MS } from '../src/game/reactions.ts';
 
-async function fixture(t: TestContext, objectsFile?: string, linksFile?: string, announcementsFile?: string, eventClock?: () => number, lostClock?: () => number, birthdayClock?: () => number, devControls = false, policyFile?: string) {
+async function fixture(t: TestContext, objectsFile?: string, linksFile?: string, announcementsFile?: string, eventClock?: () => number, lostClock?: () => number, birthdayClock?: () => number, devControls = false, policyFile?: string, dummyAvatars = false) {
   const server = createServer((_request, response) => response.end('ok'));
-  const dispose = attachOffice(server, undefined, { objectsFile, linksFile, announcementsFile, eventClock, lostClock, birthdayClock, devControls, policyFile });
+  const dispose = attachOffice(server, undefined, { objectsFile, linksFile, announcementsFile, eventClock, lostClock, birthdayClock, devControls, policyFile, dummyAvatars });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const clients: WebSocket[] = [];
@@ -64,6 +64,44 @@ async function fixture(t: TestContext, objectsFile?: string, linksFile?: string,
   };
   return { connect, origin };
 }
+
+test('dummy DM auto-replies stay private, deduplicate and trigger shared avatar actions without voice peers', async t => {
+  const { connect } = await fixture(t, undefined, undefined, undefined, undefined, undefined, undefined, true, undefined, true);
+  const a = await connect(), b = await connect();
+  const bots = a.welcome.players.filter(p => p.dummy); assert.equal(bots.length, 3);
+  assert.deepEqual((await a.next('dummy-state')), { type: 'dummy-state', enabled: true, count: 3, editable: false, roomId: 'office' });
+  const directory = await a.next('directory'); assert.equal(directory.people.filter(p => p.dummy && p.online && !p.verified).length, 3);
+  a.send({ type: 'voice-state', listening: true, microphone: false });
+  assert.equal((await a.next('voice')).peers.length, 0);
+  const target = { kind: 'dm', peerId: `guest:${bots[0].id}` }, actionId = randomUUID();
+  a.send({ type: 'chat-send', target, actionId, text: 'ジャンプ', shareSlack: false });
+  assert.equal((await a.next('chat-result', m => m.actionId === actionId)).error, undefined);
+  a.send({ type: 'chat-send', target, actionId, text: 'ジャンプ', shareSlack: false });
+  await a.next('chat-message', m => m.message.authorId === target.peerId);
+  assert.equal((await b.next('reaction', m => m.playerId === bots[0].id)).kind, 'jump');
+  assert.equal(a.seen.filter(m => m.type === 'chat-message' && m.message.authorId === target.peerId).length, 1);
+  assert.equal(b.seen.some(m => m.type === 'chat-message'), false);
+  a.send({ type: 'chat-history', actionId: randomUUID(), target });
+  assert.equal((await a.next('chat-history')).messages.length, 2);
+  const forbidden = randomUUID(); b.send({ type: 'dummy-control', enabled: false, actionId: forbidden, administrator: true });
+  assert.match((await b.next('dummy-result')).error!, /管理者/);
+  const late = await connect(); assert.equal(late.welcome.players.filter(p => p.dummy).length, 3);
+});
+
+test('dummy room chat has one reply only in that room and global chat does not auto-reply', async t => {
+  const { connect } = await fixture(t, undefined, undefined, undefined, undefined, undefined, undefined, false, undefined, true);
+  const a = await connect(), b = await connect();
+  b.send({ type: 'change-room', roomId: 'cafe', requestId: 1 });
+  await b.next('player', m => m.player.id === b.welcome.id && m.reason === 'room');
+  a.send({ type: 'chat-send', target: { kind: 'room', roomId: 'office' }, actionId: randomUUID(), text: 'こんにちは', shareSlack: false });
+  await a.next('chat-message', m => m.message.authorId.startsWith('guest:00000000'));
+  assert.equal(a.seen.filter(m => m.type === 'chat-message' && m.message.authorId.startsWith('guest:00000000')).length, 1);
+  assert.equal(b.seen.some(m => m.type === 'chat-message'), false);
+  a.send({ type: 'chat-send', target: { kind: 'global' }, actionId: randomUUID(), text: 'global test', shareSlack: false });
+  await b.next('chat-message', m => m.message.text === 'global test');
+  await new Promise(r => setTimeout(r, 750));
+  assert.equal(b.seen.filter(m => m.type === 'chat-message').length, 1);
+});
 
 test('persisted administrator bans survive developer resets and cannot be bypassed by forced spawns', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'waiwai-dev-policy-')); t.after(() => rm(dir, { recursive: true, force: true }));
@@ -309,11 +347,12 @@ test('Slack IDs synchronize in profiles and join snapshots, reject invalid edits
 });
 
 // Exercise real upgrades at the production limit, including capacity recovery.
-test('150 clients join, compact frames coalesce moves and the 151st is refused', async (t) => {
-  const { connect, origin } = await fixture(t);
+test('150 real clients plus three dummies join, compact frames coalesce moves and the 151st real client is refused', async (t) => {
+  const { connect, origin } = await fixture(t, undefined, undefined, undefined, undefined, undefined, undefined, false, undefined, true);
   const clients: Awaited<ReturnType<typeof connect>>[] = [];
   for (let i = 0; i < MAX_PLAYERS; i++) clients.push(await connect());
-  assert.equal(clients.at(-1)!.welcome.players.length, MAX_PLAYERS);
+  assert.equal(clients.at(-1)!.welcome.players.length, MAX_PLAYERS + 3);
+  assert.equal(clients.at(-1)!.welcome.players.filter(p => p.dummy).length, 3);
   const extra = new WebSocket(origin.replace('http:', 'ws:') + '/office', { origin });
   extra.on('error', () => {});
   let opened = false; extra.on('open', () => { opened = true; });
@@ -333,7 +372,7 @@ test('150 clients join, compact frames coalesce moves and the 151st is refused',
   assert.ok(clients.every((client) => client.ws.readyState === WebSocket.OPEN));
   clients.at(-1)!.ws.close();
   await a.next('left');
-  assert.equal((await connect()).welcome.players.length, MAX_PLAYERS);
+  assert.equal((await connect()).welcome.players.length, MAX_PLAYERS + 3);
 });
 
 
