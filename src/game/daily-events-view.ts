@@ -43,10 +43,12 @@ export class DailyEventsView {
     this.clearMasks(); this.decorations = views.filter(view => typeof (view as MaskedView).setMask === 'function') as MaskedView[];
     this.staticKey = ''; this.key = '';
   }
+  setWorldOffset(x: number, y: number): void { this.damageShape.setPosition(x, y); }
   setRoom(room: RoomId): void { this.hide(); this.room = room; this.objects = []; this.ready = false; this.key = ''; this.staticKey = ''; }
   setObjects(objects: readonly RoomObject[]): void { this.objects = objects; this.ready = true; this.key = ''; this.staticKey = ''; }
   receive(state: DailyEventSnapshot): void { this.state = state; this.offset = state.serverNow - Date.now(); this.key = ''; this.staticKey = ''; }
   private clearMasks(): void { for (const view of this.decorations) if (view.scene && view.mask === this.damageMask) view.clearMask(); }
+  suspend(): void { this.hide(); }
   private hide(): void {
     this.art.setVisible(false); this.label.setVisible(false); this.floor.clear(); this.scenery.clear(); this.effects.clear();
     this.damageZones = []; this.inspectAreas = [];
@@ -55,9 +57,9 @@ export class DailyEventsView {
   private draw(graphics: Phaser.GameObjects.Graphics, pixels: StagePixel[]): void {
     graphics.clear(); for (const p of pixels) graphics.fillStyle(p.color, p.alpha).fillRect(p.x, p.y, p.w, p.h);
   }
-  update(now: number, reducedMotion: boolean): void {
+  update(now: number, reducedMotion: boolean, publish = true): void {
     const event = this.state?.event, serverNow = now + this.offset;
-    if (!event || this.state?.disabled || !this.ready || event.roomId !== this.room || serverNow >= event.endsAt) { this.hide(); this.scene.game.canvas.dataset.dailyIncident = ''; return; }
+    if (!event || this.state?.disabled || !this.ready || event.roomId !== this.room || serverNow >= event.endsAt) { this.hide(); if (publish) this.scene.game.canvas.dataset.dailyIncident = ''; return; }
     const frame = reducedMotion ? -1 : Math.floor(serverNow / 700), key = `${event.day}:${event.episodeId}:${frame}`;
     if (key === this.key) return; this.key = key;
     const episode = episodeById(event.episodeId)!, stage = roomEventStage(episode, this.room, this.objects, frame);
@@ -76,7 +78,7 @@ export class DailyEventsView {
     this.art.clear().setVisible(stage.hero.scale > 0).setDepth(stage.hero.y + 43 * stage.hero.scale);
     for (const p of eventPixels(episode, Math.max(0, frame))) this.art.fillStyle(p.color).fillRect(stage.hero.x + p.x * stage.hero.scale, stage.hero.y + p.y * stage.hero.scale, p.w * stage.hero.scale, p.h * stage.hero.scale);
     this.draw(this.effects, stage.effects); this.label.setVisible(true);
-    this.scene.game.canvas.dataset.dailyIncident = JSON.stringify({ id: event.episodeId, roomId: this.room, x: Math.floor((stage.hero.x + 24 * stage.hero.scale) / 16), y: Math.floor((stage.hero.y + 24 * stage.hero.scale) / 16), scale: stage.hero.scale, damage: stage.damage, roomWide: true });
+    if (publish) this.scene.game.canvas.dataset.dailyIncident = JSON.stringify({ id: event.episodeId, roomId: this.room, x: Math.floor((stage.hero.x + 24 * stage.hero.scale) / 16), y: Math.floor((stage.hero.y + 24 * stage.hero.scale) / 16), scale: stage.hero.scale, damage: stage.damage, roomWide: true });
   }
   destroy(): void { this.clearMasks(); this.damageMask.destroy(); this.damageShape.destroy(); this.art.destroy(); this.label.destroy(); this.floor.destroy(); this.scenery.destroy(); this.effects.destroy(); }
 }

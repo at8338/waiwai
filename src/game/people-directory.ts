@@ -32,7 +32,7 @@ export class PeopleDirectory {
     }, { signal });
     this.render();
   }
-  setPeople(people: Person[], warning?: string): void { this.people = people; this.warning = warning; this.render(); }
+  setPeople(people: Person[], warning?: string): void { this.people = people; this.warning = warning; if (this.dialog.open) this.render(); }
   setConnection(connected: boolean, localId?: string): void {
     this.connected = connected; this.localId = localId;
     if (!connected) { this.busy = false; this.status('接続を確認しています。状態が更新されるまでワープできません。'); }

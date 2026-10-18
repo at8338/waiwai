@@ -17,6 +17,7 @@ export class SpeechBubblesView {
     document.querySelector('#game')!.append(this.status);
   }
   announce(speech: Speech): void { this.status.textContent = `${speech.channel} · ${speech.name}：${speech.text.replaceAll('\n', '')}`; }
+  container(id: string): Phaser.GameObjects.Container | undefined { return this.views.get(id)?.container; }
   beginFrame(): void { this.drawn.clear(); this.occupied = []; }
   draw(id: string, x: number, headY: number, now: number, reducedMotion: boolean): void {
     const speech = this.model.get(id, now); if (!speech) return;

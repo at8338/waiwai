@@ -1,3 +1,4 @@
+import { continuousWalkable, worldStep } from '../src/game/continuous-world.ts';
 import { ChatService } from './chat.ts';
 import { DummyAvatars } from './dummy-avatars.ts';
 import { WorldPolicyStore, PolicyError } from './world-policy.ts';
@@ -35,7 +36,7 @@ import type { OfficeAuthService } from './auth.ts';
 import { DEFAULT_APPEARANCE } from '../src/game/avatar.ts';
 import { getRoom, ROOMS } from '../src/game/rooms.ts';
 import type { RoomId } from '../src/game/rooms.ts';
-import { placementProblem, walkableWithObjects } from '../src/game/objects.ts';
+import { placementProblem, walkableWithObjects, objectContains, OBJECT_CATALOG } from '../src/game/objects.ts';
 import { ObjectStore } from './objects.ts';
 import { MemberStore } from './members.ts';
 import { directoryPeople } from '../src/game/directory.ts';
@@ -147,7 +148,7 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
   const dailyEventTimer = setInterval(() => {
     if (dailyEventAt(eventClock()).day !== eventDay) {
       world.refresh(eventClock()); pets.replacePokemon(currentRoster(), store.list());
-      sendDailyEvent(); sendLostItems(); for (const [client, person] of players) sendPets(client, person.roomId); sendDevWorld();
+      sendDailyEvent(); sendLostItems(); for (const [client, person] of players) { if (person.continuous) { for (const area of ROOMS) if (roomAllowed(area.id)) sendPets(client, area.id); } else sendPets(client, person.roomId); } sendDevWorld();
     }
   }, 1000);
   dailyEventTimer.unref();
@@ -205,7 +206,7 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
   };
   const petTimer = setInterval(() => {
     const changed = pets.step(store.list(), allPeople());
-    for (const [ws, person] of players) if (changed.has(person.roomId)) sendPets(ws, person.roomId);
+    for (const [ws, person] of players) { if (person.continuous) { for (const id of changed) if (roomAllowed(id)) sendPets(ws, id); } else if (changed.has(person.roomId)) sendPets(ws, person.roomId); }
   }, PET_STEP_MS);
   petTimer.unref();
   const sendLinks = (ws: WebSocket, roomId: RoomId) => {
@@ -245,7 +246,7 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
         broadcast({ type: 'player', player: person, reason: 'policy' });
         sendObjects(client, fallback); sendRobot(client); sendArcade(client); chat.state(client); sendLinks(client, fallback); sendIce(client); sendArena(client);
       } else if (changed) { pending.delete(person.id); broadcast({ type: 'player', player: person, reason: 'profile' }); }
-      sendPets(client, person.roomId);
+      if (person.continuous) { for (const area of ROOMS) if (roomAllowed(area.id)) { sendPets(client, area.id); sendObjects(client, area.id); } } else sendPets(client, person.roomId);
     }
     directoryDirty = true; voice.refresh(); sendFleet(); sendDailyEvent(); sendLostItems(); sendDevWorld(); sendDummies();
   };
@@ -450,7 +451,7 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
         }
         if (now - lastDevWorld < 250) { send(ws, { type: 'dev-world-result', actionId: message.actionId, error: '少し待ってから操作してください。' }); return; }
         lastDevWorld = now; world.apply(message, eventClock());
-        if (message.command === 'pokemon' || message.command === 'reset') { pets.replacePokemon(currentRoster(), store.list()); for (const [client, person] of players) sendPets(client, person.roomId); }
+        if (message.command === 'pokemon' || message.command === 'reset') { pets.replacePokemon(currentRoster(), store.list()); for (const [client, person] of players) { if (person.continuous) { for (const area of ROOMS) if (roomAllowed(area.id)) sendPets(client, area.id); } else sendPets(client, person.roomId); } }
         if (message.command === 'lost' || message.command === 'reset') sendLostItems();
         sendDailyEvent(); sendDevWorld(); send(ws, { type: 'dev-world-result', actionId: message.actionId }); return;
       }
@@ -614,7 +615,7 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
           if (existing) objects.splice(objects.indexOf(existing), 1, candidate);
           else objects.push(candidate);
         }).then(() => {
-          for (const [client, person] of players) if (person.roomId === roomId) sendObjects(client, roomId);
+          for (const [client, person] of players) if (person.continuous || person.roomId === roomId) sendObjects(client, roomId);
           sendLostItems();
           for (const person of players.values()) if (person.roomId === roomId && person.buddyPosition && !walkableWithObjects(person.buddyPosition.x, person.buddyPosition.y, roomId, roomObjects(roomId))) {
             resetBuddy(person, roomObjects(roomId)); pending.delete(person.id); broadcast({ type: 'player', player: person, reason: 'profile' });
@@ -623,6 +624,18 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
         }).catch((error: unknown) => send(ws, { type: 'object-result', editId: message.editId,
           error: error instanceof EditError ? error.message : '家具・小物を保存できませんでした。時間をおいて試してください。' }));
         return;
+      }
+      if (message.type === 'world-mode') {
+        player.continuous = message.enabled;
+        // A wall opening exists only in continuous mode. Return safely to an
+        // interior tile when switching back, without changing the user's area.
+        if (!message.enabled && !walkableWithObjects(player.x, player.y, player.roomId, collisionObjects(player.roomId))) {
+          Object.assign(player, spawn(player.roomId, ws)); resetBuddy(player, collisionObjects(player.roomId));
+        }
+        pending.delete(player.id);
+        broadcast({ type: 'player', player, reason: 'world-mode', requestId: message.requestId });
+        if (message.enabled) for (const room of ROOMS) if (roomAllowed(room.id)) { sendObjects(ws, room.id); sendPets(ws, room.id); }
+        voice.markDirty(); return;
       }
       if (message.type === 'profile') {
         player.name = identity?.user.name ?? message.name;
@@ -666,8 +679,27 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
         const [dx, dy] = vectors[message.direction];
         if (now >= (movementBlocks.get(player.id) ?? 0) && now - lastMove >= movementStep(player.riding?.kind) && (message.type !== 'dash' || now - lastDash >= DASH_COOLDOWN_MS)) {
           for (let step = 0; step < (message.type === 'dash' ? DASH_TILES : 1); step++) {
-            if (!walkableWithObjects(player.x + dx, player.y + dy, player.roomId, collisionObjects(player.roomId))) break;
-            const previous = { x: player.x, y: player.y }; player.x += dx; player.y += dy; advanceBuddy(player, previous);
+            const next = player.continuous ? worldStep(player, message.direction) : { roomId: player.roomId, x: player.x + dx, y: player.y + dy };
+            if (!next) break;
+            const traversable = player.continuous
+              ? continuousWalkable(next, roomAllowed) && !collisionObjects(next.roomId).some(o => objectContains(o, next.x, next.y) && OBJECT_CATALOG[o.kind].solid)
+              : walkableWithObjects(next.x, next.y, next.roomId, collisionObjects(next.roomId));
+            if (!traversable) break;
+            const crossed = next.roomId !== player.roomId;
+            const previous = { x: player.x, y: player.y };
+            if (crossed) { leaveArena(player.id); leaveArcade(player.id); }
+            Object.assign(player, next);
+            if (crossed) {
+              resetBuddy(player, collisionObjects(player.roomId)); pending.delete(player.id);
+              // Compact position frames omit area IDs. Publish the crossing
+              // before any later frame so every client keeps the correct origin.
+              broadcast({ type: 'player', player: { ...player }, reason: message.type });
+              sendObjects(ws, player.roomId); sendPets(ws, player.roomId); sendRobot(ws); sendArcade(ws);
+              chat.state(ws); sendLinks(ws, player.roomId); sendIce(ws); sendArena(ws);
+              // Clients update the directory from the authoritative crossing
+              // above. Resending all members to all users here is quadratic.
+              voice.refresh();
+            } else advanceBuddy(player, previous);
           }
           lastMove = now;
           if (message.type === 'dash') { lastDash = now; movementBlocks.set(player.id, now + DASH_MS); }

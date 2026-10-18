@@ -24,12 +24,14 @@ export class FocusUI {
   private lostExpanded = false;
   private statusObserver: MutationObserver;
   private feedbackTimer?: ReturnType<typeof setTimeout>;
-  constructor(signal: AbortSignal, private chat: ChatUI, private refreshMap: () => void, private clearMovement: () => void, mouseMode: (enabled: boolean) => void) {
+  constructor(signal: AbortSignal, private chat: ChatUI, private refreshMap: () => void, private clearMovement: () => void, mouseMode: (enabled: boolean) => void, worldMode: (enabled: boolean) => void) {
     this.toolbar.className = 'office-view-modes';
     this.mouse.id = 'mouse-move-toggle'; this.mouse.type = 'button'; this.mouse.textContent = 'クリックで移動'; this.mouse.setAttribute('aria-pressed', 'false');
     this.button.id = 'office-focus-toggle'; this.button.type = 'button'; this.button.textContent = '⛶ フォーカスモード'; this.button.setAttribute('aria-pressed', 'false');
     const help = document.createElement('span'); help.id = 'click-move-status'; help.setAttribute('role', 'status'); help.textContent = '矢印キー / WASDで移動';
-    this.toolbar.append(this.mouse, this.button, help); document.querySelector('.game-frame')!.before(this.toolbar);
+    const world = document.createElement('button'); world.id = 'world-mode-toggle'; world.type = 'button'; world.textContent = '上下左右につながるマップ'; world.setAttribute('aria-pressed', 'false');
+    world.addEventListener('click', () => worldMode(world.getAttribute('aria-pressed') !== 'true'), { signal });
+    this.toolbar.append(this.mouse, this.button, world, help); document.querySelector('.game-frame')!.before(this.toolbar);
     this.mouse.addEventListener('click', () => {
       const enabled = this.mouse.getAttribute('aria-pressed') !== 'true'; this.mouse.setAttribute('aria-pressed', String(enabled)); mouseMode(enabled);
       help.textContent = enabled ? '床をクリックで歩く · ダブルクリックで最大5マスダッシュ' : '矢印キー / WASDで移動';
@@ -68,7 +70,7 @@ export class FocusUI {
     // Reuse the original action handlers and their server-controlled disabled/toggle state.
     const quick = document.createDocumentFragment();
     const quickControls: { target: HTMLButtonElement; label: string; key?: string }[] = [
-      { target: this.mouse, label: 'クリック移動', key: 'M' }, { target: this.button, label: '通常表示に戻る', key: 'Escape' },
+      { target: world, label: '一枚マップ／従来の部屋表示' }, { target: this.mouse, label: 'クリック移動', key: 'M' }, { target: this.button, label: '通常表示に戻る', key: 'Escape' },
     ];
     for (const target of document.querySelectorAll<HTMLButtonElement>('.reaction-toolbar button')) {
       const kind = target.dataset.reaction as keyof typeof REACTIONS | undefined;

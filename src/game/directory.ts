@@ -26,3 +26,10 @@ export function searchPeople(people: readonly Person[], query: string, filter: '
     words.every((word) => normalize(`${p.name} ${p.slack?.userId ?? ''}`).includes(word)))
     .sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name, 'ja') || a.id.localeCompare(b.id));
 }
+
+// An account can have several tabs. Only the tab selected as the directory's
+// destination may update its area; movement never changes identity or presence.
+export function updateDirectoryArea(people: Person[], playerId: string, roomId: RoomId): Person[] {
+  const person = people.find(p => p.playerId === playerId && p.roomId !== roomId);
+  return person ? people.map(p => p === person ? { ...p, roomId } : p) : people;
+}

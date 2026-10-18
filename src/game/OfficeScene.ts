@@ -1,3 +1,5 @@
+import { ContinuousWorldView } from './continuous-world-view.ts';
+import { continuousWalkable, passage, roomOrigin, worldPoint, worldTile, WORLD_COLUMNS, WORLD_ROWS } from './continuous-world.ts';
 import { laptopThrowMotion } from './laptop-throw.ts';
 import { AdminUI } from './admin-ui.ts';
 import { DummyAvatarsUI } from './dummy-avatars-ui.ts';
@@ -38,11 +40,14 @@ import { SpellsView } from './spells-view.ts';
 import { DASH_MS } from './dash.ts';
 import { isPokemonKind } from './pokemon-journal.ts';
 import { BUDDIES } from './buddies.ts';
-import type { BuddyKind } from './buddies.ts';
+import type { BuddyKind, RoomPet } from './buddies.ts';
+import type { LostItem, LostItemsSnapshot } from './lost-items.ts';
+import type { VehicleUnit } from './transport.ts';
+import type { DailyEventSnapshot } from './daily-events.ts';
 import Phaser from 'phaser';
 import { avatarTexture, laptopTexture, createAvatarTextures, drawOffice, drawRoomObject } from './art.ts';
 import { Controls } from './controls.ts';
-import { Walker, areaAt, ROWS, TILE } from './world.ts';
+import { Walker, areaAt, COLS, ROWS, TILE } from './world.ts';
 import type { Direction, Furniture, Point } from './world.ts';
 import { OfficeConnection } from '../network/OfficeConnection.ts';
 import type { ConnectionState } from '../network/OfficeConnection.ts';
@@ -102,9 +107,19 @@ export class OfficeScene extends Phaser.Scene {
   private buddyChoice: BuddyKind | null = null;
   readonly walker = new Walker();
   private clickTravel = new ClickTravel();
+  private continuous = false;
+  private worldView?: ContinuousWorldView;
+  private worldLost?: LostItemsSnapshot;
+  private worldVehicles: VehicleUnit[] = [];
+  private worldEvent?: DailyEventSnapshot;
+  private worldSeats = new Map<RoomId, Map<string, SeatSpot>>();
+  private worldPets = new Map<RoomId, RoomPet[]>();
+  private worldObjects = new Map<RoomId, RoomObject[]>();
+  private neighborObjects = new Map<RoomId, Phaser.GameObjects.GameObject[]>();
   private clickTimer?: ReturnType<typeof setTimeout>;
   private lastClick?: { x: number; y: number; time: number; origin: Point };
   private mouseMovement = false;
+  private pointerBlockedUntil = 0;
   private travelIce?: IceSnapshot;
   private travelIceOffset = 0;
   private destinationMarker?: Phaser.GameObjects.Graphics;
@@ -173,14 +188,7 @@ export class OfficeScene extends Phaser.Scene {
   create(): void {
     configureArtCamera(this);
     this.mapViews = drawOffice(this, this.roomId, () => { if (this.editMode === 'none') this.dailyUI?.openCalendar(); }, (game) => { if (this.editMode === 'none') this.arcadeUI?.open(game); }, (item) => this.openBoard(item));
-    this.lostItems = new LostItemsView(this, this.inputController.signal, (item) => {
-      if (this.editMode !== 'none' || document.querySelector('dialog[open]:not(.chat-docked)')) return;
-      this.controls.clear();
-      const entry = LOST_ITEM_CATALOG[item.kind];
-      document.querySelector('#lost-item-title')!.textContent = entry.name;
-      document.querySelector('#lost-item-description')!.textContent = entry.note;
-      document.querySelector<HTMLDialogElement>('#lost-item-info')!.showModal();
-    });
+    this.lostItems = new LostItemsView(this, this.inputController.signal, item => this.inspectLostItem(item));
     document.querySelector('#lost-item-close')!.addEventListener('click', () => document.querySelector<HTMLDialogElement>('#lost-item-info')!.close(), { signal: this.inputController.signal });
     this.dailyUI = new DailyEventsUI(this.inputController.signal, (room) => this.connection?.changeRoom(room), () => {
       if (document.querySelector('dialog[open]:not(.chat-docked)')) return false;
@@ -202,15 +210,7 @@ export class OfficeScene extends Phaser.Scene {
       if (document.querySelector('dialog[open]:not(.chat-docked)')) return false;
       this.controls.clear(); this.setEditMode('none'); return true;
     });
-    this.companions = new CompanionsView(this, (kind, owner) => {
-      if (this.editMode !== 'none') return;
-      if (isPokemonKind(kind)) { this.pokemonJournal?.inspect(kind, this.roomId); return; }
-      this.controls.clear();
-      document.querySelector('#buddy-info-title')!.textContent = `${BUDDIES[kind].icon} ${BUDDIES[kind].name}`;
-      document.querySelector('#buddy-info-owner')!.textContent = owner;
-      document.querySelector('#buddy-info-description')!.textContent = BUDDIES[kind].description;
-      const dialog = document.querySelector<HTMLDialogElement>('#buddy-info')!; if (!dialog.open) dialog.showModal();
-    });
+    this.companions = new CompanionsView(this, (kind, owner) => this.inspectCompanion(kind, owner, this.roomId));
     this.avatar = this.makeAvatar(true);
     this.controls.attach(this.game.canvas);
     this.setupRoomTools();
@@ -237,7 +237,7 @@ export class OfficeScene extends Phaser.Scene {
       resolve: (id) => objectTargets(this.roomId, this.objects).find((o) => o.id === id),
       send: (edit) => this.connection?.editLinks(edit), open: () => this.controls.clear() });
     this.chatUI = new ChatUI(this.inputController.signal, action => this.connection?.chat(action) ?? false, () => { this.controls.clear(); this.setEditMode('none'); }, id => [...this.players.values()].find(p => playerIdentity(p) === id)?.slack);
-    this.focusUI = new FocusUI(this.inputController.signal, this.chatUI, () => this.game.scale.refresh(), () => { this.controls.clear(); this.setEditMode('none'); }, enabled => { this.mouseMovement = enabled; this.controls.clear(); this.setEditMode('none'); });
+    this.focusUI = new FocusUI(this.inputController.signal, this.chatUI, () => this.game.scale.refresh(), () => { this.pointerBlockedUntil = performance.now() + 300; this.controls.clear(); this.setEditMode('none'); }, enabled => { this.mouseMovement = enabled; this.controls.clear(); this.setEditMode('none'); }, enabled => { if (this.connected) { this.controls.clear(); this.connection?.worldMode(enabled); } });
     this.destinationMarker = this.add.graphics().setDepth(10000);
     this.speechView = new SpeechBubblesView(this, this.speech);
     this.directoryUI = new PeopleDirectory({ signal: this.inputController.signal,
@@ -276,18 +276,18 @@ export class OfficeScene extends Phaser.Scene {
         this.showRoom(players.find((p) => p.id === id)?.roomId ?? 'office');
         for (const player of players) this.receivePlayer(player, true);
       },
-      lostItems: (state) => this.lostItems?.receive(state),
+      lostItems: (state) => { this.worldLost = state; this.worldView?.lost(state); this.lostItems?.receive(state); },
       arcadeState: (state) => { if (this.roomId === 'arcade') this.arcadeUI?.receive(state); },
       arcadeResult: (result) => this.arcadeUI?.result(result.actionId, result.error),
       robotState: (state) => { if (this.roomId === 'cockpit') { this.cockpitUI?.receive(state); this.cockpitView?.receive(state); } },
       robotResult: (result) => this.cockpitUI?.result(result.actionId, result.error),
-      dailyEvent: (state) => { this.dailyUI?.receive(state); this.dailyView?.receive(state); this.skyWindow?.setDailyEvent(state); },
+      dailyEvent: (state) => { this.worldEvent = state; this.worldView?.event(state); this.dailyUI?.receive(state); this.dailyView?.receive(state); this.skyWindow?.setDailyEvent(state); },
       announcements: (state) => { this.announcementsUI?.snapshot(state); this.dailyUI?.receiveSchedules(state); this.focusUI?.receive(state); },
       birthdays: (state) => { this.birthdaysUI?.receive(state); this.dailyUI?.receiveBirthdays(state); },
       chat: event => {
         this.chatUI?.receive(event);
         if (event.type === 'chat-message' && this.connected) {
-          const now = performance.now(), ids = this.speech.receive(event.message, this.roomId, this.players.values(), now);
+          const now = performance.now(), ids = (this.continuous ? ROOMS.flatMap(room => this.speech.receive(event.message, room.id, this.players.values(), now)) : this.speech.receive(event.message, this.roomId, this.players.values(), now));
           const speech = ids.length ? this.speech.get(ids[0], now) : undefined; if (speech) this.speechView?.announce(speech);
         }
       },
@@ -295,7 +295,8 @@ export class OfficeScene extends Phaser.Scene {
       devWorld: (state) => this.devWorldUI?.receive(state),
       devWorldResult: (id, error) => this.devWorldUI?.result(id, error),
       policy: state => {
-        this.worldPolicy = state.policy; this.adminUI?.receive(state); this.dailyUI?.setPolicy(state.policy); this.updateRoomButtons();
+        const changed = JSON.stringify(this.worldPolicy) !== JSON.stringify(state.policy);
+        this.worldPolicy = state.policy; if (changed && this.continuous) { this.applyWorldMode(false); this.applyWorldMode(true); } this.adminUI?.receive(state); this.dailyUI?.setPolicy(state.policy); this.updateRoomButtons();
         document.dispatchEvent(new Event('waiwai-policy-changed'));
       },
       policyResult: (id, error) => this.adminUI?.result(id, error),
@@ -312,9 +313,9 @@ export class OfficeScene extends Phaser.Scene {
       },
       birthdayResult: (id, error) => this.birthdaysUI?.result(id, error),
       announcementResult: (id, error) => this.announcementsUI?.result(id, error),
-      vehicles: (units) => { this.vehicleUI?.inventory(units); this.vehicleDocks?.receive(units); },
+      vehicles: (units) => { this.worldVehicles = units; this.worldView?.vehicles(units); this.vehicleUI?.inventory(units); this.vehicleDocks?.receive(units); },
       vehicleResult: (id, error) => this.vehicleUI?.result(id, error),
-      pets: (roomId, pets) => this.companions?.pets(roomId, pets),
+      pets: (roomId, pets) => { this.worldPets.set(roomId, pets); this.worldView?.pets(roomId, pets); this.companions?.pets(roomId, pets); },
       player: (player, snap, reason) => this.receivePlayer(player, snap, reason),
       restResult: (error) => {
         this.restPending = false; this.updateReactionTools();
@@ -335,6 +336,8 @@ export class OfficeScene extends Phaser.Scene {
       travelComplete: () => this.directoryUI?.complete(),
       travelError: (error) => this.directoryUI?.fail(error),
       objects: (roomId, objects) => {
+        this.worldObjects.set(roomId, objects); this.worldSeats.set(roomId, seatSpots(roomId, objects));
+        if (this.worldView && roomId !== this.roomId) this.drawNeighborObjects(roomId);
         if (roomId !== this.roomId) return;
         this.objects = objects; this.dailyView?.setObjects(objects); this.seats = seatSpots(roomId, objects); this.participantsDirty = true; this.lighting?.setObjects(objects); this.objectsReady = true; this.drawObjects(); this.updateObjectTools();
         this.linksUI?.refreshTarget(); this.linksUI?.setReady(this.connected);
@@ -358,11 +361,12 @@ export class OfficeScene extends Phaser.Scene {
       document.querySelector('#connection-label')!.textContent = 'ログインを待っています';
     }
     const cleanup = () => {
+      this.worldView?.destroy(); this.worldView = undefined;
       this.controls.destroy();
       this.inputController.abort();
       this.voice?.destroy();
       this.connection?.destroy();
-      this.companions?.clear();
+      this.companions?.clear(); this.worldPets.clear();
       this.focusUI?.destroy();
       this.chatUI?.destroy();
       this.speechView?.destroy();
@@ -401,7 +405,7 @@ export class OfficeScene extends Phaser.Scene {
       this.controls.clear();
       this.clearPeers();
       this.players.clear();
-      this.companions?.clear();
+      this.companions?.clear(); this.worldView?.clearCompanions(); this.worldPets.clear();
       this.localId = undefined;
       this.objectsReady = false;
       this.setEditMode('none');
@@ -416,6 +420,8 @@ export class OfficeScene extends Phaser.Scene {
     document.querySelector('#app')!.setAttribute('data-connection', state);
     document.querySelector('#profile-presence')!.textContent = this.connected ? 'オフィスにいます' : '接続を待っています';
     (document.querySelector('#reset-position') as HTMLButtonElement).disabled = !this.connected;
+    (document.querySelector('#world-mode-toggle') as HTMLButtonElement).disabled = !this.connected;
+    if (this.connected && this.continuous) this.connection?.worldMode(true);
     this.updateRoomButtons();
     this.renderParticipants();
     this.chatUI?.connection(this.connected);
@@ -472,7 +478,14 @@ export class OfficeScene extends Phaser.Scene {
         this.appearancePickup?.(this.appearance);
         document.querySelector('#office-notice')!.textContent = '自販機でペットボトルを受け取りました。ひと息つこう。';
       }
-      if (player.roomId !== this.roomId) this.showRoom(player.roomId);
+      if (reason === 'world-mode' && !!player.continuous !== this.continuous) this.applyWorldMode(!!player.continuous);
+      const crossing = this.continuous && player.roomId !== this.roomId && (reason === 'move' || reason === 'dash' || reason === undefined);
+      if (crossing) {
+        const before = roomOrigin(this.roomId), after = roomOrigin(player.roomId);
+        this.walker.translate(before.x - after.x, before.y - after.y);
+      }
+      if (player.roomId !== this.roomId) this.showRoom(player.roomId, crossing);
+      if (reason === 'world-mode') snap = true;
       if (reason === 'policy') {
         this.controls.clear(); this.setEditMode('none');
         document.querySelector('#office-notice')!.textContent = '管理者がフロアを休止したため、公開中のフロアへ移動しました。';
@@ -485,7 +498,7 @@ export class OfficeScene extends Phaser.Scene {
       this.walker.setStepMs(reason === 'dash' ? DASH_MS : movementStep(player.riding?.kind));
       this.walker.receive(player, player.facing, snap, reason === 'dash');
       this.vehicleUI?.setPlayer(player);
-    } else if (player.roomId !== this.roomId) {
+    } else if (!this.continuous && player.roomId !== this.roomId) {
       const peer = this.peers.get(player.id);
       if (peer) this.destroyView(peer.view);
       this.peers.delete(player.id);
@@ -501,18 +514,23 @@ export class OfficeScene extends Phaser.Scene {
         this.peers.set(player.id, peer);
         snap = true;
       }
+      if (this.continuous && peer.player.roomId !== player.roomId) {
+        const before = roomOrigin(peer.player.roomId), after = roomOrigin(player.roomId);
+        peer.walker.translate(before.x - after.x, before.y - after.y);
+      }
       peer.player = player;
+      if (this.worldView) this.worldView.bind(player.roomId, Object.values(peer.view).filter(v => v instanceof Phaser.GameObjects.GameObject) as Phaser.GameObjects.GameObject[]);
       peer.walker.setStepMs(reason === 'dash' ? DASH_MS : movementStep(player.riding?.kind));
       peer.walker.receive(player, player.facing, snap, reason === 'dash');
     }
-    this.companions?.player(player, snap);
+    this.companions?.player(player, snap); this.worldView?.player(player, snap);
     this.participantsDirty = true;
     this.voice?.setWorld(this.localId, this.players, player.id);
   }
 
   private removePlayer(id: string): void {
     this.speechView?.remove(id);
-    this.companions?.remove(id);
+    this.companions?.remove(id); this.worldView?.removePlayer(id);
     this.reactions.delete(id);
     const peer = this.peers.get(id);
     if (peer) this.destroyView(peer.view);
@@ -619,11 +637,12 @@ export class OfficeScene extends Phaser.Scene {
     if (!dialog.open) dialog.showModal();
   }
 
-  private showRoom(id: RoomId): void {
+  private showRoom(id: RoomId, seamless = false): void {
     this.speechView?.clear();
-    this.controls.clear(); this.travelIce = undefined;
+    if (!seamless) this.controls.clear(); this.travelIce = undefined;
     this.spellsView?.clear();
     this.reactions.clear();
+    this.worldView?.setRoom(id);
     this.roomId = id; this.combatUI?.setRoom(id); this.arcadeUI?.setRoom(id); this.cockpitUI?.setRoom(id); this.cockpitView?.setRoom(id);
     this.companions?.setRoom(id);
     this.lighting?.setRoom(id);
@@ -633,13 +652,20 @@ export class OfficeScene extends Phaser.Scene {
     this.frontBoard = undefined; this.linksUI?.reset();
     this.atDoor = false;
     this.lastArea = '';
-    this.clearPeers();
-    this.setEditMode('none');
+    if (!this.continuous) this.clearPeers();
+    if (!seamless) this.setEditMode('none');
     this.lostItems?.setRoom(id); document.querySelector('#office-notice')!.textContent = '';
     this.seats.clear(); this.objects = []; this.objectsReady = false; this.pendingEdit = undefined;
-    for (const view of [...this.mapViews, ...this.objectViews]) view.destroy();
+    for (const view of this.objectViews) view.destroy();
     this.objectViews = [];
-    this.mapViews = drawOffice(this, id, () => { if (this.editMode === 'none') this.dailyUI?.openCalendar(); }, (game) => { if (this.editMode === 'none') this.arcadeUI?.open(game); }, (item) => this.openBoard(item));
+    if (this.worldView) {
+      this.mapViews = this.worldView.map(id);
+      for (const view of this.neighborObjects.get(id) ?? []) view.destroy();
+      this.neighborObjects.delete(id);
+      for (const room of ROOMS) if (room.id !== id) this.drawNeighborObjects(room.id);
+    } else { for (const view of this.mapViews) view.destroy(); this.mapViews = this.drawMap(id); }
+    if (this.worldView && this.worldObjects.has(id)) { this.objects = this.worldObjects.get(id)!; this.objectsReady = true; this.drawObjects(); this.seats = seatSpots(id, this.objects); this.dailyView?.setObjects(this.objects); }
+    this.updateWorldMask();
     this.dailyView?.setDecorations(this.mapViews);
     const room = getRoom(id);
     this.game.canvas.setAttribute('aria-label', `${room.name}。矢印キーまたはWASDで移動。Tabキーでマップから移動できます。`);
@@ -651,7 +677,10 @@ export class OfficeScene extends Phaser.Scene {
     document.querySelector('.map-legend')!.textContent = id === 'arcade' ? '8台の筐体で、対戦・協力・リズム遊び。ひとりでも気軽にどうぞ。' : id === 'cockpit' ? '操縦パネルでシミュレーターへ。機体の部位から、各部屋へ移動できます。' : `${room.description} 近づいて会話。人をクリックしてSlackへ、家具をクリックしてリンクへ。`;
     this.updateRoomButtons();
     // Other-room roster entries are kept for occupancy, but avatars stay local.
-    for (const player of this.players.values()) if (player.id !== this.localId && player.roomId === id) this.receivePlayer(player, true);
+    for (const player of this.players.values()) if (player.id !== this.localId && player.roomId === id) {
+      if (this.continuous) this.companions?.player(player, true); else this.receivePlayer(player, true);
+    }
+    if (this.continuous) this.companions?.pets(id, this.worldPets.get(id) ?? []);
     this.updateObjectTools();
   }
 
@@ -692,6 +721,7 @@ export class OfficeScene extends Phaser.Scene {
     document.addEventListener('keydown', (event) => { if (event.key === 'Escape') this.setEditMode('none'); }, { signal });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => this.previewObject(pointer));
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
+      if (performance.now() < this.pointerBlockedUntil) return;
       if (this.editMode === 'none' && over.length) return;
       if (pointer.button !== 0 || pointer.getDistance() > 8) return;
       if (this.editMode === 'none' && this.mouseMovement && this.connected && this.objectsReady && !this.isResting() && !this.restPending && !document.querySelector('dialog[open]:not(.chat-docked)')) {
@@ -699,11 +729,11 @@ export class OfficeScene extends Phaser.Scene {
         const tile = { x: Math.floor(point.x / TILE), y: Math.floor(point.y / TILE) };
         if (this.travelWalkable(tile.x, tile.y)) {
           const double = this.lastClick && this.lastClick.x === tile.x && this.lastClick.y === tile.y && performance.now() - this.lastClick.time <= 320;
-          const origin = this.lastClick?.origin ?? { ...this.walker.tile };
+          const origin = this.lastClick?.origin ?? this.travelPosition();
           this.clickTravel.clear(); clearTimeout(this.clickTimer);
           const travel = () => {
             if (!this.mouseMovement || !this.connected || this.isResting() || document.querySelector('dialog[open]:not(.chat-docked)')) return;
-            const ok = this.clickTravel.set(double ? origin : this.walker.tile, tile, (x,y) => this.travelWalkable(x,y), !!double);
+            const ok = this.clickTravel.set(double ? origin : this.travelPosition(), tile, (x,y) => this.travelWalkable(x,y), !!double);
             document.querySelector('#click-move-status')!.textContent = !ok ? 'そこへ歩ける通路がありません。' : double ? 'ダッシュ！ · 壁の手前で止まります' : '目的地まで移動中 · キー操作で中止';
           };
           if (double) { this.lastClick = undefined; travel(); }
@@ -795,13 +825,14 @@ export class OfficeScene extends Phaser.Scene {
     for (const view of this.objectViews) view.destroy();
     this.objectViews = this.objects.map((o) => drawRoomObject(this, o));
     this.dailyView?.setDecorations([...this.mapViews, ...this.objectViews]);
+    this.worldView?.objects(this.roomId, this.objects, this.objectViews);
   }
   private previewObject(pointer: Phaser.Input.Pointer): void {
     this.ghost?.destroy(); this.ghost = undefined;
     if (!this.objectsReady || this.pendingEdit || (this.editMode !== 'place' && !(this.editMode === 'move' && this.selectedObject))) return;
     const selected = this.objects.find((o) => o.id === this.selectedObject);
     const object: RoomObject = { id: selected?.id ?? 'preview', owner: this.owner(), roomId: this.roomId,
-      kind: selected?.kind ?? this.objectKind, x: Math.floor((pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2).x / TILE), y: Math.floor((pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2).y / TILE), rotation: this.objectRotation };
+      kind: selected?.kind ?? this.objectKind, x: Math.floor(this.localPointer(pointer).x / TILE), y: Math.floor(this.localPointer(pointer).y / TILE), rotation: this.objectRotation };
     const error = placementProblem(object, this.objects, [...this.players.values()]);
     this.ghost = drawRoomObject(this, object).setAlpha(error ? 0.25 : 0.65).setDepth(2000);
     const { w, h } = objectSize(object.kind);
@@ -813,10 +844,10 @@ export class OfficeScene extends Phaser.Scene {
     if (target) this.linksUI?.open(target);
   }
   private editAt(pointer: Phaser.Input.Pointer): void {
-    const x = Math.floor((pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2).x / TILE), y = Math.floor((pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2).y / TILE);
+    const x = Math.floor(this.localPointer(pointer).x / TILE), y = Math.floor(this.localPointer(pointer).y / TILE);
     if (this.editMode === 'none') {
       const door = getRoom(this.roomId).door;
-      if (this.roomId !== 'arena' && x === door.x && y === door.y) this.openRoomPicker();
+      if (!this.continuous && this.roomId !== 'arena' && x === door.x && y === door.y) this.openRoomPicker();
       else if (this.connected && this.objectsReady) { const target = targetAt(this.roomId, this.objects, { x, y }); if (target?.kind === 'calendar') this.dailyUI?.openCalendar(); else if (target?.kind === 'arcade' && this.roomId === 'arcade') this.arcadeUI?.open(ARCADE_IDS.find((id) => x >= ARCADE_GAMES[id].x && x < ARCADE_GAMES[id].x + 3 && y >= ARCADE_GAMES[id].y && y < ARCADE_GAMES[id].y + 3)); else if (target && this.roomId === 'cockpit' && (ROBOT_CONSOLE_KINDS as readonly string[]).includes(target.kind)) this.cockpitUI?.open(); else if (target) this.linksUI?.open(target); }
       return;
     }
@@ -852,7 +883,8 @@ export class OfficeScene extends Phaser.Scene {
     if (reaction && !motion) { this.reactions.delete(id!); this.participantsDirty = true; }
     const riding = id ? this.players.get(id)?.riding : undefined;
     const resting = !!(id && this.players.get(id)?.resting);
-    const seat = this.connected && this.objectsReady && !resting ? restingSeat(this.seats, walker.tile, walker.moving, !!riding, !!motion) : undefined;
+    const seatMap = this.continuous && id && this.players.get(id)?.roomId !== this.roomId ? this.worldSeats.get(this.players.get(id)!.roomId) ?? this.seats : this.seats;
+    const seat = this.connected && this.objectsReady && !resting ? restingSeat(seatMap, walker.tile, walker.moving, !!riding, !!motion) : undefined;
     if (view.seatId !== seat?.id) { view.seatId = seat?.id; this.participantsDirty = true; }
     if (seat) { x = seat.anchor.x; y = seat.anchor.y; }
     const walk = walkingMotion(appearance.walkStyle, time, walker.facing, walker.moving && !motion && !riding && !seat && !resting, this.reducedMotion);
@@ -905,8 +937,79 @@ export class OfficeScene extends Phaser.Scene {
     }
   }
 
+  private inspectLostItem(item: LostItem): void {
+      if (this.editMode !== 'none' || document.querySelector('dialog[open]:not(.chat-docked)')) return;
+      this.controls.clear();
+      const entry = LOST_ITEM_CATALOG[item.kind];
+      document.querySelector('#lost-item-title')!.textContent = entry.name;
+      document.querySelector('#lost-item-description')!.textContent = entry.note;
+      document.querySelector<HTMLDialogElement>('#lost-item-info')!.showModal();
+  }
+
+  private inspectCompanion(kind: BuddyKind, owner: string, room: RoomId): void {
+      if (this.editMode !== 'none') return;
+      if (isPokemonKind(kind)) { this.pokemonJournal?.inspect(kind, room); return; }
+      this.controls.clear();
+      document.querySelector('#buddy-info-title')!.textContent = `${BUDDIES[kind].icon} ${BUDDIES[kind].name}`;
+      document.querySelector('#buddy-info-owner')!.textContent = owner;
+      document.querySelector('#buddy-info-description')!.textContent = BUDDIES[kind].description;
+      const dialog = document.querySelector<HTMLDialogElement>('#buddy-info')!; if (!dialog.open) dialog.showModal();
+  }
+
+  private travelPosition(): Point { return this.continuous ? worldPoint({ ...this.walker.tile, roomId: this.roomId }) : { ...this.walker.tile }; }
+  private localPointer(pointer: Phaser.Input.Pointer): Point {
+    const point = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
+    const origin = this.continuous ? roomOrigin(this.roomId) : { x: 0, y: 0 };
+    return { x: point.x - origin.x * TILE, y: point.y - origin.y * TILE };
+  }
+  private drawMap(id: RoomId, continuous = false): Phaser.GameObjects.GameObject[] {
+    return drawOffice(this, id, () => { if (this.editMode === 'none') this.dailyUI?.openCalendar(); },
+      game => { if (this.editMode === 'none' && id === this.roomId) this.arcadeUI?.open(game); },
+      item => { if (id === this.roomId) this.openBoard(item); }, continuous ? (x,y) => passage(id, x, y, area => policyAllows(this.worldPolicy, 'rooms', area)) : undefined);
+  }
+  private updateWorldMask(): void {
+    const origin = this.continuous ? roomOrigin(this.roomId) : { x: 0, y: 0 };
+    this.dailyView?.setWorldOffset(origin.x * TILE, origin.y * TILE);
+  }
+  private drawNeighborObjects(id: RoomId): void {
+    if (!this.worldView || id === this.roomId) return;
+    for (const view of this.neighborObjects.get(id) ?? []) view.destroy();
+    const views = (this.worldObjects.get(id) ?? []).map(o => drawRoomObject(this, o));
+    this.neighborObjects.set(id, views); this.worldView.bind(id, views); this.worldView.objects(id, this.worldObjects.get(id) ?? [], views);
+  }
+  private applyWorldMode(enabled: boolean): void {
+    this.pointerBlockedUntil = performance.now() + 300;
+    this.speechView?.clear();
+    this.controls.clear(); this.setEditMode('none'); this.clearPeers();
+    this.continuous = enabled;
+    if (enabled) for (const room of ROOMS) this.worldSeats.set(room.id, seatSpots(room.id, this.worldObjects.get(room.id) ?? []));
+    this.clickTravel = new ClickTravel(enabled ? { width: WORLD_COLUMNS * COLS, height: WORLD_ROWS * ROWS } : undefined);
+    this.worldView?.destroy(); this.worldView = undefined; this.neighborObjects.clear();
+    for (const view of this.mapViews) view.destroy();
+    if (enabled) { this.worldView = new ContinuousWorldView(this, this.roomId, id => this.drawMap(id, true), () => { if (this.editMode === 'none') this.dailyUI?.inspect(); }, (kind, owner, room) => this.inspectCompanion(kind, owner, room), id => { if (this.editMode === 'none') this.vehicleUI?.open(id); }, item => this.inspectLostItem(item)); this.mapViews = this.worldView.map(this.roomId); for (const room of ROOMS) this.drawNeighborObjects(room.id); }
+    else this.mapViews = this.drawMap(this.roomId);
+    if (this.worldView) {
+      if (this.worldEvent) this.worldView.event(this.worldEvent);
+      if (this.worldLost) this.worldView.lost(this.worldLost);
+      this.worldView.vehicles(this.worldVehicles);
+      for (const [id, pets] of this.worldPets) this.worldView.pets(id, pets);
+      this.worldView.objects(this.roomId, this.objects, this.objectViews);
+    }
+    this.dailyView?.setDecorations([...this.mapViews, ...this.objectViews]); this.updateWorldMask();
+    for (const player of this.players.values()) if (player.id !== this.localId) this.receivePlayer(player, true);
+    const button = document.querySelector<HTMLButtonElement>('#world-mode-toggle')!;
+    button.setAttribute('aria-pressed', String(enabled));
+    document.querySelector('#click-move-status')!.textContent = enabled ? '一枚マップ · 上下左右につながるオフィスを、そのまま歩いて移動できます。' : '従来の部屋表示に戻しました。';
+    document.querySelector('.game-frame')!.classList.toggle('continuous-world', enabled);
+    this.game.canvas.focus({ preventScroll: true });
+  }
+
   private travelWalkable(x: number, y: number): boolean {
-    return walkableWithObjects(x, y, this.roomId, this.objects) && !this.travelIce?.shields.some(s => s.roomId === this.roomId && s.x === x && s.y === y && s.expiresAt > Date.now() + this.travelIceOffset);
+    const tile = this.continuous ? worldTile(x, y) : { roomId: this.roomId, x, y };
+    if (!tile) return false;
+    const objects = this.worldObjects.get(tile.roomId) ?? (tile.roomId === this.roomId ? this.objects : []);
+    return (this.continuous ? continuousWalkable(tile, id => policyAllows(this.worldPolicy, 'rooms', id)) && !objects.some(o => OBJECT_CATALOG[o.kind].solid && objectContains(o, tile.x, tile.y))
+      : walkableWithObjects(x, y, this.roomId, this.objects)) && !this.travelIce?.shields.some(s => s.roomId === tile.roomId && s.x === tile.x && s.y === tile.y && s.expiresAt > Date.now() + this.travelIceOffset);
   }
 
   update(time: number, delta: number): void {
@@ -927,19 +1030,20 @@ export class OfficeScene extends Phaser.Scene {
     if (this.isResting() || this.restPending) this.controls.clear();
     if (this.editMode === 'none' && !this.isResting() && !this.restPending && !this.walker.moving && this.connection?.readyToMove) {
       const dash = this.controls.takeDash(), direction = dash ?? this.controls.direction();
-      const click = !direction && this.mouseMovement ? this.clickTravel.next(this.walker.tile, (x,y) => this.travelWalkable(x,y)) : undefined;
+      const click = !direction && this.mouseMovement ? this.clickTravel.next(this.travelPosition(), (x,y) => this.travelWalkable(x,y)) : undefined;
       if (this.clickTravel.lastStop) { document.querySelector('#click-move-status')!.textContent = this.clickTravel.lastStop === 'arrived' ? '到着しました。床をクリックすると移動できます。' : '通路がふさがったため停止しました。別の場所を選んでください。'; this.clickTravel.lastStop = undefined; }
       const next = direction ?? click?.direction;
       if (next) { if (direction) this.clickTravel.clear(); if (this.localId) this.reactions.delete(this.localId); if (dash || click?.dash) this.connection.dash(next); else this.connection.move(next); }
     }
     this.destinationMarker?.clear();
-    if (this.clickTravel.goal) { const p = this.clickTravel.goal; this.destinationMarker?.lineStyle(1, 0xffed9c, 0.9).strokeRect(p.x * TILE + 2, p.y * TILE + 2, TILE - 4, TILE - 4); }
+    if (this.clickTravel.goal) { const goal = this.clickTravel.goal, origin = this.continuous ? roomOrigin(this.roomId) : { x: 0, y: 0 }, p = { x: goal.x - origin.x, y: goal.y - origin.y }; this.destinationMarker?.lineStyle(1, 0xffed9c, 0.9).strokeRect(p.x * TILE + 2, p.y * TILE + 2, TILE - 4, TILE - 4); }
     this.speechView?.beginFrame();
     this.drawAvatar(this.avatar, this.walker, this.appearance, this.playerName, time, this.localId);
     this.avatar.sprite.setAlpha(this.connected ? 1 : 0.45);
     for (const peer of this.peers.values()) {
       peer.walker.update(delta);
       this.drawAvatar(peer.view, peer.walker, parseAppearance(peer.player.appearance, peer.player.outfit)!, peer.player.name + (this.speaking.has(peer.player.id) ? ' ♪' : ''), time, peer.player.id);
+      const bubble = this.speechView?.container(peer.player.id); if (bubble && this.worldView) this.worldView.bind(peer.player.roomId, [bubble]);
     }
     this.speechView?.endFrame();
     const area = areaAt({ ...this.walker.tile, roomId: this.roomId });
@@ -948,7 +1052,7 @@ export class OfficeScene extends Phaser.Scene {
       document.querySelectorAll('[data-current-area]').forEach((element) => { element.textContent = area; });
     }
     const door = getRoom(this.roomId).door;
-    const atDoor = this.roomId !== 'arena' && this.walker.tile.x === door.x && this.walker.tile.y === door.y;
+    const atDoor = !this.continuous && this.roomId !== 'arena' && this.walker.tile.x === door.x && this.walker.tile.y === door.y;
     if (atDoor && !this.atDoor && this.connected && this.editMode === 'none') this.openRoomPicker();
     this.atDoor = atDoor;
     const board = boardInFront(this.roomId, this.walker.tile);
@@ -957,6 +1061,10 @@ export class OfficeScene extends Phaser.Scene {
       !document.querySelector('dialog[open]:not(.chat-docked)') && this.linksUI?.hasLinks(board.id)) {
       this.frontBoard = board.id; this.linksUI.open(board);
     }
+    this.worldView?.update(this.walker.position(), id => policyAllows(this.worldPolicy, 'rooms', id), time, delta, this.reducedMotion);
+    this.game.canvas.dataset.worldMode = String(this.continuous);
+    const global = worldPoint({ ...this.walker.tile, roomId: this.roomId });
+    this.game.canvas.dataset.worldX = String(global.x); this.game.canvas.dataset.worldY = String(global.y);
     this.game.canvas.dataset.roomId = this.roomId;
     this.game.canvas.dataset.roomObjects = String(this.objects.length);
     this.game.canvas.dataset.tileX = String(this.walker.tile.x);

@@ -16,19 +16,19 @@ export class CompanionsView {
   private textures = new Set<string>();
   constructor(scene: Phaser.Scene, click: (kind: BuddyKind, owner: string) => void) { this.scene = scene; this.click = click; }
   private click: (kind: BuddyKind, owner: string) => void;
-  setRoom(room: RoomId): void { this.clear(); this.room = room; this.scene.game.canvas.dataset.roomPets = '[]'; }
+  setRoom(room: RoomId, publish = true): void { this.clear(); this.room = room; if (publish) this.scene.game.canvas.dataset.roomPets = '[]'; }
   clear(): void { for (const id of this.views.keys()) this.remove(id); }
   remove(id: string): void { const view = this.views.get(id); view?.sprite.destroy(); view?.shadow.destroy(); this.views.delete(id); }
   player(player: Player, snap: boolean): void {
     if (player.roomId !== this.room || !player.buddy || !player.buddyPosition) { this.remove(player.id); return; }
     this.receive(player.id, player.buddy, player.buddyPosition, `${player.name}さんのバディ`, snap, false, movementStep(player.riding?.kind));
   }
-  pets(room: RoomId, pets: RoomPet[]): void {
+  pets(room: RoomId, pets: RoomPet[], publish = true): void {
     if (room !== this.room) return;
     const live = new Set(pets.map((p) => p.id));
     for (const id of this.views.keys()) if (id.startsWith('pet:') && !live.has(id)) this.remove(id);
     for (const pet of pets) this.receive(pet.id, pet.kind, pet, `${getRoom(room).name}を散歩中 · 館内に1体の${BUDDIES[pet.kind].name}`, false, true);
-    this.scene.game.canvas.dataset.roomPets = JSON.stringify(pets);
+    if (publish) this.scene.game.canvas.dataset.roomPets = JSON.stringify(pets);
   }
   private receive(id: string, kind: BuddyKind, position: BuddyPosition, owner: string, snap: boolean, pet: boolean, stepMs?: number): void {
     let view = this.views.get(id);
