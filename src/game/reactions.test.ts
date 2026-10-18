@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { REACTIONS, REACTION_KINDS, isReactionKind, reactionMotion } from './reactions.ts';
 import type { AvatarPose } from './reactions.ts';
-import { avatarPixels, DEFAULT_APPEARANCE } from './avatar.ts';
+import { AVATAR_OPTIONS, avatarPixels, DEFAULT_APPEARANCE } from './avatar.ts';
 import { parseClientMessage } from '../network/protocol.ts';
 
 test('only built-in reactions are accepted and clients cannot choose another actor, room or position', () => {
@@ -20,7 +20,7 @@ test('rest is an explicit boolean state, independent of timed reactions and cont
 });
 
 test('lying down is a still horizontal pose that preserves appearance and fits its wider texture', () => {
-  for (let body = 0; body < 3; body++) for (let height = 0; height < 3; height++) for (let hair = 0; hair < 5; hair++) for (let accessory = 0; accessory < 4; accessory++) for (let heldItem = 0; heldItem < 4; heldItem++) {
+  for (let body = 0; body < 3; body++) for (let height = 0; height < 3; height++) for (let hair = 0; hair < 5; hair++) for (let accessory = 0; accessory < 4; accessory++) for (let heldItem = 0; heldItem < AVATAR_OPTIONS.heldItem.choices.length; heldItem++) {
     const appearance = { ...DEFAULT_APPEARANCE, body, height, hair, accessory, heldItem };
     const pixels = avatarPixels(appearance, 'down', 0, 'lie');
     for (const direction of ['up', 'down', 'left', 'right']) for (let frame = 0; frame < 3; frame++) assert.deepEqual(avatarPixels(appearance, direction, frame, 'lie'), pixels);
@@ -68,7 +68,7 @@ test('gestures draw actual bowed heads and raised hands while every appearance s
   assert.ok(raised.some((p) => p.color === 0xf2cba2 && p.x < 4 && p.y < 5));
   assert.ok(raised.some((p) => p.color === 0xf2cba2 && p.x > 15 && p.y < 5));
   for (let body = 0; body < 3; body++) for (let height = 0; height < 3; height++) for (let hair = 0; hair < 5; hair++) for (let accessory = 0; accessory < 4; accessory++) {
-    for (const pose of ['stand', 'bow', 'raise', 'happy'] as AvatarPose[]) for (const direction of ['up', 'down', 'left', 'right']) for (let frame = 0; frame < 3; frame++) {
+    for (const pose of ['stand', 'bow', 'raise', 'happy', 'angry'] as AvatarPose[]) for (const direction of ['up', 'down', 'left', 'right']) for (let frame = 0; frame < 3; frame++) {
       for (const p of avatarPixels({ ...DEFAULT_APPEARANCE, body, height, hair, accessory }, direction, frame, pose)) {
         assert.ok(p.x >= 0 && p.y >= 0 && p.x + p.w <= 20 && p.y + p.h <= 28, JSON.stringify({ body, height, hair, accessory, direction, frame, pose, p }));
       }

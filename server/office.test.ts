@@ -586,10 +586,10 @@ test('reactions share only with the current room, use the authenticated connecti
   const { connect } = await fixture(t); const a = await connect(), b = await connect(), c = await connect();
   c.send({ type: 'change-room', roomId: 'cafe', requestId: 1 }); await c.next('objects', (m) => m.roomId === 'cafe');
   a.send({ type: 'move', direction: 'right', requestId: 1 });
-  a.send({ type: 'reaction', kind: 'bow', playerId: b.welcome.id, roomId: 'cafe', x: 999, y: 999 });
+  a.send({ type: 'reaction', kind: 'anger', playerId: b.welcome.id, roomId: 'cafe', x: 999, y: 999 });
   const baseline = (await a.next('player', (m) => m.reason === 'move' && m.player.id === a.welcome.id && m.requestId === 1)).player;
   const self = await a.next('reaction'), shared = await b.next('reaction');
-  assert.deepEqual(shared, { type: 'reaction', kind: 'bow', playerId: a.welcome.id, roomId: 'office' });
+  assert.deepEqual(shared, { type: 'reaction', kind: 'anger', playerId: a.welcome.id, roomId: 'office' });
   assert.deepEqual(shared, self);
   const stepIndex = b.seen.findIndex((m) => m.type === 'positions' && m.positions.some(([slot]) => slot === baseline.slot));
   assert.ok(stepIndex >= 0 && stepIndex < b.seen.findIndex((m) => m.type === 'reaction'));
@@ -606,6 +606,19 @@ test('reactions share only with the current room, use the authenticated connecti
   assert.equal((await c.next('reaction')).playerId, a.welcome.id);
   await a.next('reaction', (m) => m.kind === 'jump');
   assert.equal(b.seen.filter((m) => m.type === 'reaction').length, 1);
+});
+
+test('laptops synchronize as held items and anger never consumes the selected item or creates floor objects', async (t) => {
+  const { connect } = await fixture(t); const a = await connect(), b = await connect();
+  const appearance = { ...DEFAULT_APPEARANCE, heldItem: 4 };
+  a.send({ type: 'profile', name: 'Laptop', outfit: 0, appearance });
+  assert.deepEqual((await b.next('player', m => m.player.id === a.welcome.id && m.reason === 'profile')).player.appearance, appearance);
+  const objectsBefore = b.seen.filter(m => m.type === 'objects').length;
+  a.send({ type: 'reaction', kind: 'anger' });
+  assert.equal((await b.next('reaction')).kind, 'anger');
+  const late = await connect();
+  assert.equal(late.welcome.players.find(p => p.id === a.welcome.id)!.appearance!.heldItem, 4);
+  assert.equal(b.seen.filter(m => m.type === 'objects').length, objectsBefore);
 });
 
 test('lying persists until an explicit stand request, survives profile and room changes, and reaches peers and late arrivals', async (t) => {

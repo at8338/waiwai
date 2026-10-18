@@ -1,3 +1,4 @@
+import { laptopThrowMotion } from './laptop-throw.ts';
 import { ART_WIDTH, ART_HEIGHT, configureArtCamera } from './art-resolution.ts';
 import { ChatUI } from './chat-ui.ts';
 import { playerIdentity } from './identity.ts';
@@ -31,7 +32,7 @@ import { isPokemonKind } from './pokemon-journal.ts';
 import { BUDDIES } from './buddies.ts';
 import type { BuddyKind } from './buddies.ts';
 import Phaser from 'phaser';
-import { avatarTexture, createAvatarTextures, drawOffice, drawRoomObject } from './art.ts';
+import { avatarTexture, laptopTexture, createAvatarTextures, drawOffice, drawRoomObject } from './art.ts';
 import { Controls } from './controls.ts';
 import { Walker, areaAt, ROWS, TILE } from './world.ts';
 import type { Direction, Furniture } from './world.ts';
@@ -57,6 +58,7 @@ type AvatarView = {
   seatId?: string;
   sprite: Phaser.GameObjects.Image;
   vehicle: Phaser.GameObjects.Image;
+  laptop: Phaser.GameObjects.Image;
   shadow: Phaser.GameObjects.Graphics;
   label: Phaser.GameObjects.Text;
   reactionLabel: Phaser.GameObjects.Text;
@@ -141,7 +143,8 @@ export class OfficeScene extends Phaser.Scene {
       backgroundColor: '#fff0bf', padding: { x: 4, y: 2 } }).setOrigin(0.5, 1).setResolution(2).setVisible(false);
     const sparkles = this.add.graphics();
     const vehicle = this.add.image(0, 0, vehicleTexture(this, 'bike', 'down', 0)).setOrigin(0.5, 1).setVisible(false);
-    return { sprite, vehicle, shadow, label, reactionLabel, sparkles };
+    const laptop = this.add.image(0, 0, laptopTexture(this)).setVisible(false);
+    return { sprite, vehicle, laptop, shadow, label, reactionLabel, sparkles };
   }
 
   create(): void {
@@ -366,7 +369,7 @@ export class OfficeScene extends Phaser.Scene {
     this.directoryUI?.setConnection(this.connected, this.localId);
     this.updateObjectTools();
     this.updateReactionTools();
-    if (this.connected) document.querySelector('#reaction-status')!.textContent = 'ボタンやマップ操作中の1〜4キーでリアクション。5キーで寝転ぶ／起き上がる。';
+    if (this.connected) document.querySelector('#reaction-status')!.textContent = 'ボタンやマップ操作中の1〜4・6キーでリアクション。5キーで寝転ぶ／起き上がる。';
   }
 
   private renderVoice(state: VoiceUI): void {
@@ -394,7 +397,7 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   private destroyView(view: AvatarView): void {
-    view.sprite.destroy(); view.vehicle.destroy(); view.shadow.destroy(); view.label.destroy(); view.reactionLabel.destroy(); view.sparkles.destroy();
+    view.sprite.destroy(); view.laptop.destroy(); view.vehicle.destroy(); view.shadow.destroy(); view.label.destroy(); view.reactionLabel.destroy(); view.sparkles.destroy();
   }
 
   private receivePlayer(player: Player, snap: boolean, reason?: string): void {
@@ -626,8 +629,8 @@ export class OfficeScene extends Phaser.Scene {
       if (event.code === 'Digit5') { event.preventDefault(); this.toggleRest(); return; }
       if (event.code === 'KeyF' || event.code === 'KeyB') { event.preventDefault(); this.spellsUI?.quick(event.code === 'KeyF' ? 'fire' : 'blizzard'); return; }
       if (event.code === 'KeyE' && this.editMode === 'none') { event.preventDefault(); this.vehicleUI?.quickAction(); return; }
-      const index = ['Digit1', 'Digit2', 'Digit3', 'Digit4'].indexOf(event.code);
-      if (index !== -1) { event.preventDefault(); this.playReaction(REACTION_KINDS[index]); }
+      const kind = REACTION_KINDS.find(kind => event.code === `Digit${REACTIONS[kind].key}`);
+      if (kind) { event.preventDefault(); this.playReaction(kind); }
     }, { signal });
     const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
     preference.addEventListener('change', () => { this.reducedMotion = preference.matches; }, { signal });
@@ -757,15 +760,31 @@ export class OfficeScene extends Phaser.Scene {
     const lift = (motion?.lift ?? walk.lift) + (riding?.kind === 'bike' ? 4 : 0);
     const frame = riding && walker.moving && !motion ? 1 + Math.floor(time / 95) % 2 : walk.frame;
     view.sprite.setPosition(Math.round(x + walk.offsetX), Math.round(y + 6 - lift)).setRotation(motion?.tilt ?? walk.tilt).setScale(walk.scaleX, motion?.scaleY ?? walk.scaleY)
-      .setTexture(avatarTexture(this, appearance, motion ? 'down' : seat?.facing ?? walker.facing, frame, resting ? 'lie' : motion?.pose ?? (seat ? 'sit' : 'stand'))).setDepth(seat?.depth ?? y + 7);
+      .setTexture(avatarTexture(this, motion && reaction?.kind === 'anger' ? { ...appearance, heldItem: 0 } : appearance, motion ? 'down' : seat?.facing ?? walker.facing, frame, resting ? 'lie' : motion?.pose ?? (seat ? 'sit' : 'stand'))).setDepth(seat?.depth ?? y + 7);
+    const thrown = motion && reaction?.kind === 'anger' ? laptopThrowMotion(performance.now() - reaction.startedAt, this.reducedMotion) : undefined;
+    view.laptop.setVisible(!!thrown);
+    if (thrown) view.laptop.setPosition(Math.round(x + thrown.x), Math.round(y + thrown.y)).setRotation(thrown.rotation).setAlpha(thrown.alpha).setDepth(ROWS * TILE + 22);
     view.vehicle.setVisible(!!riding);
     if (riding) view.vehicle.setTexture(vehicleTexture(this, riding.kind, walker.facing, frame)).setPosition(Math.round(x), Math.round(y + 10 - (motion?.lift ?? 0))).setDepth(y + 6.5);
     view.shadow.setPosition(Math.round(x), Math.round(y) + (resting ? -4 : 5)).setScale(resting ? 2.2 : motion?.shadow ?? walk.shadow, resting ? 1.8 : 1).setDepth(y + 6);
-    view.label.setText(name).setPosition(Math.round(x), Math.round(y - 20 - lift)).setDepth(ROWS * TILE + 20);
+    const labelLift = lift + (thrown ? 24 : 0);
+    view.label.setText(name).setPosition(Math.round(x), Math.round(y - 20 - labelLift)).setDepth(ROWS * TILE + 20);
     view.reactionLabel.setVisible(!!motion);
     if (motion && reaction) view.reactionLabel.setText(REACTIONS[reaction.kind].text)
-      .setPosition(Math.round(x), Math.max(14, Math.round(y - 35 - lift))).setDepth(ROWS * TILE + 21);
-    view.sparkles.clear().setPosition(x, y - lift).setDepth(y + 8);
+      .setPosition(Math.round(x), Math.max(14, Math.round(y - 35 - labelLift))).setDepth(ROWS * TILE + 21);
+    view.sparkles.clear().setPosition(x, y - lift).setDepth(motion && reaction?.kind === 'anger' ? ROWS * TILE + 23 : y + 8);
+    if (motion && reaction?.kind === 'anger') {
+      // Four little red corners form the familiar comic anger mark.
+      view.sparkles.lineStyle(1, 0xc95f54, .9);
+      for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        view.sparkles.lineBetween(-14 + dx * 4, -27 + dy * 2, -14 + dx * 2, -27 + dy * 2);
+        view.sparkles.lineBetween(-14 + dx * 2, -27 + dy * 2, -14 + dx * 2, -27 + dy * 4);
+      }
+      if (thrown?.impact) {
+        view.sparkles.fillStyle(0xb99c76, thrown.impact);
+        for (const [dx, dy] of [[-10, 0], [8, 1], [-6, -5], [6, -6]]) view.sparkles.fillRect(thrown.x + dx, thrown.y + dy, 2, 1);
+      }
+    }
     if (motion?.sparkle) {
       view.sparkles.lineStyle(1, 0xf1cf7b, motion.sparkle);
       for (const [dx, dy] of [[-13, -23], [14, -30], [-8, -37]]) {
