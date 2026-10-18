@@ -1,3 +1,4 @@
+import { laptopPixels, LAPTOP_WIDTH, LAPTOP_HEIGHT } from './laptop-art.ts';
 import { ARCADE_GAMES, ARCADE_IDS } from './arcade.ts';
 import type { ArcadeGame } from './arcade.ts';
 import { furniturePixels, monitor, serverRack } from './furniture-art.ts';
@@ -203,4 +204,14 @@ export function drawRoomObject(scene: Phaser.Scene, object: RoomObject): Paint {
     g.setDepth(-80); p(0xa17d69, 0, 0, 16, 16); p(0xe3c694, 1, 1, 14, 14); p(0xb9a780, 3, 3, 10, 10); p(0xe3c694, 6, 6, 4, 4);
   }
   return g;
+}
+
+export function laptopTexture(scene: Phaser.Scene): string {
+  const key = 'reaction-laptop';
+  if (!scene.textures.exists(key)) {
+    const g = scene.make.graphics({ x: 0, y: 0 });
+    for (const pixel of laptopPixels()) rect(g, pixel.color, pixel.x, pixel.y, pixel.w, pixel.h);
+    g.generateTexture(key, LAPTOP_WIDTH, LAPTOP_HEIGHT); g.destroy();
+  }
+  return key;
 }
