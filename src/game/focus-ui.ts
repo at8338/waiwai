@@ -1,7 +1,6 @@
 import type { ChatUI } from './chat-ui.ts';
 import type { AnnouncementSnapshot } from './announcements.ts';
 import { focusIcon } from './focus-icons.ts';
-import { REACTIONS } from './reactions.ts';
 export class FocusUI {
   private shell = document.createElement('section');
   private button = document.createElement('button');
@@ -70,12 +69,7 @@ export class FocusUI {
     const quickControls: { target: HTMLButtonElement; label: string; key?: string }[] = [
       { target: this.mouse, label: 'クリック移動', key: 'M' }, { target: this.button, label: '通常表示に戻る', key: 'Escape' },
     ];
-    for (const target of document.querySelectorAll<HTMLButtonElement>('.reaction-toolbar button')) {
-      const kind = target.dataset.reaction as keyof typeof REACTIONS | undefined;
-      if (kind) { target.id ||= `reaction-${kind}`; quickControls.push({ target, label: REACTIONS[kind].label, key: REACTIONS[kind].key }); }
-      else if (target.id === 'toggle-rest') quickControls.push({ target, label: '寝転ぶ／起き上がる', key: '5' });
-    }
-    for (const [id, label, key] of [['spell-fire-quick', 'ファイア', 'F'], ['spell-blizzard-quick', 'ブリザド', 'B'], ['voice-toggle', '音声に参加／退出', ''], ['mic-toggle', 'マイクのON／OFF', '']]) quickControls.push({ target: document.getElementById(id) as HTMLButtonElement, label, key });
+    for (const [id, label] of [['voice-toggle', '音声に参加／退出'], ['mic-toggle', 'マイクのON／OFF']]) quickControls.push({ target: document.getElementById(id) as HTMLButtonElement, label });
     for (const { target, label, key } of quickControls) {
       const button = document.createElement('button'); button.type = 'button'; button.dataset.focusProxy = target.id; button.textContent = label;
       if (key) button.setAttribute('aria-keyshortcuts', key); quick.append(button); this.proxies.push({ target, button });
@@ -86,8 +80,6 @@ export class FocusUI {
       button.hidden = target.hidden; button.disabled = target.disabled; button.dataset.focusHint = target.textContent?.trim() ?? '';
       const pressed = target.getAttribute('aria-pressed');
       if (pressed !== null) button.setAttribute('aria-pressed', pressed); else button.removeAttribute('aria-pressed');
-      const badge = button.querySelector<HTMLElement>('.focus-cooldown'), seconds = /(?:あと|🔥|❄)\s*(\d+)秒/.exec(button.dataset.focusHint);
-      if (badge) { badge.hidden = !seconds; badge.textContent = seconds?.[1] ?? ''; }
     } };
     this.sourceObserver = new MutationObserver(() => { syncProxies(); syncScroll(); });
     for (const { target } of this.proxies) this.sourceObserver.observe(target, { attributes: true, attributeFilter: ['hidden', 'disabled', 'aria-pressed'], childList: true, characterData: true, subtree: true });
@@ -120,7 +112,6 @@ export class FocusUI {
       const label = button.textContent!; button.setAttribute('aria-label', label); button.innerHTML = focusIcon(button.dataset.focusProxy ?? button.id);
       const key = button.getAttribute('aria-keyshortcuts');
       if (key) { const badge = document.createElement('kbd'); badge.textContent = key === 'Escape' ? 'Esc' : key; badge.setAttribute('aria-hidden', 'true'); button.append(badge); button.classList.add('focus-keyed'); }
-      if (['spell-fire-quick', 'spell-blizzard-quick'].includes(button.dataset.focusProxy ?? '')) { const badge = document.createElement('span'); badge.className = 'focus-cooldown'; badge.hidden = true; badge.setAttribute('aria-hidden', 'true'); button.append(badge); }
       button.addEventListener('pointerenter', event => { if (event.pointerType !== 'touch') showTip(button); }, { signal });
       button.addEventListener('pointerleave', hideTip, { signal });
       button.addEventListener('focus', () => { button.scrollIntoView({ block: 'nearest', inline: 'nearest' }); showTip(button); }, { signal });
