@@ -1,6 +1,7 @@
 import type { ChatUI } from './chat-ui.ts';
 import type { AnnouncementSnapshot } from './announcements.ts';
 import { focusIcon } from './focus-icons.ts';
+import { REACTIONS } from './reactions.ts';
 export class FocusUI {
   private shell = document.createElement('section');
   private button = document.createElement('button');
@@ -21,6 +22,8 @@ export class FocusUI {
   private toolsResize: ResizeObserver;
   private tooltip = document.createElement('div');
   private lostExpanded = false;
+  private statusObserver: MutationObserver;
+  private feedbackTimer?: ReturnType<typeof setTimeout>;
   constructor(signal: AbortSignal, private chat: ChatUI, private refreshMap: () => void, private clearMovement: () => void, mouseMode: (enabled: boolean) => void) {
     this.toolbar.className = 'office-view-modes';
     this.mouse.id = 'mouse-move-toggle'; this.mouse.type = 'button'; this.mouse.textContent = 'クリックで移動'; this.mouse.setAttribute('aria-pressed', 'false');
@@ -62,9 +65,32 @@ export class FocusUI {
     this.shell.querySelector('#focus-furniture-close')!.addEventListener('click', () => this.showFurniture(false), { signal });
     const lost = document.createElement('button'); lost.type = 'button'; lost.textContent = '落とし物'; lost.id = 'focus-lost-open';
     lost.addEventListener('click', () => { this.clearMovement(); this.lost.showModal(); }, { signal }); utilities.querySelector('[data-focus-proxy="spells-open"]')!.before(lost);
-    const syncProxies = () => { for (const { target, button } of this.proxies) { button.hidden = target.hidden; button.disabled = target.disabled; button.dataset.focusHint = target.textContent?.trim() ?? ''; } };
+    // Reuse the original action handlers and their server-controlled disabled/toggle state.
+    const quick = document.createDocumentFragment();
+    const quickControls: { target: HTMLButtonElement; label: string; key?: string }[] = [
+      { target: this.mouse, label: 'クリック移動', key: 'M' }, { target: this.button, label: '通常表示に戻る', key: 'Escape' },
+    ];
+    for (const target of document.querySelectorAll<HTMLButtonElement>('.reaction-toolbar button')) {
+      const kind = target.dataset.reaction as keyof typeof REACTIONS | undefined;
+      if (kind) { target.id ||= `reaction-${kind}`; quickControls.push({ target, label: REACTIONS[kind].label, key: REACTIONS[kind].key }); }
+      else if (target.id === 'toggle-rest') quickControls.push({ target, label: '寝転ぶ／起き上がる', key: '5' });
+    }
+    for (const [id, label, key] of [['spell-fire-quick', 'ファイア', 'F'], ['spell-blizzard-quick', 'ブリザド', 'B'], ['voice-toggle', '音声に参加／退出', ''], ['mic-toggle', 'マイクのON／OFF', '']]) quickControls.push({ target: document.getElementById(id) as HTMLButtonElement, label, key });
+    for (const { target, label, key } of quickControls) {
+      const button = document.createElement('button'); button.type = 'button'; button.dataset.focusProxy = target.id; button.textContent = label;
+      if (key) button.setAttribute('aria-keyshortcuts', key); quick.append(button); this.proxies.push({ target, button });
+    }
+    utilities.prepend(quick); personalButton.classList.add('focus-group-start');
+    utilities.querySelector('[data-focus-proxy="spells-open"]')!.setAttribute('aria-keyshortcuts', 'Q');
+    const syncProxies = () => { for (const { target, button } of this.proxies) {
+      button.hidden = target.hidden; button.disabled = target.disabled; button.dataset.focusHint = target.textContent?.trim() ?? '';
+      const pressed = target.getAttribute('aria-pressed');
+      if (pressed !== null) button.setAttribute('aria-pressed', pressed); else button.removeAttribute('aria-pressed');
+      const badge = button.querySelector<HTMLElement>('.focus-cooldown'), seconds = /(?:あと|🔥|❄)\s*(\d+)秒/.exec(button.dataset.focusHint);
+      if (badge) { badge.hidden = !seconds; badge.textContent = seconds?.[1] ?? ''; }
+    } };
     this.sourceObserver = new MutationObserver(() => { syncProxies(); syncScroll(); });
-    for (const { target } of this.proxies) this.sourceObserver.observe(target, { attributes: true, attributeFilter: ['hidden', 'disabled'], childList: true, characterData: true, subtree: true });
+    for (const { target } of this.proxies) this.sourceObserver.observe(target, { attributes: true, attributeFilter: ['hidden', 'disabled', 'aria-pressed'], childList: true, characterData: true, subtree: true });
     syncProxies();
     const strip = document.createElement('div'); strip.className = 'focus-tools-row'; utilities.before(strip); strip.append(utilities);
     const previous = document.createElement('button'), next = document.createElement('button');
@@ -83,8 +109,8 @@ export class FocusUI {
     const hideTip = () => { this.tooltip.hidden = true; tipButton?.removeAttribute('aria-describedby'); tipButton = undefined; };
     const showTip = (button: HTMLButtonElement) => {
       hideTip(); tipButton = button; button.setAttribute('aria-describedby', this.tooltip.id);
-      const label = button.getAttribute('aria-label') ?? '', hint = button.dataset.focusHint;
-      this.tooltip.textContent = hint && hint !== label ? `${label} · ${hint}` : label;
+      const label = button.getAttribute('aria-label') ?? '', hint = button.dataset.focusHint, key = button.getAttribute('aria-keyshortcuts');
+      this.tooltip.textContent = `${label}${key ? ` [${key === 'Escape' ? 'Esc' : key}]` : ''}${hint && hint !== label ? ` · ${hint}` : ''}`;
       this.tooltip.hidden = false;
       const rect = button.getBoundingClientRect();
       this.tooltip.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - this.tooltip.offsetWidth - 8))}px`;
@@ -92,12 +118,16 @@ export class FocusUI {
     };
     for (const button of utilities.querySelectorAll<HTMLButtonElement>('button')) {
       const label = button.textContent!; button.setAttribute('aria-label', label); button.innerHTML = focusIcon(button.dataset.focusProxy ?? button.id);
+      const key = button.getAttribute('aria-keyshortcuts');
+      if (key) { const badge = document.createElement('kbd'); badge.textContent = key === 'Escape' ? 'Esc' : key; badge.setAttribute('aria-hidden', 'true'); button.append(badge); button.classList.add('focus-keyed'); }
+      if (['spell-fire-quick', 'spell-blizzard-quick'].includes(button.dataset.focusProxy ?? '')) { const badge = document.createElement('span'); badge.className = 'focus-cooldown'; badge.hidden = true; badge.setAttribute('aria-hidden', 'true'); button.append(badge); }
       button.addEventListener('pointerenter', event => { if (event.pointerType !== 'touch') showTip(button); }, { signal });
       button.addEventListener('pointerleave', hideTip, { signal });
       button.addEventListener('focus', () => { button.scrollIntoView({ block: 'nearest', inline: 'nearest' }); showTip(button); }, { signal });
       button.addEventListener('blur', hideTip, { signal });
       button.addEventListener('click', hideTip, { signal });
     }
+    syncProxies();
     utilities.addEventListener('keydown', event => {
       const key = (event as KeyboardEvent).key; if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(key)) return;
       const buttons = [...utilities.querySelectorAll<HTMLButtonElement>('button:not([hidden]):not(:disabled)')], index = buttons.indexOf(document.activeElement as HTMLButtonElement);
@@ -109,6 +139,18 @@ export class FocusUI {
       syncScroll();
     }, { signal, passive: true });
     this.toolsResize = new ResizeObserver(syncScroll); this.toolsResize.observe(row);
+    const feedback = document.createElement('p'); feedback.className = 'focus-feedback'; feedback.hidden = true; feedback.setAttribute('aria-hidden', 'true'); this.shell.append(feedback);
+    this.statusObserver = new MutationObserver(records => {
+      if (!this.active || !this.connected) return;
+      for (const record of records) {
+        const node = record.target instanceof Element ? record.target : record.target.parentElement;
+        const text = node?.closest('#click-move-status,#spell-status,#reaction-status,#voice-status')?.textContent?.trim();
+        if (!text || /^(ボタンやマップ操作中|床をクリックで歩く|矢印キー|参加すると、)/.test(text)) continue;
+        feedback.textContent = text; feedback.hidden = false; clearTimeout(this.feedbackTimer);
+        this.feedbackTimer = setTimeout(() => { feedback.hidden = true; }, 4000);
+      }
+    });
+    for (const id of ['click-move-status', 'spell-status', 'reaction-status', 'voice-status']) this.statusObserver.observe(document.getElementById(id)!, { childList: true, characterData: true, subtree: true });
     this.shell.addEventListener('click', event => {
       const id = (event.target as Element).closest<HTMLElement>('[data-focus-proxy]')?.dataset.focusProxy;
       if (id) { this.clearMovement(); document.getElementById(id)?.click(); }
@@ -126,7 +168,7 @@ export class FocusUI {
     this.timer = setInterval(() => this.renderTicker(), 1000);
     this.resize = new ResizeObserver(() => {
       const host = this.shell.querySelector<HTMLElement>('#focus-map-host')!;
-      if (this.active) host.style.setProperty('--focus-map-space', `${Math.max(150, host.clientHeight - 155)}px`);
+      if (this.active) host.style.setProperty('--focus-map-space', `${Math.max(150, host.clientHeight - 72)}px`);
       this.refreshMap();
     }); this.resize.observe(document.querySelector('#game')!); this.resize.observe(this.shell.querySelector('#focus-map-host')!);
     this.renderTicker();
@@ -147,6 +189,8 @@ export class FocusUI {
       this.move(document.querySelector('.game-frame')!, this.shell.querySelector('#focus-map-host')!);
       this.move(document.querySelector('#voice-controls')!, this.shell.querySelector('#focus-footer')!);
       this.move(document.querySelector('.magic-toolbar')!, this.shell.querySelector('#focus-footer')!);
+      const statuses = document.createElement('div'); statuses.className = 'focus-operation-statuses speech-announcement'; this.shell.append(statuses);
+      for (const id of ['click-move-status', 'spell-status', 'voice-status', 'voice-nearby', 'reaction-status']) this.move(document.getElementById(id)!, statuses);
       for (const selector of ['.slack-login', '.profile-section', '.buddy-section', '.slack-settings', '.personal-data-section']) {
         const node = document.querySelector<HTMLElement>(selector); if (node) this.move(node, this.personal.querySelector('#focus-personal-host')!);
       }
@@ -157,9 +201,11 @@ export class FocusUI {
       document.body.classList.add('office-focused'); this.chat.setDocked(this.shell.querySelector<HTMLElement>('#focus-chat-host')!, () => this.shell.classList.remove('chat-hidden'));
     } else {
       this.tooltip.hidden = true;
+      this.shell.querySelector<HTMLElement>('.focus-feedback')!.hidden = true; clearTimeout(this.feedbackTimer);
       this.personal.close(); this.lost.close(); this.showFurniture(false);
       this.chat.setDocked();
       for (const { node, marker } of this.placements) marker.replaceWith(node); this.placements = [];
+      this.shell.querySelector('.focus-operation-statuses')?.remove();
       document.querySelector<HTMLDetailsElement>('#lost-items-panel')!.open = this.lostExpanded;
       document.body.classList.remove('office-focused'); this.shell.hidden = true;
     }
@@ -175,5 +221,5 @@ export class FocusUI {
     const line = this.shell.querySelector<HTMLElement>('#focus-broadcast-text')!; line.textContent = text;
     line.classList.toggle('is-scrolling', !!active.length); line.style.setProperty('--ticker-seconds', `${Math.max(18, text.length * 0.35)}s`);
   }
-  destroy(): void { this.toggle(false); clearInterval(this.timer); this.resize.disconnect(); this.toolsResize.disconnect(); this.sourceObserver.disconnect(); this.personal.remove(); this.lost.remove(); this.shell.remove(); this.toolbar.remove(); }
+  destroy(): void { this.toggle(false); clearInterval(this.timer); clearTimeout(this.feedbackTimer); this.resize.disconnect(); this.toolsResize.disconnect(); this.sourceObserver.disconnect(); this.statusObserver.disconnect(); this.personal.remove(); this.lost.remove(); this.shell.remove(); this.toolbar.remove(); }
 }
