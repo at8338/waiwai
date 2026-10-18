@@ -8,3 +8,5 @@ output "ssh_target" { value = module.office_vm.ssh_target }
 output "resource_group" { value = azurerm_resource_group.office.name }
 output "vm_name" { value = module.office_vm.vm_name }
 output "vm_size" { value = module.office_vm.vm_size }
+
+output "public_slack_events" { value = var.public_slack_events }

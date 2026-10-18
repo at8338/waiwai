@@ -16,3 +16,12 @@ mock_resource "azurerm_public_ip" {
 mock_data "azurerm_client_config" {
   defaults = { object_id = "11111111-1111-1111-1111-111111111111", tenant_id = "22222222-2222-2222-2222-222222222222", subscription_id = "00000000-0000-0000-0000-000000000000" }
 }
+mock_resource "azurerm_linux_virtual_machine" {
+  defaults = { id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-waiwai-jpe-rg-office-001/providers/Microsoft.Compute/virtualMachines/test" }
+}
+mock_resource "azurerm_managed_disk" {
+  defaults = { id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-waiwai-jpe-rg-office-001/providers/Microsoft.Compute/disks/test" }
+}
+mock_resource "azurerm_backup_policy_vm" {
+  defaults = { id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/dev-waiwai-jpe-rg-office-001/providers/Microsoft.RecoveryServices/vaults/test/backupPolicies/test" }
+}

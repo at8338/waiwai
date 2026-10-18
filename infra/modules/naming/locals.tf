@@ -13,6 +13,9 @@ locals {
     public_ip              = "${local.prefix}-pip-office-${local.sequence}"
     virtual_machine        = "${local.prefix}-vm-office-${local.sequence}"
     os_disk                = "${local.prefix}-osdisk-office-${local.sequence}"
+    data_disk              = "${local.prefix}-datadisk-office-${local.sequence}"
+    backup_vault           = "${local.prefix}-rsv-office-${local.sequence}"
+    backup_policy          = "${local.prefix}-bkp-office-${local.sequence}"
     dns_label              = "${local.prefix}-office-${local.sequence}-${local.unique_suffix}"
     state_resource_group   = "${local.prefix}-rg-tfstate-${local.sequence}"
     # Storage: 3–24 lowercase letters/digits, globally unique; no hyphens.

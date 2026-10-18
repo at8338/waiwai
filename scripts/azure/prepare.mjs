@@ -18,7 +18,7 @@ try { await access(key); } catch {
   execFileSync('ssh-keygen', ['-t', 'ed25519', '-f', key, '-N', '', '-C', 'waiwai-azure-deploy'], { stdio: 'inherit' });
 }
 const publicKey = (await readFile(key + '.pub', 'utf8')).trim();
-const vars = { subscription_id: account.id, location: 'japaneast', project_name: 'waiwai', instance_number: 1, vnet_cidr: '10.83.0.0/16', vm_size: 'Standard_B2als_v2', ssh_public_key: publicKey, admin_cidr: cidr, acme_email: email };
+const vars = { subscription_id: account.id, location: 'japaneast', project_name: 'waiwai', instance_number: 1, vnet_cidr: '10.83.0.0/16', vm_size: 'Standard_B2als_v2', ssh_public_key: publicKey, admin_cidr: cidr, web_allowed_cidrs: [cidr], acme_email: email };
 await writeFile(resolve(dir, 'terraform.tfvars.json'), JSON.stringify(vars, null, 2) + '\n', { mode: 0o600 });
 await writeFile(resolve(dir, 'bootstrap.tfvars.json'), JSON.stringify({ subscription_id: account.id, location: vars.location, project_name: vars.project_name, instance_number: vars.instance_number }, null, 2) + '\n', { mode: 0o600 });
 console.log('Prepared dev SSH key and Terraform variables. No Azure resources were created.');

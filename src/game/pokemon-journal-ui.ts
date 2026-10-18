@@ -1,3 +1,4 @@
+import { personalStorage, serverPersonalData } from './personal-storage.ts';
 import { buddyThumbnails } from './buddy-thumbnails.ts';
 import { BUDDIES, BUDDY_WIDTH, BUDDY_HEIGHT } from './buddies.ts';
 import { PokemonJournal, POKEMON_JOURNAL_KEY, POKEMON_KINDS } from './pokemon-journal.ts';
@@ -9,7 +10,7 @@ import type { RoomId } from './rooms.ts';
 const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id)! as T;
 const foundDate = new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 export class PokemonJournalUI {
-  private journal = new PokemonJournal({ getItem: (key) => localStorage.getItem(key), setItem: (key, value) => localStorage.setItem(key, value) });
+  private journal = new PokemonJournal({ getItem: (key) => personalStorage.getItem(key), setItem: (key, value) => personalStorage.setItem(key, value) });
   private thumbnails = buddyThumbnails();
   private selected?: PokemonKind;
   constructor(signal: AbortSignal, private beforeOpen: () => boolean) {
@@ -22,7 +23,7 @@ export class PokemonJournalUI {
     el('pokemon-journal-close').addEventListener('click', () => el<HTMLDialogElement>('pokemon-journal-dialog').close(), { signal });
     el('pokemon-journal-dialog').addEventListener('close', () => document.querySelector<HTMLCanvasElement>('#game canvas')?.focus({ preventScroll: true }), { signal });
     window.addEventListener('storage', (event) => {
-      if (event.key !== POKEMON_JOURNAL_KEY || event.storageArea !== localStorage) return;
+      if (serverPersonalData() || event.key !== POKEMON_JOURNAL_KEY || event.storageArea !== localStorage) return;
       this.journal.merge(event.newValue); this.render();
     }, { signal });
     signal.addEventListener('abort', () => this.thumbnails.reset(), { once: true });
@@ -47,7 +48,7 @@ export class PokemonJournalUI {
     el('pokemon-journal-progress').textContent = count === POKEMON_KINDS.length ? `全${count}種類を発見！ オフィスの仲間がそろいました。` : `${count} / ${POKEMON_KINDS.length}種類を発見`;
     el<HTMLProgressElement>('pokemon-journal-meter').value = count;
     el<HTMLProgressElement>('pokemon-journal-meter').max = POKEMON_KINDS.length;
-    el('pokemon-journal-storage').textContent = this.journal.stored ? '発見記録はこのブラウザに保存します。同じURLのタブで共有されます。別の端末・ブラウザには同期されません。' : 'ブラウザに保存できません。この画面を開いている間だけ記録します。';
+    el('pokemon-journal-storage').textContent = this.journal.stored ? serverPersonalData() ? '発見記録はログインしたアカウントに保存します。保存状況はプロフィール欄で確認できます。' : '発見記録はこのブラウザに保存します。同じURLのタブで共有されます。別の端末・ブラウザには同期されません。' : 'ブラウザに保存できません。この画面を開いている間だけ記録します。';
     this.thumbnails.reset();
     const cards = el('pokemon-journal-cards'); cards.replaceChildren();
     const query = el<HTMLInputElement>('pokemon-query').value, foundOnly = el<HTMLInputElement>('pokemon-found-only').checked;

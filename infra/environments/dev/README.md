@@ -10,6 +10,8 @@
 | vm_size | Standard_B2als_v2。負荷試験不足時のB4als_v2も選択可 |
 | vnet_cidr | 10.83.0.0/16。SubnetとNICのIPは連動生成 |
 | admin_cidr | 必須。会社VPN/管理者IPv4 /24〜/32 |
+| web_allowed_cidrs | 必須。Web利用者/配備端末の公開IPv4 /24〜/32リスト |
+| public_slack_events | false。Slack署名付きPOST webhookだけ公開する場合true |
 | ssh_public_key | 必須。秘密鍵不可 |
 | acme_email | 必須。運用メール |
 | tags | 任意。owner/cost_center等。予約タグは上書き不可 |

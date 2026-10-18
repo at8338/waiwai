@@ -1,3 +1,4 @@
+import { PersonalService } from './server/personal-data.ts';
 import { ChatService, readSlackChatConfig } from './server/chat.ts';
 import { dirname, join } from 'node:path';
 import { defineConfig, loadEnv } from 'vite';
@@ -16,13 +17,14 @@ export default defineConfig(({ mode }) => {
       configureServer(server) {
         const auth = new OfficeAuth(config, entraConfig);
         const chat = new ChatService(env.WAIWAI_CHAT_FILE ?? join(dirname(env.WAIWAI_DATA_FILE ?? '.local/office-objects.json'), 'office-chat.sqlite'), readSlackChatConfig(env));
+        const personal = new PersonalService(auth, env.WAIWAI_PERSONAL_FILE ?? join(dirname(env.WAIWAI_DATA_FILE ?? '.local/office-objects.json'), 'office-personal.sqlite'));
         server.middlewares.use((request, response, next) => {
-          void chat.handle(request, response).then(handled => handled || auth.handle(request, response)).then((handled) => { if (!handled) next(); })
+          void personal.handle(request, response).then(handled => handled || chat.handle(request, response)).then(handled => handled || auth.handle(request, response)).then((handled) => { if (!handled) next(); })
             .catch(() => { response.writeHead(500).end('Authentication unavailable'); });
         });
         if (server.httpServer) {
           const close = attachOffice(server.httpServer as Server, auth, { chat, devControls: mode !== 'production', objectsFile: env.WAIWAI_DATA_FILE ?? '.local/office-objects.json', membersFile: env.WAIWAI_MEMBERS_FILE ?? '.local/office-members.json', linksFile: env.WAIWAI_LINKS_FILE ?? '.local/office-links.json', birthdaysFile: env.WAIWAI_BIRTHDAYS_FILE ?? join(dirname(env.WAIWAI_DATA_FILE ?? '.local/office-objects.json'), 'office-birthdays.json'), announcementsFile: env.WAIWAI_ANNOUNCEMENTS_FILE ?? join(dirname(env.WAIWAI_DATA_FILE ?? '.local/office-objects.json'), 'office-announcements.json') });
-          server.httpServer.once('close', () => { close(); auth.close(); });
+          server.httpServer.once('close', () => { close(); personal.store.close(); auth.close(); });
         }
       },
     }],

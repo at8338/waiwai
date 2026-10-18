@@ -27,7 +27,20 @@ write_files:
           Permissions-Policy "camera=(), microphone=(self)"
           Strict-Transport-Security "max-age=31536000"
         }
-        reverse_proxy 127.0.0.1:5173
+%{ if public_slack_events ~}
+        @slack_events {
+          path /api/slack/events
+          method POST
+        }
+        handle @slack_events {
+          reverse_proxy 127.0.0.1:5173
+        }
+%{ endif ~}
+        handle {
+          @outside_company not remote_ip ${join(" ", web_allowed_cidrs)}
+          respond @outside_company "Waiwai is restricted to company networks." 403
+          reverse_proxy 127.0.0.1:5173
+        }
       }
   - path: /etc/systemd/system/waiwai.service
     permissions: '0644'
@@ -36,6 +49,8 @@ write_files:
       Description=Waiwai office
       After=network-online.target
       Wants=network-online.target
+      RequiresMountsFor=/var/lib/waiwai
+      ConditionPathIsMountPoint=/var/lib/waiwai
       ConditionPathExists=/etc/waiwai/app.env
       ConditionPathExists=/opt/waiwai/current/server/index.ts
       [Service]
@@ -135,11 +150,34 @@ write_files:
       echo 'cc2f601cee82d9a5a233302fe307abc600727035fd7d2c3a3571755989e95008  waiwai-node.tar.xz' | sha256sum --check
       tar -xJf waiwai-node.tar.xz -C /usr/local --strip-components=1
       rm waiwai-node.tar.xz
+  - path: /usr/local/sbin/waiwai-mount-data
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      disk=/dev/disk/azure/scsi1/lun0
+      for attempt in $(seq 1 120); do [ ! -b "$disk" ] || break; sleep 2; done
+      test -b "$disk"
+      # Never format a disk with any existing filesystem/partition signature.
+      if ! blkid "$disk" >/dev/null; then
+        test -z "$(wipefs -n --noheadings -o TYPE "$disk")"
+        mkfs.ext4 -L waiwai-data "$disk"
+      fi
+      test "$(blkid -s TYPE -o value "$disk")" = ext4
+      install -d -m 0750 /var/lib/waiwai
+      test -z "$(find /var/lib/waiwai -mindepth 1 -maxdepth 1 -print -quit)"
+      uuid=$(blkid -s UUID -o value "$disk")
+      echo "UUID=$uuid /var/lib/waiwai ext4 defaults 0 2" >> /etc/fstab
+      systemctl daemon-reload
+      mount /var/lib/waiwai
+      chown waiwai:waiwai /var/lib/waiwai
+      chmod 0750 /var/lib/waiwai
 runcmd:
   - [systemctl, disable, --now, coturn]
   - [useradd, --system, --home-dir, /opt/waiwai, --shell, /usr/sbin/nologin, waiwai]
   - [install, -d, -m, '0755', /opt/waiwai/releases]
   - [install, -d, -m, '0750', -o, root, -g, waiwai, /etc/waiwai]
+  - [/usr/local/sbin/waiwai-mount-data]
   - [/usr/local/sbin/waiwai-install-node]
   - [systemctl, daemon-reload]
   - [systemctl, enable, waiwai.service, waiwai-turn.service, waiwai-turn-cert.timer]

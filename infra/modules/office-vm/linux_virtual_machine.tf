@@ -26,8 +26,10 @@ resource "azurerm_linux_virtual_machine" "office" {
     sku       = "server"
     version   = "latest"
   }
+  # Cloud-init/image changes require an explicit maintenance decision, never implicit VM replacement.
+  lifecycle { prevent_destroy = true }
   boot_diagnostics {}
   custom_data = base64encode(templatefile("${path.module}/templates/cloud-init.yaml.tftpl", {
-    domain = var.domain, acme_email = var.acme_email
+    domain = var.domain, acme_email = var.acme_email, web_allowed_cidrs = var.web_allowed_cidrs, public_slack_events = var.public_slack_events
   }))
 }

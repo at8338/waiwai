@@ -21,6 +21,6 @@ test('Microsoft directory and birthdays persist under the same account after a n
   assert.ok(parseClientMessage(JSON.stringify({type:'birthday-comment',id:accountId,date:'2026-10-18',text:'おめでとう！',actionId:randomUUID()})));
 });
 test('Azure deployment enables Microsoft-required login without requiring Slack credentials',()=>{
-  const env=buildAuthEnv({ENTRA_TENANT_ID:'11111111-1111-1111-1111-111111111111',ENTRA_CLIENT_ID:'33333333-3333-3333-3333-333333333333',ENTRA_CLIENT_SECRET:'test-only'},'office.example');
+  const env=buildAuthEnv({ENTRA_TENANT_ID:'11111111-1111-1111-1111-111111111111',ENTRA_CLIENT_ID:'33333333-3333-3333-3333-333333333333',ENTRA_CLIENT_SECRET:'test-only',ENTRA_MFA_POLICY_ID:'44444444-4444-4444-4444-444444444444'},'office.example');
   assert.equal(env.REQUIRE_ENTRA_LOGIN,'true'); assert.equal(env.ENTRA_REDIRECT_URI,'https://office.example/auth/microsoft/callback');assert.equal(env.SLACK_CLIENT_ID,undefined);assert.throws(()=>buildAuthEnv({},'office.example'));
 });

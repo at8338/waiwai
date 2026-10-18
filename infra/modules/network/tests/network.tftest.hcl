@@ -10,11 +10,11 @@ variables {
 run "restricted_ingress_and_fixed_address" {
   command = apply
   assert {
-    condition     = length(azurerm_network_security_rule.ingress) == 3 && azurerm_network_security_rule.ingress["ssh_admin"].source_address_prefix == "203.0.113.20/32" && toset(azurerm_network_security_rule.ingress["ssh_admin"].destination_port_ranges) == toset(["22"])
+    condition     = length(azurerm_network_security_rule.ingress) == 4 && azurerm_network_security_rule.ingress["ssh_admin"].source_address_prefix == "203.0.113.20/32" && toset(azurerm_network_security_rule.ingress["ssh_admin"].destination_port_ranges) == toset(["22"])
     error_message = "SSH must only be allowed from the supplied operator CIDR."
   }
   assert {
-    condition     = toset(azurerm_network_security_rule.ingress["web_turn_tcp"].destination_port_ranges) == toset(["80", "443", "3478", "5349"]) && toset(azurerm_network_security_rule.ingress["turn_udp"].destination_port_ranges) == toset(["3478", "49160-49959"])
+    condition     = toset(azurerm_network_security_rule.ingress["web_tcp"].destination_port_ranges) == toset(["80", "443"]) && toset(azurerm_network_security_rule.ingress["turn_tcp"].destination_port_ranges) == toset(["3478", "5349"]) && toset(azurerm_network_security_rule.ingress["turn_udp"].destination_port_ranges) == toset(["3478", "49160-49959"])
     error_message = "Only HTTPS/ACME and the configured TURN listener/relay ports may be exposed; never 5173."
   }
   assert {

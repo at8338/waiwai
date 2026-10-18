@@ -11,7 +11,7 @@ if (args.length && (args.length !== 2 || args[0] !== '--plugin-dir')) throw new 
 const pluginDir = args.length ? resolve(args[1]) : null;
 const run = (args, cwd = root) => execFileSync('terraform', args, { cwd, stdio: 'inherit', env: { ...process.env, TF_DATA_DIR: resolve(cwd, '.terraform'), TF_IN_AUTOMATION: '1', TF_WORKSPACE: 'default' } });
 run(['fmt', '-check', '-recursive', 'infra']);
-execFileSync(process.execPath, ['--test', 'scripts/azure/deployment-config.test.mjs'], { cwd: root, stdio: 'inherit' });
+execFileSync(process.execPath, ['--test', 'scripts/azure/deployment-config.test.mjs', 'scripts/azure/activate-release.test.mjs'], { cwd: root, stdio: 'inherit' });
 const temp = await mkdtemp(resolve(tmpdir(), 'waiwai-infra-check-'));
 try {
   await cp(resolve(root, 'infra'), resolve(temp, 'infra'), { recursive: true, filter: (path) => {

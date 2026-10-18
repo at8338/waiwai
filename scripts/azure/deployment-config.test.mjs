@@ -18,3 +18,17 @@ test('TURN rendering refuses multiline injection and malformed secrets', () => {
   const values = { domain, publicIp: config.public_ip, privateIp: config.private_ip, secret: 'a'.repeat(96) };
   for (const changes of [{ domain: `${domain}\nno-auth` }, { privateIp: '10.84.1.4\nno-auth' }, { secret: 'short' }]) assert.throws(() => buildTurnConfig({ ...values, ...changes }));
 });
+
+test('MFA preflight accepts only enabled, unconditional all-user MFA for the deployed app', async () => {
+  const { verifyMfaPolicy } = await import('./deployment-config.mjs');
+  const valid = { state: 'enabled', conditions: { users: { includeUsers: ['All'], excludeUsers: [], excludeGroups: [], excludeRoles: [] }, applications: { includeApplications: ['app'], excludeApplications: [] }, clientAppTypes: ['all'], signInRiskLevels: [] }, grantControls: { operator: 'OR', builtInControls: ['mfa'] } };
+  assert.doesNotThrow(() => verifyMfaPolicy(valid, 'app'));
+  for (const mutate of [p => p.state = 'enabledForReportingButNotEnforced', p => p.conditions.users.excludeUsers.push('someone'), p => p.conditions.applications.includeApplications = ['other'], p => p.conditions.locations = { includeLocations: ['AllTrusted'] }, p => p.grantControls.builtInControls.push('compliantDevice'), p => p.grantControls.termsOfUse = ['some-terms'], p => p.grantControls.authenticationStrength = { id: 'some-strength' }, p => p.conditions.users.includeUsers = ['one-user'], p => p.conditions.clientAppTypes = ['browser']]) {
+    const p = structuredClone(valid); mutate(p); assert.throws(() => verifyMfaPolicy(p, 'app'));
+  }
+});
+test('Azure refuses Slack-only deployment and missing MFA policy reference', async () => {
+  const { buildAuthEnv } = await import('./auth-config.ts');
+  assert.throws(() => buildAuthEnv({ SLACK_CLIENT_ID: '123', SLACK_CLIENT_SECRET: 'fixture' }, domain), /Entra/);
+  assert.throws(() => buildAuthEnv({ ENTRA_TENANT_ID: '11111111-1111-1111-1111-111111111111' }, domain), /MFA_POLICY/);
+});

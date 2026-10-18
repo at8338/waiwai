@@ -1,3 +1,4 @@
+import { personalStorage } from './personal-storage.ts';
 import { drawWalkingPreview } from './walking-preview.ts';
 import { WALK_STYLES } from './walking.ts';
 import type { Direction } from './world.ts';
@@ -12,7 +13,7 @@ function preview(canvas: HTMLCanvasElement, appearance: Appearance) {
 }
 export function setupAvatarEditor(scene: OfficeScene): () => void {
   let saved = { ...DEFAULT_APPEARANCE };
-  try { saved = parseAppearance(JSON.parse(localStorage.getItem(STORAGE) ?? 'null')) ?? saved; } catch { /* Optional local preference. */ }
+  try { saved = parseAppearance(JSON.parse(personalStorage.getItem(STORAGE) ?? 'null')) ?? saved; } catch { /* Optional local preference. */ }
   let draft = { ...saved };
   const dialog = document.querySelector<HTMLDialogElement>('#avatar-dialog')!;
   const form = document.querySelector<HTMLFormElement>('#avatar-form')!;
@@ -56,7 +57,7 @@ export function setupAvatarEditor(scene: OfficeScene): () => void {
   scene.onAppearancePickup((appearance: Appearance) => {
     saved = { ...appearance };
     preview(document.querySelector('#avatar-preview')!, saved);
-    try { localStorage.setItem(STORAGE, JSON.stringify(saved)); } catch { /* Optional preference. */ }
+    try { personalStorage.setItem(STORAGE, JSON.stringify(saved)); } catch { /* Optional preference. */ }
   });
   document.querySelector('#avatar-edit')!.addEventListener('click', () => {
     draft = { ...saved };
@@ -65,13 +66,13 @@ export function setupAvatarEditor(scene: OfficeScene): () => void {
   });
   form.addEventListener('submit', (event) => {
     event.preventDefault(); saved = { ...draft }; apply();
-    try { localStorage.setItem(STORAGE, JSON.stringify(saved)); } catch { /* Keep this session's appearance. */ }
+    try { personalStorage.setItem(STORAGE, JSON.stringify(saved)); } catch { /* Keep this session's appearance. */ }
     dialog.close();
   });
   document.querySelector('#avatar-cancel')!.addEventListener('click', () => dialog.close());
   document.querySelectorAll<HTMLButtonElement>('[data-outfit]').forEach((button) => button.addEventListener('click', () => {
     saved = { ...saved, color: Number(button.dataset.outfit) }; apply();
-    try { localStorage.setItem(STORAGE, JSON.stringify(saved)); } catch { /* Optional preference. */ }
+    try { personalStorage.setItem(STORAGE, JSON.stringify(saved)); } catch { /* Optional preference. */ }
   }));
   return stop;
 }

@@ -17,11 +17,12 @@ flowchart LR
     IP --> NSG[NSG / NIC / 専用Subnet]
     NSG --> VM[Ubuntu 24.04 VM 1台]
     VM --> Caddy[Caddy 自動HTTPS]
-    Caddy -->|127.0.0.1:5173| App[Node.js / Waiwai]
+    Caddy -->|会社IPのみ / 127.0.0.1:5173| App[Node.js / Waiwai]
     VM --> TURN[coturn 音声中継]
-    App --> Data[OSディスク /var/lib/waiwai]
+    App --> Data[独立データディスク /var/lib/waiwai]
+    Data --> Backup[Azure Backup / 日次7日保持]
   end
-  App -->|OpenID Connect| Slack[Slack]
+  App -->|OpenID Connect / MFA| Entra[Microsoft Entra ID]
   Operator[Terraform実行者] -->|Entra ID / Blobロック| State[別RGのstate Storage]
 ```
 
@@ -33,9 +34,11 @@ Kubernetes、ロードバランサー、NAT Gateway、コンテナレジスト�
 |---|---|---|
 | dev root | Resource Group 1個 | アプリ資源の管理単位 |
 | network | VNet 1個 / Subnet 1個 | 既定10.83.0.0/16、Subnetは10.83.1.0/24。会社ネットワークと重複時は変更 |
-| network | NSG / 3つの明示的受信ルール | SSH・Web/TURN TCP・TURN UDP |
+| network | NSG / 4つの明示的受信ルール | SSH・Web TCP・TURN TCP・TURN UDP |
 | network | NIC / 固定Public IP | Private IPはSubnetのhost 4、Public IPはStatic/Standard/Internet routing。既定Public IPゾーン1/2/3 |
 | office-vm | Linux VM 1台 / OSディスク | Ubuntu 24.04 x64、32GiB StandardSSD LRS |
+| office-vm | 独立Managed Disk / LUN 0 | 32GiB StandardSSD LRS、/var/lib/waiwaiへマウント、削除防止 |
+| office-vm | Recovery Services Vault / Policy / VM保護 | LRS、毎日02:00 JST、7日保持、インスタント復元2日、soft delete |
 | terraform-state | 別Resource Group / Storage Account / Container / RBAC | アプリのdestroyから独立。LRS、Entra ID、共有キー無効、TLS1.2、Blob版管理、削除回復30日 |
 
 Public IPのゾーン設定はVM冗長化ではありません。VMもアプリプロセスも1つです。会社のSKU・ゾーン制約は実Azureでのplan前に確認します。
@@ -63,7 +66,11 @@ Public IPのゾーン設定はVM冗長化ではありません。VMもアプリ�
 
 NSGは明示ルール以外にAzure既定ルール（VNet内、Load Balancer、DenyAllInbound等）を持ちます。Private SubnetでAzure既定の暗黙送信を無効化し、NICのPublic IPを使用します。
 
-SSHは公開鍵のみ、root/パスワードログイン無効、Secure BootとvTPMを有効化します。Slackログインは必須、許可ワークスペースを限定し、未認証WebSocket接続も拒否します。起動設定とアプリは別のsystemdユーザーで実行します。
+SSHは公開鍵のみ、root/パスワードログイン無効、Secure BootとvTPMを有効化します。Azure配備はEntraログイン必須で、Slackによる代替入室・未認証WebSocket・個人保存APIを拒否します。起動設定とアプリは別のsystemdユーザーで実行します。
+
+`web_allowed_cidrs`は必須の会社/VPN公開IPv4 /24〜/32リストです。Caddyが直接接続元のremote_ipを確認し、X-Forwarded-Forを信用しません。ページ・assets・認証・API・WebSocket・healthzすべてを制限します。NSGの80/443はACME/TLS用、TURNは認証付きリレー用として到達可能に維持します。前段にプロキシを追加する場合は別途設計します。
+
+Slackイベントは既定非公開。双方向連携時のみ`public_slack_events=true`にし、厳密にPOST `/api/slack/events`だけを例外にします。署名・時刻・workspace・channelはアプリで検証します。連携有効なのに例外未設定の配備は停止します。
 
 Slack Client Secret・TURN共有鍵・SSH秘密鍵はTerraform変数、cloud-init、stateへ渡しません。アプリ配備時に専用SSH鍵で転送し、VMの権限制限されたファイルへ保存します。TURN共有鍵から期限付きHMAC資格情報を生成し、ブラウザへ共有鍵は配布しません。TURNはloopback・RFC1918・link-local等への中継を拒否します。
 
@@ -73,13 +80,23 @@ Slack Client Secret・TURN共有鍵・SSH秘密鍵はTerraform変数、cloud-ini
 
 cloud-initはCaddy、coturn、チェックサム固定のNode.js、systemd unit、証明書同期タイマーを準備します。アプリ本体は後続のデプロイで配置し、初期化だけでは利用開始しません。生成テンプレートに秘密値は含めません。
 
-`deploy.mjs`はdevのTerraform出力のみを受け付けます。TURN内部IPを出力から取得するため、VNet変更にも追従します。共有鍵を維持しながら世代別リリースを転送し、ヘルスチェック失敗時は直前のコード・設定へ戻します。Caddyの証明書をTURN TLSへ定期同期します。
+`deploy.mjs`はdevのTerraform出力のみを受け付けます。TURN内部IPを出力から取得し、共有鍵を維持します。ローカル起動確認後も復旧情報を保持し、許可CIDR内の実行端末から外部HTTPSの200/本文okを確認した後だけcommitします。失敗時は直前のコード・両設定へ戻し、初回失敗なら新設定を除去して停止します。端末停止・SSH切断時もVMの10分タイマーが未確定リリースを戻します。DBは巻き戻しません。Caddyの証明書をTURN TLSへ定期同期します。
 
 ## state・データと復旧
 
 アプリstateは`waiwai.dev.tfstate`、bootstrapは独立したローカルstateです。bootstrapのstateも会社の安全な保管場所へバックアップします。state用RG・Storage・Containerは`prevent_destroy`で保護します。ただし構成ブロックの削除や権限者の手動操作までは防げないため、変更レビューも必要です。Blob Storageの公開ネットワークエンドポイントは有効で、匿名・共有キーは使わずEntra RBACで制限します。Private Endpointは今回追加しません。
 
-家具・メンバー・共有リンク・館内放送のJSONは`/var/lib/waiwai`に置き、通常のアプリ再配備で維持します。VM/OSディスク削除では失われるので、全社運用開始前に会社のバックアップ手順を決め、復元を試験します。自動VMバックアップは今回の実装に含みません。セッション・オンライン状態はメモリ上で、再起動後は再ログインが必要です。
+家具・メンバー・共有リンク・館内放送・誕生日のJSON、チャットと個人設定/図鑑SQLiteは独立データディスク上の`/var/lib/waiwai`へ保存します。LUN 0の無署名ディスクだけをext4初期化し、既存ディスクは再フォーマットせずUUIDでマウントします。アプリと配備の両方でマウントを検査し、未接続時にOS側へ書き込ませません。
+
+VM・データディスク・Backup Vaultはprevent_destroy付きです。cloud-initやイメージ変更で暗黙のVM置換はできません。保守交換は停止・バックアップ・既存ディスク再接続を計画し、保護解除の変更もレビューします。OSディスクに保存済みの既存環境があれば別途停止移行します。
+
+日次VMバックアップはOSとデータディスクを含みます。復旧時点は最大1日程度前となり、無損失/アプリ整合性を保証しません。WALも含めて復元し、SQLite整合性検査を必須にします。移行/配備前のSQLiteスナップショット手順は[個人データ保存](../personal-data.md)を参照。Azureの復元試験は未実施です。セッション・オンライン状態はメモリ上で、再起動後は再ログインが必要です。追加ディスク・保護インスタンス・Backupストレージの料金を構築前に見積もりへ反映します。
+
+## MFAの配備ゲート
+
+Azure配備にはEntra設定と`ENTRA_MFA_POLICY_ID`が必要です。Azure CLIのテナント一致を検証し、Graph v1.0から実ポリシーを読み取ります。enabled、全ユーザー、当該Client IDまたは全アプリ、全クライアント、MFA必須、除外・追加適用条件なしを満たさなければ配備を中止します。report-onlyや「MFA OR 準拠デバイス」は拒否します。CLIにポリシー読み取り権限が必要です。テナント設定変更は実行しません。稼働後のポリシー変更は会社の変更管理対象です。
+
+公式資料：[MFA必須化](https://learn.microsoft.com/en-us/entra/identity/conditional-access/policy-all-users-mfa-strength)、[Caddy remote_ip](https://caddyserver.com/docs/caddyfile/matchers#remote-ip)、[VM Backup policy](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/backup_policy_vm)。
 
 運用の入口は`/healthz`、Azure VMメトリクス、`journalctl`です。ログは最大256MiB・7日目安。自動アラート・予算通知の接続先と閾値は会社の運用情報受領後に設定します。単一VM停止・更新・再配備中の切断があり、無停止や災害復旧のSLAは設定しません。
 
