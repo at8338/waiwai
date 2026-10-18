@@ -49,3 +49,21 @@ test('dummy control rejects malformed actions and browser profile flags cannot c
   const profile = parseClientMessage(JSON.stringify({ type: 'profile', name: 'spoof', outfit: 0, dummy: true }));
   assert.ok(profile && !('dummy' in profile));
 });
+
+test('summoned dummies pause, then roam around their arrival instead of the old room spawn', () => {
+  const bots = new DummyAvatars(); let slot = 0; bots.set(true, 'office', () => ++slot, [], []);
+  const person = bots.list()[0], id = person.id;
+  Object.assign(person, { roomId: 'cafe', x: 2, y: 16 }); bots.summoned(id, 1000);
+  for (const now of [1000, 5000, 10999]) {
+    assert.equal(bots.tick([], [], now).some(p => p.id === id), false);
+    assert.deepEqual([person.x, person.y], [2, 16]);
+  }
+  let moved = false;
+  for (let i = 0; i < 30; i++) {
+    if (bots.tick([], [], 11000 + i * 1100).some(p => p.id === id)) moved = true;
+    assert.equal(person.roomId, 'cafe'); assert.equal(person.id, id);
+    assert.ok(walkableWithObjects(person.x, person.y, person.roomId, []));
+    assert.ok(Math.abs(person.x - 2) <= 7 && Math.abs(person.y - 16) <= 6);
+  }
+  assert.ok(moved, 'the arrival is outside the original spawn radius but must not freeze the dummy');
+});
