@@ -1,0 +1,26 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>着席の重なり確認 | Waiwai dev</title>
+<style>body{margin:24px;background:#f6f4e8;color:#354a3c;font-family:system-ui,sans-serif}h1{font-size:22px}main{display:grid;grid-template-columns:repeat(2,minmax(240px,384px));gap:20px}article{background:white;padding:16px;border:1px solid #d3dac8;border-radius:12px}h2{font-size:16px;margin:0 0 12px}canvas{width:100%;height:auto;image-rendering:pixelated}p{max-width:790px;line-height:1.7}@media(max-width:600px){main{grid-template-columns:1fr}}</style>
+<h1>机の上側からの着席</h1><p>同じ家具・同じ座りポーズで比較。上側の席を椅子の位置へ戻し、上半身を見せながら天板の奥に座ります。下側の着席位置は維持しています。</p><main></main>
+<script type="module">
+import Phaser from 'phaser';
+import { drawOffice, avatarTexture } from '/src/game/art.ts';
+import { DEFAULT_APPEARANCE } from '/src/game/avatar.ts';
+import { seatSpots } from '/src/game/seating.ts';
+import { getRoom } from '/src/game/rooms.ts';
+import { TILE } from '/src/game/world.ts';
+const cases=[['修正前：天板に胴体が隠れる','office','top',true],['修正後：上半身が見える','office','top',false],['作戦室：上側の席','meeting','top',false],['下側の席：これまで通り','office','bottom',false]];
+for(const [i,[title,roomId,side,before]] of cases.entries()){
+ const article=document.createElement('article'),h=document.createElement('h2'),map=document.createElement('div');h.textContent=title;map.id=`seat-${i}`;article.append(h,map);document.querySelector('main').append(article);
+ class Preview extends Phaser.Scene{create(){
+   const table=getRoom(roomId).furniture.find(f=>f.kind==='table'&&f.h>1);
+   const seats=[...seatSpots(roomId,[]).values()].filter(s=>s.id.startsWith(`fixed:${roomId}:table:${table.x}:${table.y}:${side}:`));
+   drawOffice(this,roomId);
+   for(const [n,seat] of seats.slice(0,3).entries()){
+     const y=before?table.y*TILE+3:seat.anchor.y;
+     this.add.image(seat.anchor.x,y+6,avatarTexture(this,{...DEFAULT_APPEARANCE,color:n},seat.facing,0,'sit')).setOrigin(.5,1).setDepth(seat.depth);
+   }
+   this.cameras.main.setZoom(3).centerOn((table.x+table.w/2)*TILE,(table.y+(side==='bottom'?table.h:0))*TILE+8);
+ }}
+ new Phaser.Game({type:Phaser.AUTO,parent:map.id,width:384,height:216,pixelArt:true,roundPixels:true,scene:[Preview],input:{keyboard:false},audio:{noAudio:true},banner:false});
+}
+</script></html>
