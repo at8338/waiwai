@@ -22,6 +22,8 @@
 
 ## コマンド
 
+アプリ251テスト、Terraform23モックケース、配備設定/ロールバック7テスト、ビルド・型検査が成功。GitHubのLinux CIで不足していたproviderのplatform別h1は公式HashiCorp署名付き配布物で検証して追加した。
+
 - `npm run build` / TypeScript検証。
 - `npm test`。
 - `node --test scripts/azure/deployment-config.test.mjs scripts/azure/activate-release.test.mjs`。
