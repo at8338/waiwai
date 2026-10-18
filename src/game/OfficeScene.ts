@@ -237,7 +237,7 @@ export class OfficeScene extends Phaser.Scene {
       resolve: (id) => objectTargets(this.roomId, this.objects).find((o) => o.id === id),
       send: (edit) => this.connection?.editLinks(edit), open: () => this.controls.clear() });
     this.chatUI = new ChatUI(this.inputController.signal, action => this.connection?.chat(action) ?? false, () => { this.controls.clear(); this.setEditMode('none'); }, id => [...this.players.values()].find(p => playerIdentity(p) === id)?.slack);
-    this.focusUI = new FocusUI(this.inputController.signal, this.chatUI, () => this.game.scale.refresh(), () => this.controls.clear(), enabled => { this.mouseMovement = enabled; this.controls.clear(); this.setEditMode('none'); });
+    this.focusUI = new FocusUI(this.inputController.signal, this.chatUI, () => this.game.scale.refresh(), () => { this.controls.clear(); this.setEditMode('none'); }, enabled => { this.mouseMovement = enabled; this.controls.clear(); this.setEditMode('none'); });
     this.destinationMarker = this.add.graphics().setDepth(10000);
     this.speechView = new SpeechBubblesView(this, this.speech);
     this.directoryUI = new PeopleDirectory({ signal: this.inputController.signal,
@@ -378,6 +378,7 @@ export class OfficeScene extends Phaser.Scene {
     this.events.once('destroy', cleanup);
     this.game.canvas.focus({ preventScroll: true });
     this.game.canvas.parentElement?.querySelector('.loading')?.remove();
+    this.focusUI.activateDefaults(this.loginRequired);
     this.update(0, 0);
   }
 

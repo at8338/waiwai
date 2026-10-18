@@ -659,7 +659,48 @@ body.office-focused #app > .topbar, body.office-focused #app > .workspace, body.
 .focus-heading > strong { color: #355b49; font-size: 15px; letter-spacing: .08em; margin-right: auto; }
 .focus-heading [data-room-name] { font-size: 11px; font-weight: normal; letter-spacing: normal; margin-left: 10px; }
 #focus-network { font-size: 10px; color: #6f8564; }
-#focus-utilities { display: flex; gap: 5px; }
+.focus-tools-row { display: flex; align-items: center; gap: 4px; flex-shrink: 0; min-width: 0; height: 44px; }
+#focus-utilities { display: flex; flex: 1; min-width: 0; flex-wrap: nowrap; gap: 6px; overflow-x: auto; overflow-y: hidden; padding: 2px 0; scrollbar-width: none; touch-action: pan-x; }
+#focus-utilities::-webkit-scrollbar { display: none; }
+#focus-utilities button, #focus-furniture-close { border: 1px solid #c9d2bf; border-radius: 5px; background: #fffdf5; color: #355b49; padding: 6px 9px; font-size: 11px; cursor: pointer; }
+#focus-utilities button:disabled { opacity: .5; cursor: default; }
+#focus-utilities button { display: grid; place-items: center; flex: 0 0 40px; width: 40px; height: 40px; padding: 0; }
+#focus-utilities svg { pointer-events: none; }
+#focus-utilities button:hover:not(:disabled), #focus-utilities button:focus-visible { background: #e4eddd; border-color: #63856c; outline: 2px solid #63856c; outline-offset: -2px; }
+.focus-tools-scroll { border: 1px solid #c9d2bf; border-radius: 5px; background: #fffdf5; color: #355b49; width: 28px; height: 40px; flex-shrink: 0; padding: 0; font-size: 22px; cursor: pointer; }
+.focus-tools-scroll:disabled { opacity: .3; cursor: default; }
+.focus-tool-tooltip { position: fixed; z-index: 60; max-width: min(320px, calc(100vw - 16px)); padding: 7px 10px; border-radius: 5px; background: #304d3f; color: #fff8e4; box-shadow: 0 3px 9px #243d3126; font-size: 12px; line-height: 1.5; pointer-events: none; }
+#focus-utilities button[aria-expanded='true'] { background: #355b49; color: #fff8dd; }
+#focus-furniture { flex-shrink: 0; max-height: 30dvh; overflow-y: auto; border: 1px solid #c9d2bf; border-radius: 6px; background: #fffdf5; padding: 8px; }
+#focus-furniture-close { float: right; margin-left: 10px; }
+#focus-furniture .object-tools { margin: 0; border: 0; padding: 0; }
+#focus-furniture .object-heading h2 { font-size: 12px; }
+#focus-furniture .object-actions { gap: 6px; }
+#focus-furniture .object-actions button { padding: 6px 9px; font-size: 11px; }
+#focus-furniture #object-status { margin: 6px 0 0; font-size: 11px; }
+#focus-content { display: flex; flex-direction: column; flex-shrink: 0; gap: 5px; max-height: 22dvh; overflow-y: auto; }
+#focus-content .daily-event-panel { margin: 0; padding: 6px 10px; }
+#focus-content .daily-event-panel > div:first-child { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; }
+#focus-content .daily-event-panel .eyebrow, #focus-content .daily-event-actions { display: none; }
+#focus-content .daily-event-panel strong { font-size: 12px; }
+#focus-content .daily-event-panel p { margin: 0; font-size: 10px; }
+#focus-content #daily-event-found { font-size: 10px; }
+#focus-content .birthday-banner, #focus-content .arena-panel, #focus-content .arcade-panel, #focus-content .cockpit-panel { margin: 0; padding: 8px 10px; }
+#focus-content h3 { font-size: 12px; margin: 0 0 4px; }
+#focus-content .eyebrow, #focus-content #arena-panel > small { display: none; }
+#focus-content .connection-message, #focus-content .birthday-status { margin: 0; font-size: 10px; }
+#focus-content .connection-message:empty, #focus-content .birthday-status:empty { display: none; }
+.focus-connected #connection-message { display: none; }
+.focus-personal-dialog { max-width: 720px; }
+#focus-personal-host { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+#focus-personal-host .slack-login { grid-column: 1 / -1; margin: 0; }
+#focus-personal-host > section { margin: 0; padding: 12px; border: 1px solid #d7dfcc; border-radius: 6px; }
+#focus-personal-host input { max-width: 100%; }
+#focus-personal-host .personal-data-section { grid-column: auto; }
+#focus-personal-host p { font-size: 12px; line-height: 1.7; }
+#focus-personal-dialog > form, #focus-lost-dialog > form { margin-top: 18px; }
+#focus-lost-dialog #lost-items-panel { margin: 0; }
+#focus-lost-dialog summary { display: none; }
 .focus-heading button { font-size: 10px; padding: 6px 8px; }
 .focus-broadcast { display: flex; gap: 10px; align-items: center; flex-shrink: 0; min-height: 36px; background: #354f42; color: #fff6d5; border-radius: 5px; padding: 0 8px 0 12px; }
 .focus-broadcast > strong { flex-shrink: 0; font-size: 11px; letter-spacing: .08em; }
@@ -676,7 +717,7 @@ body.office-focused #app > .topbar, body.office-focused #app > .workspace, body.
 #focus-map-host .game-frame { box-shadow: none; padding: 6px; }
 #focus-map-host .game-topline { padding: 3px 6px 8px; }
 #focus-map-host .floor-layout { grid-template-columns: minmax(0, 1fr) 150px; gap: 8px; align-items: stretch; }
-#focus-map-host .map-surround { width: min(100%, calc((100dvh - 325px) * 1.2766)); justify-self: center; padding: 9px; }
+#focus-map-host .map-surround { width: min(100%, calc(var(--focus-map-space, 55dvh) * 1.2766)); justify-self: center; padding: 9px; }
 #focus-map-host .room-shortcuts { position: absolute; inset: 0; display: block; overflow-y: auto; overflow-x: hidden; }
 #focus-map-host .room-shortcuts button { width: 100%; min-height: 28px; border: 0; border-left: 2px solid transparent; border-radius: 0; padding: 5px; font-size: 10px; }
 #focus-map-host .room-shortcuts-heading { margin: 0 4px 6px; font-size: 10px; }
@@ -718,7 +759,8 @@ body.office-focused #app > .topbar, body.office-focused #app > .workspace, body.
 .chat-hidden .focus-workspace { grid-template-columns: minmax(0, 1fr); }
 .chat-hidden #focus-chat-host { display: none; }
 @media (max-width: 900px) {
-  .focus-heading [data-room-name], #focus-network, #focus-utilities { display: none; }
+  .focus-heading [data-room-name], #focus-network { display: none; }
+  #focus-utilities { gap: 4px; }
   .focus-workspace { display: block; }
   #focus-map-host { height: 100%; }
   #focus-chat-host { position: absolute; left: 0; top: 0; bottom: 0; width: min(320px, 85vw); z-index: 3; box-shadow: 6px 0 15px #354b3e33; }
@@ -731,6 +773,11 @@ body.office-focused #app > .topbar, body.office-focused #app > .workspace, body.
   #office-focus:not([hidden]) { padding-inline: 6px; gap: 6px; }
   #click-move-status { width: 100%; font-size: 9px; }
   .focus-broadcast button { font-size: 9px; padding: 4px 5px; }
+}
+@media (max-width: 520px) {
+  #focus-personal-host { grid-template-columns: minmax(0, 1fr); }
+  #focus-content .daily-event-panel p, #focus-content #daily-event-found { display: none; }
+  #focus-furniture-close { float: none; margin: 0 0 6px; }
 }
 @media (prefers-reduced-motion: reduce) {
   #focus-broadcast-text.is-scrolling { animation: none; padding-left: 0; }
