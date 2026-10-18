@@ -35,6 +35,13 @@ export function setupDialogDismissals(root: HTMLElement): () => void {
       if (dismissBackdrop) dismiss();
     }, { signal });
     dialog.addEventListener('close', () => { startedOutside = false; }, { signal });
+    // Native autofocus may scroll a long dialog to a heading or selected control.
+    // Always open at its beginning; leave docked chat and its message position alone.
+    dialog.addEventListener('toggle', () => {
+      if (!dialog.open || !dialog.matches(':modal')) return;
+      dialog.scrollTop = 0;
+      dialog.querySelectorAll<HTMLElement>('.dialog-scroll').forEach(body => { body.scrollTop = 0; });
+    }, { signal });
   };
   const scan = (element: Element) => {
     if (element instanceof HTMLDialogElement) install(element);

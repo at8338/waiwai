@@ -1,0 +1,209 @@
+/* Modal layout: keep the exit and primary actions reachable, scroll the content. */
+dialog:not(.chat-docked) {
+  --dialog-padding: 20px;
+  padding: var(--dialog-padding);
+  width: min(var(--dialog-width, 440px), calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  max-width: min(var(--dialog-width, 440px), calc(100vw - 24px));
+  scroll-padding-block: 12px 76px;
+}
+dialog:not(.chat-docked) h2 { margin: 8px 44px 14px 0; line-height: 1.4; }
+dialog:not(.chat-docked) p { margin-block: 8px; line-height: 1.65; }
+dialog:not(.chat-docked) .eyebrow { display: block; padding-right: 44px; font-size: 9px; line-height: 1.5; }
+dialog:not(.chat-docked) :is(input:not([type=checkbox], [type=radio]), select, textarea) { font-size: 13px; }
+dialog:not(.chat-docked) :is(input, select, textarea, button):focus-visible { outline: 2px solid #98713c; outline-offset: 2px; }
+dialog.has-dismiss-controls:not(.chat-docked) .dialog-dismiss-bar {
+  position: sticky; top: 0; height: 0; min-height: 0; margin: 0;
+  overflow: visible; background: none; flex-shrink: 0; pointer-events: none;
+}
+dialog.has-dismiss-controls .dialog-dismiss-button {
+  position: absolute; right: -8px; top: -8px; width: 36px; height: 36px;
+  min-height: 36px; flex-basis: 36px; font-size: 25px;
+}
+:where(dialog:not(.chat-docked)) .dialog-actions {
+  position: sticky; bottom: calc(-1 * var(--dialog-padding)); z-index: 5;
+  flex-wrap: wrap; gap: 8px; margin-top: 12px; padding: 10px 0;
+  background: inherit; box-shadow: 0 -5px 8px -7px #354b3e55;
+}
+/* Forms have no painted background of their own. */
+:where(dialog:not(.chat-docked)) form .dialog-actions { background: var(--dialog-surface, #faf8ec); }
+dialog:not(.chat-docked) .dialog-actions button { min-height: 38px; padding: 8px 12px; font-size: 12px; }
+dialog:not(.chat-docked) .dialog-close { margin-top: 12px; min-height: 38px; padding: 9px 12px; }
+dialog:not(.chat-docked) > :is(.dialog-close, form[method=dialog]) { position: sticky; bottom: calc(-1 * var(--dialog-padding)); z-index: 5; }
+dialog:not(.chat-docked) [role=status]:empty { display: none; }
+.spells-dialog { --dialog-surface: #faf5f7; }
+.birthday-dialog { --dialog-surface: #fff8ec; }
+.arcade-dialog { --dialog-surface: #f6f1e4; }
+.avatar-dialog { --dialog-width: 720px; }
+.buddy-dialog, .focus-personal-dialog { --dialog-width: 760px; }
+.pokemon-journal-dialog { --dialog-width: 800px; }
+.spells-dialog { --dialog-width: 640px; }
+.birthday-dialog, .announcement-dialog { --dialog-width: 580px; }
+.object-links-dialog { --dialog-width: 590px; }
+.people-dialog { --dialog-width: 720px; }
+.room-dialog, .cockpit-dialog { --dialog-width: 900px; }
+.office-calendar-dialog, .schedule-dialog, .arcade-dialog { --dialog-width: 940px; }
+.vehicle-dialog { --dialog-width: 680px; }
+.event-dialog { --dialog-width: 560px; }
+.admin-dialog { --dialog-width: 820px; }
+.dev-world-dialog { --dialog-width: 880px; }
+.personal-data-dialog { --dialog-width: 600px; }
+.chat-dialog { --dialog-width: 1000px; }
+
+/* These lists grow to thousands of entries; only the list consumes spare height. */
+dialog.dialog-list-layout[open] { display: flex; flex-direction: column; overflow: hidden; }
+dialog.dialog-list-layout > *, :is(#avatar-form, #buddy-form) > * { flex-shrink: 0; min-width: 0; }
+.dialog-scroll { min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; scroll-padding: 8px; }
+dialog.dialog-list-layout > .dialog-scroll, :is(#avatar-form, #buddy-form) > .dialog-scroll {
+  flex: 1 1 auto; min-height: 80px; max-height: none;
+}
+:is(#avatar-form, #buddy-form) { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.dialog-list-layout .dialog-actions { position: static; padding-bottom: 0; }
+.dialog-list-layout > form[method=dialog] { margin-top: 10px; }
+.dialog-list-layout > form[method=dialog] button { min-height: 38px; }
+.dialog-list-layout :is(.pokemon-progress, .buddy-filter, .people-search) { margin-block: 10px; }
+.dialog-list-layout .dialog-scroll { margin-block: 8px; }
+#focus-personal-host { padding: 3px; }
+#focus-personal-host .slack-login { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; }
+#focus-personal-host .slack-login h2 { grid-column: 1; padding: 0; margin: 0; }
+#focus-personal-host #slack-login-status { grid-column: 1; margin: 0; }
+#focus-personal-host :is(#slack-login-link, #slack-logout, #slack-auth-retry) { grid-column: 2; }
+#focus-personal-host #slack-login-help { grid-column: 1 / -1; margin: 4px 0 0; }
+#focus-personal-host .profile-top { margin-bottom: 12px; }
+#focus-personal-host .avatar-edit { margin-top: 10px; }
+#focus-personal-host .profile-birthday { margin-top: 12px; padding-top: 10px; }
+.avatar-editor-layout { gap: 16px; padding: 3px; }
+.avatar-draft-backdrop { position: sticky; top: 0; padding: 12px 8px; }
+#avatar-fields { gap: 9px; align-content: start; }
+.buddy-card label { min-height: 88px; padding-block: 10px; }
+.pokemon-filters { padding: 10px; margin-block: 8px; }
+#pokemon-query { margin-block: 6px; padding: 8px; }
+.pokemon-card { padding: 12px; }
+.pokemon-card canvas { margin-block: 10px; }
+.pokemon-card h3 { font-size: 14px; }
+.room-grid button { padding: 12px; gap: 6px; }
+.people-search :is(input, select) { margin-top: 4px; padding: 8px; }
+#people-results li { padding-block: 10px; }
+
+/* Magic is a small toolbar plus a searchable, independently scrolling target list. */
+.spell-choices { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 6px 0 8px; }
+.spell-choices button { flex-direction: row; justify-content: center; padding: 10px 6px; gap: 7px; min-height: 44px; font-size: 13px; }
+.spell-choices button span { font-size: 20px; }
+#spell-targets:not([hidden]) { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 130px; }
+#spell-targets > :not(#spell-people) { flex-shrink: 0; }
+#spell-query { display: block; margin-top: 5px; }
+.spell-selection { margin-top: 8px; }
+#spell-people { flex: 1 1 auto; min-height: 64px; max-height: min(300px, 35dvh); margin-block: 6px; }
+#spell-people label { padding: 8px 4px; }
+.spell-help { margin-top: 6px; font-size: 11px; }
+.spell-help summary { cursor: pointer; padding: 5px 0; }
+#spells-dialog .spell-help[open] { flex-shrink: 1; min-height: 45px; overflow: auto; }
+
+/* Keep calendar dates compact, with the chosen day's details alongside them. */
+.calendar-toolbar { margin-block: 8px 12px; }
+.calendar-grid button { min-height: 48px; padding-block: 5px; gap: 3px; }
+.calendar-details { max-height: none; padding: 12px; }
+.office-calendar-body { align-items: start; }
+.schedule-body { overflow: hidden; }
+.schedule-body > section { overflow: auto; min-height: 0; }
+#schedule-form { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+#schedule-form > h3 { flex-shrink: 0; margin-block: 8px; }
+.schedule-editor-fields { min-height: 80px; overflow: auto; padding: 2px; }
+#schedule-form .dialog-actions { position: static; flex-shrink: 0; }
+
+/* Developer controls have one visible category, not three screens stacked vertically. */
+.dev-world-tabs { display: flex; gap: 8px; margin: 6px 0 10px; }
+.dev-world-tabs button { flex: 1; }
+.dev-world-tabs button[aria-pressed=true] { background: #355b49; color: #fff8df; }
+.dev-world-dialog section.dialog-scroll { padding-block: 8px; }
+.dev-world-dialog section[hidden] { display: none; }
+.dev-world-dialog section :is(.dev-world-row, button[data-command=event]) { position: sticky; bottom: 0; z-index: 3; background: #faf8ec; }
+.dev-world-dialog section .dev-world-row { padding-block: 8px; border-top: 1px solid #dedacb; }
+.admin-tabs { margin-block: 10px; }
+#admin-status { min-height: 0; }
+.admin-generation-options:has(fieldset[hidden]) { display: none; }
+dialog.admin-dialog .admin-generation-options { flex-shrink: 1; min-height: 32px; margin: 4px 0 10px; max-height: 30dvh; overflow: auto; }
+.admin-generation-options summary { cursor: pointer; padding-block: 6px; font-size: 12px; }
+.admin-generation-options fieldset { min-width: 0; margin-top: 6px; }
+.admin-generation-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.admin-generation-grid label { padding: 7px; }
+.admin-generation-options fieldset > p { font-size: 11px; }
+#admin-items.dialog-scroll { min-height: 64px; }
+.vehicle-cards { margin-block: 8px; }
+
+/* Reading and play dialogs also start with useful content, rather than tall decoration. */
+.event-dialog canvas { max-height: 160px; margin-block: 10px; }
+.event-dialog h3 { margin-top: 10px; }
+.vehicle-cards section { padding: 12px; }
+.vehicle-ground-section { margin-top: 12px; padding-top: 10px; }
+.cockpit-dialog-body { margin-top: 12px; gap: 14px; }
+#cockpit-robot { max-height: 180px; object-fit: contain; }
+.cockpit-commands button { padding: 9px; }
+.robot-inside summary { padding: 8px 0; cursor: pointer; font-size: 12px; }
+.arcade-heading { padding-right: 40px; }
+#arcade-tabs { display: flex; overflow-x: auto; gap: 6px; padding-bottom: 6px; margin-bottom: 12px; scrollbar-gutter: stable; }
+#arcade-tabs button { flex: 0 0 132px; padding: 8px; }
+#arcade-tabs span { display: none; }
+#arcade-tabs small { margin-top: 4px; }
+#arcade-members { margin-block: 8px; }
+#arcade-status { min-height: 0; padding: 10px; }
+.arcade-actions { position: sticky; bottom: -20px; background: #f6f1e4; padding-block: 8px; z-index: 5; }
+.chat-dialog[open]:not(.chat-docked) { display: flex; flex-direction: column; overflow: hidden; }
+.chat-dialog:not(.chat-docked) > :not(.chat-layout) { flex-shrink: 0; }
+.chat-dialog:not(.chat-docked) .chat-layout { flex: 1; min-height: 0; }
+.chat-dialog:not(.chat-docked) .chat-layout nav { min-height: 0; }
+.chat-dialog:not(.chat-docked) .chat-conversation { display: flex; flex-direction: column; min-height: 0; }
+.chat-dialog:not(.chat-docked) .chat-conversation > :not(#chat-messages) { flex-shrink: 0; }
+.chat-dialog:not(.chat-docked) #chat-messages { flex: 1 1 auto; max-height: none; min-height: 80px; }
+.chat-dialog:not(.chat-docked) #chat-form { position: static; padding-block: 4px; background: #faf8ec; }
+
+@media (max-width: 600px) {
+  dialog:not(.chat-docked) { --dialog-padding: 14px; width: min(var(--dialog-width, 440px), calc(100vw - 16px)); max-width: min(var(--dialog-width, 440px), calc(100vw - 16px)); max-height: calc(100dvh - 16px); }
+  dialog:not(.chat-docked) h2 { font-size: 18px; margin-bottom: 10px; }
+  dialog:not(.chat-docked) :is(input:not([type=checkbox], [type=radio]), select, textarea) { font-size: 16px; }
+  dialog.has-dismiss-controls .dialog-dismiss-button { right: -6px; top: -6px; min-height: 40px; height: 40px; width: 40px; }
+  dialog:not(.chat-docked) .dialog-actions button { min-height: 44px; }
+  .spell-choices { gap: 6px; }
+  .spell-choices button { flex-direction: column; gap: 4px; font-size: 12px; padding: 8px 2px; }
+  .buddy-card label { grid-template-columns: 16px 1fr; padding: 10px 30px 10px 8px; gap: 6px; }
+  .buddy-card canvas { grid-column: 2; grid-row: auto; }
+  .buddy-card strong, .buddy-card label span { grid-column: 1 / -1; }
+  .avatar-editor-layout { grid-template-columns: 82px minmax(0, 1fr); gap: 8px; }
+  .avatar-draft-backdrop { padding: 8px 4px; }
+  #avatar-draft { width: 64px; height: 64px; }
+  .office-calendar-body { gap: 12px; }
+  .calendar-grid button { min-height: 44px; }
+  .calendar-details { overflow: visible; }
+  #focus-personal-host .slack-login { display: block; }
+  #focus-personal-host :is(#slack-login-link, #slack-logout, #slack-auth-retry) { margin-block: 8px; }
+  .schedule-body { display: flex; flex-direction: column; gap: 10px; }
+  .schedule-body > section { max-height: 120px; flex-shrink: 0; }
+  .schedule-body > form { flex: 1; }
+  .cockpit-hero { display: grid; grid-template-columns: 70px 1fr; align-items: center; width: 100%; margin: 0; }
+  #cockpit-robot { grid-row: span 2; max-height: 80px; }
+  #arcade-tabs button { flex-basis: 125px; }
+  .arcade-game-body { gap: 12px; }
+  .arcade-info { display: contents; }
+  #arcade-dialog :is(.arcade-game-body > *, .arcade-info > *) { grid-column: 1; min-width: 0; }
+  .arcade-screen { grid-row: 4; }
+  #arcade-tag { grid-row: 1; }
+  .arcade-info h2 { grid-row: 2; }
+  #arcade-rules { grid-row: 3; }
+  .arcade-actions { bottom: -14px; }
+  .chat-dialog:not(.chat-docked) .chat-layout { display: flex; flex-direction: column; }
+  .chat-dialog:not(.chat-docked) .chat-layout nav { max-height: 120px; flex-shrink: 0; }
+  .chat-dialog:not(.chat-docked) .chat-conversation { flex: 1; }
+}
+
+/* Very short windows and on-screen keyboards still allow every control to be reached. */
+@media (max-height: 540px) {
+  .chat-dialog[open]:not(.chat-docked) { overflow-y: auto; }
+  .chat-dialog:not(.chat-docked) .chat-layout { flex: none; }
+  .chat-dialog:not(.chat-docked) #chat-messages { max-height: 25dvh; }
+  .chat-dialog:not(.chat-docked) #chat-form { position: sticky; bottom: -20px; z-index: 5; }
+  dialog.dialog-list-layout[open] { overflow-y: auto; }
+  dialog.dialog-list-layout > *, :is(#avatar-form, #buddy-form) > * { flex-shrink: 0; }
+  :is(#avatar-form, #buddy-form) { overflow: visible; flex-shrink: 0; }
+  dialog.dialog-list-layout > .dialog-scroll, :is(#avatar-form, #buddy-form) > .dialog-scroll { flex: none; max-height: 42dvh; min-height: 100px; }
+  .dialog-list-layout .dialog-actions { position: sticky; padding-bottom: 10px; }
+}
