@@ -1,5 +1,17 @@
 // Small UI pictograms; accessible names live on their buttons.
 const paths: Record<string, string> = {
+  'mouse-move-toggle': '<path d="m5 2 15 10-8 2-3 8L5 2Z"/>',
+  'office-focus-toggle': '<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M9 9h6v6H9z"/>',
+  'reaction-bow': '<circle cx="8" cy="6" r="3"/><path d="m7 10 8 4-1 7m1-7 5 5m-9-7-6 2-2 5"/>',
+  'reaction-jump': '<path d="M5 21h14M12 17V3m-5 5 5-5 5 5"/>',
+  'reaction-cheer': '<circle cx="12" cy="7" r="3"/><path d="M9 12h6v9m-6 0v-9L3 6m12 6 6-6m-9 9v6"/>',
+  'reaction-joy': '<path d="m12 3 2 6 6 2-6 2-2 6-2-6-6-2 6-2 2-6ZM4 2v4m-2-2h4m14 13v5m-2-2h4"/>',
+  'toggle-rest': '<circle cx="6" cy="15" r="2"/><path d="M3 12v9m0-3h18v3M9 18v-5h8a4 4 0 0 1 4 4v1M9 4h5L9 9h5"/>',
+  'reaction-anger': '<path d="M4 10h16v9H4zm-2 9h20v3H2zM6 2 4 6m14-4 2 4M12 1v5"/>',
+  'spell-fire-quick': '<path d="M13 2c2 7 8 8 8 14a9 9 0 0 1-18 0c0-4 3-7 5-9 0 5 2 6 3 6 3-3 3-6 2-11Z"/><path d="M10 21c-4-3 0-7 2-9 0 4 6 6 2 9"/>',
+  'spell-blizzard-quick': '<path d="M12 2v22M3 7l18 12M3 19 21 7M8 4l4 4 4-4M8 22l4-4 4 4M3 11l5-1-1-5M21 15l-5 1 1 5M3 15l5 1-1 5M21 11l-5-1 1-5"/>',
+  'voice-toggle': '<path d="M3 16v-5a9 9 0 0 1 18 0v5M3 14h4v8H3zm14 0h4v8h-4"/>',
+  'mic-toggle': '<rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 11v2a7 7 0 0 0 14 0v-2m-7 9v4m-4 0h8"/>',
   'focus-personal-open': '<circle cx="12" cy="8" r="3"/><path d="M5 21v-3a7 7 0 0 1 14 0v3M18 4l1-1m1 5h2"/>',
   'chat-open': '<path d="M4 4h16v12H9l-5 4V4Z"/><path d="M8 8h8M8 12h5"/>',
   'people-open': '<circle cx="9" cy="7" r="3"/><path d="M2 19v-2a7 7 0 0 1 12-5"/><circle cx="17" cy="16" r="4"/><path d="m20 19 3 3"/>',

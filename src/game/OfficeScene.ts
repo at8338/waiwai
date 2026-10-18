@@ -724,6 +724,8 @@ export class OfficeScene extends Phaser.Scene {
     this.game.canvas.addEventListener('keydown', (event) => {
       if (event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
       if (event.code === 'Digit5') { event.preventDefault(); this.toggleRest(); return; }
+      if (event.code === 'KeyM') { event.preventDefault(); document.querySelector<HTMLButtonElement>('#mouse-move-toggle')?.click(); return; }
+      if (event.code === 'KeyQ') { event.preventDefault(); document.querySelector<HTMLButtonElement>('#spells-open')?.click(); return; }
       if (event.code === 'KeyF' || event.code === 'KeyB') { event.preventDefault(); this.spellsUI?.quick(event.code === 'KeyF' ? 'fire' : 'blizzard'); return; }
       if (event.code === 'KeyE' && this.editMode === 'none') { event.preventDefault(); this.vehicleUI?.quickAction(); return; }
       const kind = REACTION_KINDS.find(kind => event.code === `Digit${REACTIONS[kind].key}`);
