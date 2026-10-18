@@ -52,14 +52,14 @@ export class FocusUI {
     this.shell.querySelector('.focus-heading')!.append(chatToggle);
     chatToggle.addEventListener('click', () => { this.shell.classList.toggle('chat-hidden'); this.refreshMap(); }, { signal });
     const utilities = this.shell.querySelector('#focus-utilities')!;
-    for (const [id, label] of [['chat-open', 'チャット'], ['people-open', '人を探す'], ['daily-event-go', '今日の事件'], ['event-journal-open', '事件図鑑'], ['office-calendar-open', 'カレンダー'], ['broadcast-open', '館内放送'], ['schedule-open', '予定・定例'], ['avatar-edit', 'アバター'], ['buddy-edit', 'バディ'], ['pokemon-journal-open', 'ポケモン図鑑'], ['birthday-open', '誕生日'], ['spells-open', '魔法'], ['vehicle-open', '乗りもの'], ['room-picker-open', 'フロア一覧'], ['reset-position', '入口にもどる'], ['help-button', '操作ヘルプ'], ['admin-open', '管理者モード'], ['dev-world-open', '出現テスト']]) {
+    for (const [id, label] of [['chat-open', 'チャット'], ['people-open', '人を探す'], ['daily-event-go', '今日の事件'], ['event-journal-open', '事件図鑑'], ['office-calendar-open', 'カレンダー'], ['broadcast-open', '館内放送'], ['schedule-open', '予定・定例'], ['spells-open', '魔法'], ['vehicle-open', '乗りもの'], ['room-picker-open', 'フロア一覧'], ['reset-position', '入口にもどる'], ['help-button', '操作ヘルプ'], ['admin-open', '管理者モード'], ['dev-world-open', '出現テスト']]) {
       const target = document.getElementById(id) as HTMLButtonElement | null; if (!target) continue;
       const button = document.createElement('button'); button.type = 'button'; button.dataset.focusProxy = id; button.textContent = label; utilities.append(button); this.proxies.push({ target, button });
     }
     const personalButton = document.createElement('button'); personalButton.type = 'button'; personalButton.textContent = '個人設定・ログイン'; personalButton.id = 'focus-personal-open';
     personalButton.addEventListener('click', () => this.openPersonal(), { signal }); utilities.prepend(personalButton);
     const furniture = document.createElement('button'); furniture.id = 'focus-furniture-toggle'; furniture.type = 'button'; furniture.textContent = '家具・小物'; furniture.setAttribute('aria-expanded', 'false'); furniture.setAttribute('aria-controls', 'focus-furniture');
-    utilities.querySelector('[data-focus-proxy="avatar-edit"]')!.before(furniture);
+    utilities.querySelector('[data-focus-proxy="spells-open"]')!.before(furniture);
     furniture.addEventListener('click', () => this.showFurniture(this.shell.querySelector<HTMLElement>('#focus-furniture')!.hidden), { signal });
     this.shell.querySelector('#focus-furniture-close')!.addEventListener('click', () => this.showFurniture(false), { signal });
     const lost = document.createElement('button'); lost.type = 'button'; lost.textContent = '落とし物'; lost.id = 'focus-lost-open';
