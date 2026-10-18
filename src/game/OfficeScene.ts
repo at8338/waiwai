@@ -3,6 +3,8 @@ import { AdminUI } from './admin-ui.ts';
 import { DummyAvatarsUI } from './dummy-avatars-ui.ts';
 import { FocusUI } from './focus-ui.ts';
 import { ClickTravel } from './click-travel.ts';
+import { SpeechBubbles } from './speech-bubbles.ts';
+import { SpeechBubblesView } from './speech-bubbles-view.ts';
 import { defaultWorldPolicy, policyAllows } from './world-policy.ts';
 import type { WorldPolicy } from './world-policy.ts';
 import { ART_WIDTH, ART_HEIGHT, configureArtCamera } from './art-resolution.ts';
@@ -139,6 +141,8 @@ export class OfficeScene extends Phaser.Scene {
   private ghost?: Phaser.GameObjects.Graphics;
   private atDoor = false;
   private chatUI?: ChatUI;
+  private speech = new SpeechBubbles();
+  private speechView?: SpeechBubblesView;
   private directoryUI?: PeopleDirectory;
   private linksUI?: ObjectLinksEditor;
   private frontBoard?: string;
@@ -235,6 +239,7 @@ export class OfficeScene extends Phaser.Scene {
     this.chatUI = new ChatUI(this.inputController.signal, action => this.connection?.chat(action) ?? false, () => { this.controls.clear(); this.setEditMode('none'); }, id => [...this.players.values()].find(p => playerIdentity(p) === id)?.slack);
     this.focusUI = new FocusUI(this.inputController.signal, this.chatUI, () => this.game.scale.refresh(), () => this.controls.clear(), enabled => { this.mouseMovement = enabled; this.controls.clear(); this.setEditMode('none'); });
     this.destinationMarker = this.add.graphics().setDepth(10000);
+    this.speechView = new SpeechBubblesView(this, this.speech);
     this.directoryUI = new PeopleDirectory({ signal: this.inputController.signal,
       open: () => this.controls.clear(),
       warp: (id) => { this.controls.clear(); this.setEditMode('none'); return this.connection?.warpTo(id) ?? false; },
@@ -279,7 +284,13 @@ export class OfficeScene extends Phaser.Scene {
       dailyEvent: (state) => { this.dailyUI?.receive(state); this.dailyView?.receive(state); this.skyWindow?.setDailyEvent(state); },
       announcements: (state) => { this.announcementsUI?.snapshot(state); this.dailyUI?.receiveSchedules(state); this.focusUI?.receive(state); },
       birthdays: (state) => { this.birthdaysUI?.receive(state); this.dailyUI?.receiveBirthdays(state); },
-      chat: event => this.chatUI?.receive(event),
+      chat: event => {
+        this.chatUI?.receive(event);
+        if (event.type === 'chat-message' && this.connected) {
+          const now = performance.now(), ids = this.speech.receive(event.message, this.roomId, this.players.values(), now);
+          const speech = ids.length ? this.speech.get(ids[0], now) : undefined; if (speech) this.speechView?.announce(speech);
+        }
+      },
       birthdayThread: (state) => this.birthdaysUI?.receiveThread(state),
       devWorld: (state) => this.devWorldUI?.receive(state),
       devWorldResult: (id, error) => this.devWorldUI?.result(id, error),
@@ -354,6 +365,7 @@ export class OfficeScene extends Phaser.Scene {
       this.companions?.clear();
       this.focusUI?.destroy();
       this.chatUI?.destroy();
+      this.speechView?.destroy();
       this.birthdaysUI?.destroy();
       this.devWorldUI?.destroy();
       this.adminUI?.destroy();
@@ -383,6 +395,7 @@ export class OfficeScene extends Phaser.Scene {
     this.voice?.setConnected(this.connected);
     this.linksUI?.setReady(this.connected && this.objectsReady);
     if (!this.connected) {
+      this.speechView?.clear();
       this.reactions.clear(); this.nextReactionAt = 0; this.restPending = false;
       this.controls.clear();
       this.clearPeers();
@@ -441,6 +454,7 @@ export class OfficeScene extends Phaser.Scene {
 
   private receivePlayer(player: Player, snap: boolean, reason?: string): void {
     const previous = this.players.get(player.id);
+    if (previous && previous.roomId !== player.roomId) this.speechView?.remove(player.id);
     if (previous && (snap || previous.x !== player.x || previous.y !== player.y || previous.roomId !== player.roomId)) this.reactions.delete(player.id);
     this.players.set(player.id, player);
     if (player.resting) this.reactions.delete(player.id);
@@ -496,6 +510,7 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   private removePlayer(id: string): void {
+    this.speechView?.remove(id);
     this.companions?.remove(id);
     this.reactions.delete(id);
     const peer = this.peers.get(id);
@@ -604,6 +619,7 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   private showRoom(id: RoomId): void {
+    this.speechView?.clear();
     this.controls.clear(); this.travelIce = undefined;
     this.spellsView?.clear();
     this.reactions.clear();
@@ -852,6 +868,7 @@ export class OfficeScene extends Phaser.Scene {
     view.reactionLabel.setVisible(!!motion);
     if (motion && reaction) view.reactionLabel.setText(REACTIONS[reaction.kind].text)
       .setPosition(Math.round(x), Math.max(14, Math.round(y - 35 - labelLift))).setDepth(ROWS * TILE + 21);
+    if (id) this.speechView?.draw(id, x, Math.min(view.label.y - view.label.height - 3, motion ? view.reactionLabel.y - view.reactionLabel.height - 3 : Infinity), performance.now(), this.reducedMotion);
     view.sparkles.clear().setPosition(x, y - lift).setDepth(motion && reaction?.kind === 'anger' ? ROWS * TILE + 23 : y + 8);
     if (motion && reaction?.kind === 'anger') {
       // Four little red corners form the familiar comic anger mark.
@@ -914,12 +931,14 @@ export class OfficeScene extends Phaser.Scene {
     }
     this.destinationMarker?.clear();
     if (this.clickTravel.goal) { const p = this.clickTravel.goal; this.destinationMarker?.lineStyle(1, 0xffed9c, 0.9).strokeRect(p.x * TILE + 2, p.y * TILE + 2, TILE - 4, TILE - 4); }
+    this.speechView?.beginFrame();
     this.drawAvatar(this.avatar, this.walker, this.appearance, this.playerName, time, this.localId);
     this.avatar.sprite.setAlpha(this.connected ? 1 : 0.45);
     for (const peer of this.peers.values()) {
       peer.walker.update(delta);
       this.drawAvatar(peer.view, peer.walker, parseAppearance(peer.player.appearance, peer.player.outfit)!, peer.player.name + (this.speaking.has(peer.player.id) ? ' ♪' : ''), time, peer.player.id);
     }
+    this.speechView?.endFrame();
     const area = areaAt({ ...this.walker.tile, roomId: this.roomId });
     if (area !== this.lastArea) {
       this.lastArea = area;
