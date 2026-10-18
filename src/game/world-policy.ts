@@ -2,6 +2,7 @@ import { ROOMS, isRoomId } from './rooms.ts';
 import { ROAMING_RESIDENTS } from './buddies.ts';
 import { DAILY_EPISODES, episodeById } from './daily-event-catalog.ts';
 import { isPokemonKind } from './pokemon.ts';
+import { isPokemonGenerationId, pokemonGeneration } from './pokemon-generations.ts';
 import { validAnnouncementId } from './announcements.ts';
 import type { DailyEvent } from './daily-events.ts';
 import type { RoomId } from './rooms.ts';
@@ -12,14 +13,14 @@ export type PolicyAction = { type: 'policy-set'; actionId: string; revision: num
 export type PolicySnapshot = { policy: WorldPolicy; administrator: boolean };
 export const defaultWorldPolicy = (): WorldPolicy => ({ revision: 0, blocked: { rooms: [], residents: [], incidents: [], pokemon: [] } });
 export function policyItem(group: PolicyGroup, id: unknown): id is string {
-  return typeof id === 'string' && (id === '*' && group !== 'rooms' || (group === 'rooms' ? isRoomId(id) : group === 'residents' ? ROAMING_RESIDENTS.some(p => p.kind === id) : group === 'incidents' ? !!episodeById(id) : isPokemonKind(id)));
+  return typeof id === 'string' && (id === '*' && group !== 'rooms' || (group === 'rooms' ? isRoomId(id) : group === 'residents' ? ROAMING_RESIDENTS.some(p => p.kind === id) : group === 'incidents' ? !!episodeById(id) : isPokemonKind(id) || isPokemonGenerationId(id)));
 }
 export function parsePolicyAction(data: Record<string, unknown>): PolicyAction | undefined {
   if (data.type !== 'policy-set' || !validAnnouncementId(data.actionId) || !Number.isSafeInteger(data.revision) || (data.revision as number) < 0 ||
       !POLICY_GROUPS.includes(data.group as PolicyGroup) || !policyItem(data.group as PolicyGroup, data.id) || typeof data.allowed !== 'boolean') return;
   return { type: 'policy-set', actionId: data.actionId, revision: data.revision as number, group: data.group as PolicyGroup, id: data.id, allowed: data.allowed };
 }
-export const policyAllows = (policy: WorldPolicy, group: PolicyGroup, id: string): boolean => !policy.blocked[group].includes('*') && !policy.blocked[group].includes(id);
+export const policyAllows = (policy: WorldPolicy, group: PolicyGroup, id: string): boolean => !policy.blocked[group].includes('*') && !policy.blocked[group].includes(id) && !(group === 'pokemon' && isPokemonKind(id) && policy.blocked.pokemon.includes(pokemonGeneration(id).id));
 export const allowedRooms = (policy: WorldPolicy): RoomId[] => ROOMS.filter(r => policyAllows(policy, 'rooms', r.id)).map(r => r.id);
 export const policyEventAllowed = (policy: WorldPolicy, event: DailyEvent): boolean => policyAllows(policy, 'incidents', event.episodeId) && policyAllows(policy, 'rooms', event.roomId);
 export function allowedDailyEvent(event: DailyEvent, policy: WorldPolicy): DailyEvent | undefined {

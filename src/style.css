@@ -740,3 +740,13 @@ body.office-focused #app > .topbar, body.office-focused #app > .workspace, body.
 .chat-docked .chat-layout nav:has(#chat-group-form:not([hidden])) { max-height: 65%; }
 
 .speech-announcement { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+
+#admin-pokemon-generations { margin: 14px 0; padding: 12px; border: 1px solid #c8d4bc; border-radius: 6px; background: #f3f6ec; }
+#admin-pokemon-generations legend { font-size: 12px; font-weight: 600; padding: 0 5px; color: #44603c; }
+#admin-pokemon-generations > p { font-size: 11px; margin: 0 0 10px; }
+.admin-generation-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.admin-generation-grid label { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 9px; border: 1px solid #d8dfcc; border-radius: 4px; background: #fffdf5; cursor: pointer; }
+.admin-generation-grid input { width: 16px; height: 16px; margin: 1px 0 0; flex-shrink: 0; accent-color: #4d7357; }
+.admin-generation-grid strong { display: block; color: #435b3d; font-size: 11px; line-height: 1.6; }
+.admin-generation-grid small { display: block; color: #8a967d; font-size: 9px; line-height: 1.7; }
+@media (max-width: 520px) { .admin-generation-grid { grid-template-columns: minmax(0, 1fr); } }
