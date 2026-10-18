@@ -26,7 +26,7 @@ export class RoomLighting {
   }
   setRoom(roomId: RoomId): void { this.roomId = roomId; this.objects = []; this.key = ''; }
   setObjects(objects: readonly RoomObject[]): void { this.objects = objects; this.key = ''; }
-  update(now: number, weather?: WeatherKind, publish = true): void {
+  update(now: number, weather?: WeatherKind): void {
     const key = `${Math.floor(now / 60_000)}:${weather ?? ''}`;
     if (this.key === key) return;
     this.key = key;
@@ -72,7 +72,6 @@ export class RoomLighting {
         if (light.kind === 'lantern') this.sources.fillStyle(0x58645b).fillRect(x - 1, y + 3, 2, 6);
       } else if (light.kind === 'lamp') this.sources.fillStyle(light.color, p.lamps * 0.6).fillRect(light.x - 4, light.y - 1, 8, 3);
     }
-    if (!publish) return;
     const canvas = this.scene.game.canvas;
     canvas.dataset.lightingPhase = phase; canvas.dataset.jstTime = time; canvas.dataset.weather = outside;
     const label = document.querySelector<HTMLElement>('#lighting-status');

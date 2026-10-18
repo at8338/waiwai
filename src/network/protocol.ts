@@ -41,7 +41,7 @@ import { isReactionKind } from '../game/reactions.ts';
 import type { ReactionKind } from '../game/reactions.ts';
 
 export type Profile = { name: string; outfit: number; appearance?: Appearance; buddy?: BuddyKind | null; slack?: SlackIdentity | null };
-export type Player = Profile & { id: string; slot: number; roomId: RoomId; x: number; y: number; facing: Direction; dummy?: boolean; continuous?: boolean; slackVerified?: boolean; accountId?: string; buddyPosition?: BuddyPosition; riding?: Riding; resting?: boolean };
+export type Player = Profile & { id: string; slot: number; roomId: RoomId; x: number; y: number; facing: Direction; dummy?: boolean; slackVerified?: boolean; accountId?: string; buddyPosition?: BuddyPosition; riding?: Riding; resting?: boolean };
 // Profiles travel only on join/edit; movement is coalesced into one frame per 50ms.
 // Small numeric slot maps to a UUID in the welcome/join profile. Bits 0–1 are
 // direction; bit 2 means snap/reset. UUIDs and identities stay out of frames.
@@ -65,7 +65,6 @@ export type ClientMessage =
   | { type: 'rest'; resting: boolean }
   | { type: 'warp-to'; targetId: string; requestId: number }
   | { type: 'change-room'; roomId: RoomId; requestId: number }
-  | { type: 'world-mode'; enabled: boolean; requestId: number }
   | { type: 'object-place'; kind: ObjectKind; x: number; y: number; rotation: number; editId: string }
   | { type: 'object-move'; id: string; x: number; y: number; rotation: number; editId: string }
   | { type: 'object-remove'; id: string; editId: string }
@@ -114,7 +113,7 @@ export type ServerMessage =
   | { type: 'objects'; roomId: RoomId; objects: RoomObject[] }
   | { type: 'object-result'; editId: string; error?: string }
   | { type: 'positions'; positions: Position[] }
-  | { type: 'player'; player: Player; reason: 'join' | 'profile' | 'move' | 'dash' | 'reset' | 'room' | 'warp' | 'spell' | 'vehicle' | 'vending' | 'rest' | 'policy' | 'world-mode'; requestId?: number }
+  | { type: 'player'; player: Player; reason: 'join' | 'profile' | 'move' | 'dash' | 'reset' | 'room' | 'warp' | 'spell' | 'vehicle' | 'vending' | 'rest' | 'policy'; requestId?: number }
   | { type: 'left'; id: string };
 
 export const directions = ['up', 'down', 'left', 'right'] as const;
@@ -154,7 +153,6 @@ export function parseClientMessage(raw: string): ClientMessage | undefined {
     return;
   }
   const validRequest = Number.isSafeInteger(data.requestId) && (data.requestId as number) > 0;
-  if (data.type === 'world-mode' && typeof data.enabled === 'boolean' && validRequest) return { type: 'world-mode', enabled: data.enabled, requestId: data.requestId as number };
   if (data.type === 'warp-to' && typeof data.targetId === 'string' && /^[a-f0-9-]{36}$/.test(data.targetId) && validRequest) return { type: 'warp-to', targetId: data.targetId, requestId: data.requestId as number };
   if (data.type === 'change-room' && isRoomId(data.roomId) && validRequest) return { type: 'change-room', roomId: data.roomId, requestId: data.requestId as number };
   if (typeof data.editId === 'string' && /^[a-f0-9-]{36}$/.test(data.editId)) {

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { directoryPeople, memberId, searchPeople, updateDirectoryArea } from './directory.ts';
+import { directoryPeople, memberId, searchPeople } from './directory.ts';
 import type { Member, Person } from './directory.ts';
 import type { Player } from '../network/protocol.ts';
 
@@ -28,16 +28,4 @@ test('name and Slack ID search normalize width and case, apply status filters an
   assert.equal(searchPeople(people, 'Alice', 'online').length, 0);
   assert.equal(searchPeople(people, '')[0].id, 'other');
   assert.equal(searchPeople(people, 'unknown').length, 0);
-});
-
-test('continuous crossings update only the selected account tab, preserving offline identities and membership', () => {
-  const people: Person[] = [
-    { id:'slack:T:U',name:'はな',slack,verified:true,online:true,playerId:'latest-tab',roomId:'office' },
-    { id:'entra:offline',name:'留守の人',slack:null,verified:true,online:false },
-  ];
-  assert.equal(updateDirectoryArea(people,'older-tab','cafe'),people);
-  assert.equal(updateDirectoryArea(people,'latest-tab','office'),people);
-  const updated=updateDirectoryArea(people,'latest-tab','garden');
-  assert.equal(updated[0].roomId,'garden'); assert.equal(people[0].roomId,'office');
-  assert.deepEqual({...updated[0],roomId:'office'},people[0]); assert.equal(updated[1],people[1]);
 });

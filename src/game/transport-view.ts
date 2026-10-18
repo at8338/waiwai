@@ -16,20 +16,19 @@ export function vehicleTexture(scene: Phaser.Scene, kind: VehicleKind, direction
 }
 export class VehicleDocksView {
   private scene: Phaser.Scene;
-  private publish: boolean;
   private open: (unitId?: string) => void;
   private connected = false;
   private units: VehicleUnit[] = [];
   private room: RoomId = 'office';
   private views: Phaser.GameObjects.GameObject[] = [];
-  constructor(scene: Phaser.Scene, open: (unitId?: string) => void, publish = true) { this.scene = scene; this.open = open; this.publish = publish; }
+  constructor(scene: Phaser.Scene, open: (unitId?: string) => void) { this.scene = scene; this.open = open; }
   setConnected(connected: boolean): void { this.connected = connected; if (!connected) this.units = []; this.draw(); }
   setRoom(room: RoomId): void { this.room = room; this.draw(); }
   receive(units: VehicleUnit[]): void { this.units = units; this.draw(); }
   destroy(): void { for (const view of this.views) view.destroy(); this.views = []; }
   private draw(): void {
     this.destroy();
-    if (this.publish) this.scene.game.canvas.dataset.groundVehicles = JSON.stringify(this.connected ? this.units.filter((u) => u.ground?.roomId === this.room && !u.riderId) : []);
+    this.scene.game.canvas.dataset.groundVehicles = JSON.stringify(this.connected ? this.units.filter((u) => u.ground?.roomId === this.room && !u.riderId) : []);
     if (!this.connected) return;
     if (this.room === 'office') for (const dock of VEHICLE_DOCKS) {
       const available = this.units.filter((u) => u.kind === dock.kind && !u.riderId && !u.ground).length;

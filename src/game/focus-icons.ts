@@ -1,6 +1,5 @@
 // Small UI pictograms; accessible names live on their buttons.
 const paths: Record<string, string> = {
-  'world-mode-toggle': '<path d="M3 3h18v18H3zM9 3v18m6-18v18M3 9h18M3 15h18"/>',
   'mouse-move-toggle': '<path d="m5 2 15 10-8 2-3 8L5 2Z"/>',
   'office-focus-toggle': '<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M9 9h6v6H9z"/>',
   'reaction-bow': '<circle cx="8" cy="6" r="3"/><path d="m7 10 8 4-1 7m1-7 5 5m-9-7-6 2-2 5"/>',

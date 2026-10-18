@@ -1,4 +1,3 @@
-import { updateDirectoryArea } from '../game/directory.ts';
 import type { ChatAction, ChatEvent } from '../game/chat.ts';
 import type { PolicyAction } from '../game/world-policy.ts';
 import type { DummyControl } from '../game/dummy-avatars.ts';
@@ -69,8 +68,6 @@ export type ConnectionHandlers = {
 };
 
 export class OfficeConnection {
-  private directoryPeople: Person[] = [];
-  private directoryWarning?: string;
   private socket?: WebSocket;
   private reconnectTimer?: number;
   private watchdog?: number;
@@ -126,8 +123,6 @@ export class OfficeConnection {
             window.clearTimeout(this.watchdog);
           }
         }
-        const directory = updateDirectoryArea(this.directoryPeople, message.player.id, message.player.roomId);
-        if (directory !== this.directoryPeople) { this.directoryPeople = directory; this.handlers.directory?.(directory, this.directoryWarning); }
         this.players.set(message.player.id, message.player);
         this.slots.set(message.player.slot, message.player.id);
         if (message.player.id === this.id && message.reason === 'vending') this.profile = { ...this.profile, appearance: message.player.appearance };
@@ -180,7 +175,7 @@ export class OfficeConnection {
       else if (message.type === 'pets') this.handlers.pets?.(message.roomId, message.pets);
       else if (message.type === 'reaction') this.handlers.reaction?.(message);
       else if (message.type === 'rest-result') this.handlers.restResult?.(message.error);
-      else if (message.type === 'directory') { this.directoryPeople = message.people; this.directoryWarning = message.warning; this.handlers.directory?.(message.people, message.warning); }
+      else if (message.type === 'directory') this.handlers.directory?.(message.people, message.warning);
       else if (message.type === 'travel-error') {
         if (message.requestId !== this.warpRequest) return;
         this.warpRequest = undefined;
@@ -204,7 +199,6 @@ export class OfficeConnection {
       this.warpRequest = undefined;
       this.id = undefined;
       this.players.clear();
-      this.directoryPeople = [];
       this.slots.clear();
       if (event.code === 4001) {
         this.handlers.state('reconnecting');
@@ -228,10 +222,6 @@ export class OfficeConnection {
     this.request({ type: 'move', direction, requestId: ++this.sequence });
   }
   dash(direction: Direction): void { if (this.readyToMove) { this.request({ type: 'dash', direction, requestId: ++this.sequence }); this.nextRequestAt = performance.now() + DASH_MS; } }
-
-  worldMode(enabled: boolean): void {
-    if (this.online) this.request({ type: 'world-mode', enabled, requestId: ++this.sequence });
-  }
 
   changeRoom(roomId: RoomId): void {
     if (this.online) this.request({ type: 'change-room', roomId, requestId: ++this.sequence });

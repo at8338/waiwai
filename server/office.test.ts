@@ -21,9 +21,6 @@ import { MAX_PLAYERS, directions, parseClientMessage } from '../src/network/prot
 import { MAX_VOICE_MEMBERS, MAX_VOICE_PEERS } from '../src/audio/proximity.ts';
 import { STEP_MS, canWalk } from '../src/game/world.ts';
 import { REACTION_COOLDOWN_MS } from '../src/game/reactions.ts';
-import { clickPath } from '../src/game/click-travel.ts';
-import { continuousWalkable, worldPoint, worldTile, WORLD_COLUMNS, WORLD_ROWS } from '../src/game/continuous-world.ts';
-import { COLS, ROWS } from '../src/game/world.ts';
 
 async function fixture(t: TestContext, objectsFile?: string, linksFile?: string, announcementsFile?: string, eventClock?: () => number, lostClock?: () => number, birthdayClock?: () => number, devControls = false, policyFile?: string, dummyAvatars = false) {
   const server = createServer((_request, response) => response.end('ok'));
@@ -67,58 +64,6 @@ async function fixture(t: TestContext, objectsFile?: string, linksFile?: string,
   };
   return { connect, origin };
 }
-
-test('continuous walking crosses four directions, publishes area origins to standard clients, and safely restores standard walls', async t => {
-  const { connect } = await fixture(t), a = await connect(), observer = await connect();
-  let player = a.welcome.players.find(p => p.id === a.welcome.id)!, sequence = 0;
-  const walkable = (x: number, y: number) => { const tile = worldTile(x,y); return !!tile && continuousWalkable(tile); };
-  const walkTo = async (to: {x:number;y:number}) => {
-    const path = clickPath(worldPoint(player),to,walkable,{width:WORLD_COLUMNS*COLS,height:WORLD_ROWS*ROWS}); assert.ok(path);
-    for (const direction of path) {
-      await new Promise(resolve => setTimeout(resolve,STEP_MS+5));
-      const requestId=++sequence; a.send({type:'move',direction,requestId});
-      player=(await a.next('player',m=>m.requestId===requestId)).player;
-    }
-    assert.deepEqual(worldPoint(player),to);
-  };
-  a.send({type:'world-mode',enabled:true,requestId:++sequence});
-  assert.equal((await a.next('player',m=>m.reason==='world-mode')).player.continuous,true);
-  assert.equal((await a.next('objects',m=>m.roomId==='library')).roomId,'library');
-  await walkTo({x:31,y:18}); assert.equal(player.roomId,'focus');
-  const crossing=await observer.next('player',m=>m.player.id===a.welcome.id&&m.player.roomId==='focus'); assert.equal(crossing.reason,'move');
-  await walkTo({x:28,y:18}); assert.equal(player.roomId,'office');
-  await walkTo({x:28,y:21}); assert.equal(player.roomId,'library');
-  await walkTo({x:28,y:19}); assert.equal(player.roomId,'office');
-  // Disable while on an opening: a standard client must never be left inside a wall.
-  a.send({type:'world-mode',enabled:false,requestId:++sequence});
-  player=(await a.next('player',m=>m.reason==='world-mode'&&!m.player.continuous)).player;
-  assert.equal(player.roomId,'office'); assert.ok(canWalk(player.x,player.y,player.roomId));
-  await walkTo({x:28,y:18});
-  await new Promise(resolve=>setTimeout(resolve,STEP_MS+5));
-  a.send({type:'move',direction:'right',requestId:++sequence});
-  player=(await a.next('player',m=>m.requestId===sequence)).player; assert.equal(player.x,28); assert.equal(player.roomId,'office');
-  a.send({type:'world-mode',enabled:true,requestId:++sequence}); await a.next('player',m=>m.reason==='world-mode'&&!!m.player.continuous);
-  await new Promise(resolve=>setTimeout(resolve,STEP_MS+5));
-  a.send({type:'dash',direction:'right',requestId:++sequence});
-  player=(await a.next('player',m=>m.requestId===sequence)).player; assert.deepEqual(worldPoint(player),{x:33,y:18});
-});
-
-test('continuous travel cannot enter administrator-blocked areas or bypass the resting state', async t => {
-  const dir=await mkdtemp(join(tmpdir(),'waiwai-world-policy-')); t.after(()=>rm(dir,{recursive:true,force:true}));
-  const policy=defaultWorldPolicy(); policy.blocked.rooms=['focus','library'];
-  const policyFile=join(dir,'policy.json'); await writeFile(policyFile,JSON.stringify({version:1,policy}));
-  const {connect}=await fixture(t,undefined,undefined,undefined,undefined,undefined,undefined,false,policyFile), a=await connect();
-  a.send({type:'world-mode',enabled:true,requestId:1}); await a.next('player',m=>m.reason==='world-mode');
-  a.send({type:'rest',resting:true}); const resting=(await a.next('player',m=>m.reason==='rest')).player;
-  a.send({type:'move',direction:'down',requestId:2}); const still=(await a.next('player',m=>m.requestId===2)).player;
-  assert.deepEqual(worldPoint(still),worldPoint(resting));
-  a.send({type:'rest',resting:false}); await a.next('player',m=>m.reason==='rest'&&!m.player.resting);
-  let player=still; const route=clickPath(worldPoint(player),{x:28,y:18},(x,y)=>{const tile=worldTile(x,y);return !!tile&&continuousWalkable(tile);},{width:120,height:80})!;
-  let sequence=2;
-  for(const direction of route){await new Promise(resolve=>setTimeout(resolve,STEP_MS+5));a.send({type:'move',direction,requestId:++sequence});player=(await a.next('player',m=>m.requestId===sequence)).player;}
-  await new Promise(resolve=>setTimeout(resolve,STEP_MS+5));a.send({type:'dash',direction:'right',requestId:++sequence});
-  player=(await a.next('player',m=>m.requestId===sequence)).player;assert.equal(player.roomId,'office');assert.equal(player.x,28);
-});
 
 test('dummy DM auto-replies stay private, deduplicate and trigger shared avatar actions without voice peers', async t => {
   const { connect } = await fixture(t, undefined, undefined, undefined, undefined, undefined, undefined, true, undefined, true);

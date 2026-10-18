@@ -98,11 +98,6 @@ export class Walker {
     if (this.elapsed === this.stepMs) this.from = { ...tile };
   }
 
-  translate(x: number, y: number): void {
-    this.tile = { x: this.tile.x + x, y: this.tile.y + y };
-    this.from = { x: this.from.x + x, y: this.from.y + y };
-  }
-
   reset(): void {
     this.tile = { ...SPAWN };
     this.from = { ...SPAWN };

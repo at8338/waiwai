@@ -82,7 +82,7 @@ function drawRestroomEntrance(scene: Phaser.Scene, tileX: number): void {
     .setOrigin(.5, 0).setResolution(2).setDepth(depth + 1);
 }
 
-export function drawOffice(scene: Phaser.Scene, roomId: RoomId = 'office', openCalendar?: () => void, openArcade?: (game: ArcadeGame) => void, openBoard?: (item: Furniture) => void, openWall?: (x: number, y: number) => boolean): Phaser.GameObjects.GameObject[] {
+export function drawOffice(scene: Phaser.Scene, roomId: RoomId = 'office', openCalendar?: () => void, openArcade?: (game: ArcadeGame) => void, openBoard?: (item: Furniture) => void): Phaser.GameObjects.GameObject[] {
   const before = new Set(scene.children.list);
   const room = getRoom(roomId);
   const windowColumns = roomWindowColumns(roomId);
@@ -129,7 +129,7 @@ export function drawOffice(scene: Phaser.Scene, roomId: RoomId = 'office', openC
     }
   }
   for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
-    if (!isWall(x, y, roomId) || openWall?.(x, y)) continue;
+    if (!isWall(x, y, roomId)) continue;
     // Keep the recessed entrance behind people standing in front of it.
     const restroomWall = room.restroomEntrance && y === ROWS - 1
       && x >= room.restroomEntrance.x - 1 && x < room.restroomEntrance.x + 5;
@@ -169,7 +169,7 @@ export function drawOffice(scene: Phaser.Scene, roomId: RoomId = 'office', openC
     const label = scene.add.text(x + 24, y + 55, game.label, { fontFamily: 'monospace', fontSize: '7px', color: game.color, backgroundColor: '#30364c', padding: { x: 3, y: 2 } }).setOrigin(.5).setDepth(338);
     if (openArcade) label.setInteractive({ useHandCursor: true }).on('pointerup', () => openArcade(id));
   }
-  if (roomId !== 'arena' && !openWall) {
+  if (roomId !== 'arena') {
     const door = scene.add.graphics().setDepth(-90);
     rect(door, 0x526e65, room.door.x * TILE, room.door.y * TILE, TILE, TILE);
     rect(door, 0xebe3ba, room.door.x * TILE + 3, room.door.y * TILE + 3, 10, 10);
