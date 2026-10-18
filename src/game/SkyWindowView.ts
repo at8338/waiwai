@@ -31,7 +31,7 @@ export class SkyWindowView {
   update(now: number, reducedMotion: boolean, previewWeather?: WeatherKind): void {
     const outlook = getRoom(this.roomId).outlook;
     if (outlook === 'none') return;
-    const incident = this.incident?.event;
+    const incident = this.incident?.disabled ? undefined : this.incident?.event;
     const episode = incident && incident.roomId === this.roomId && now + this.offset < incident.endsAt ? episodeById(incident.episodeId) : undefined;
     const outside = episode?.direction.beat === 'outside' ? episode : undefined;
     const elevated = outlook === 'open';

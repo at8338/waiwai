@@ -1,3 +1,5 @@
+import { parsePolicyAction } from '../game/world-policy.ts';
+import type { PolicyAction, PolicySnapshot } from '../game/world-policy.ts';
 import { parseChatAction } from '../game/chat.ts';
 import type { ChatAction, ChatEvent } from '../game/chat.ts';
 import type { LostItemsSnapshot } from '../game/lost-items.ts';
@@ -45,6 +47,7 @@ export type Position = [slot: number, x: number, y: number, flags: number, buddy
 export const MAX_PLAYERS = 150;
 export const POSITION_FRAME_MS = 50;
 export type ClientMessage =
+  | PolicyAction
   | ChatAction
   | ArenaAction
   | SpellAction
@@ -69,6 +72,8 @@ export type ClientMessage =
   | { type: 'dash'; direction: Direction; requestId: number }
   | { type: 'reset'; requestId: number };
 export type ServerMessage =
+  | ({ type: 'world-policy' } & PolicySnapshot)
+  | { type: 'policy-result'; actionId: string; error?: string }
   | ChatEvent
   | ({ type: 'birthday-thread' } & BirthdayThread)
   | ({ type: 'ice-state' } & IceSnapshot)
@@ -103,7 +108,7 @@ export type ServerMessage =
   | { type: 'objects'; roomId: RoomId; objects: RoomObject[] }
   | { type: 'object-result'; editId: string; error?: string }
   | { type: 'positions'; positions: Position[] }
-  | { type: 'player'; player: Player; reason: 'join' | 'profile' | 'move' | 'dash' | 'reset' | 'room' | 'warp' | 'spell' | 'vehicle' | 'vending' | 'rest'; requestId?: number }
+  | { type: 'player'; player: Player; reason: 'join' | 'profile' | 'move' | 'dash' | 'reset' | 'room' | 'warp' | 'spell' | 'vehicle' | 'vending' | 'rest' | 'policy'; requestId?: number }
   | { type: 'left'; id: string };
 
 export const directions = ['up', 'down', 'left', 'right'] as const;
@@ -116,6 +121,7 @@ export function parseClientMessage(raw: string): ClientMessage | undefined {
   try { value = JSON.parse(raw); } catch { return; }
   if (!value || typeof value !== 'object') return;
   const data = value as Record<string, unknown>;
+  const policy = parsePolicyAction(data); if (policy) return policy;
   if (data.type === 'arena-action' && (data.command === 'join' || data.command === 'leave') && validAnnouncementId(data.actionId)) return { type: 'arena-action', command: data.command, actionId: data.actionId };
   const chat = parseChatAction(data); if (chat) return chat;
   const spell = parseSpellAction(data); if (spell) return spell;

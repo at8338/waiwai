@@ -143,7 +143,7 @@ export class SlackAuth {
       const id = random();
       const flow: Flow = { state: oidc.randomState(), nonce: oidc.randomNonce(), verifier: oidc.randomPKCECodeVerifier(), expires: this.now() + FLOW_MS };
       const target = oidc.buildAuthorizationUrl(this.client, {
-        redirect_uri: this.config.redirectUri, response_type: 'code', response_mode: 'form_post', scope: this.config.provider === 'entra' ? 'openid profile email' : 'openid profile',
+        redirect_uri: this.config.redirectUri, response_type: 'code', response_mode: 'form_post', scope: 'openid profile email',
         state: flow.state, nonce: flow.nonce, code_challenge: await oidc.calculatePKCECodeChallenge(flow.verifier), code_challenge_method: 'S256',
       });
       this.flows.set(id, flow);
@@ -170,7 +170,8 @@ export class SlackAuth {
         const slack = parseSlackIdentity({ teamId: claims['https://slack.com/team_id'], userId: claims['https://slack.com/user_id'] });
         if (!slack || typeof claims.name !== 'string' || !claims.name.trim() || claims.sub !== slack.userId) throw new Error('Missing Slack identity');
         if (this.config!.teamId && slack.teamId !== this.config!.teamId) throw new Error('Workspace not allowed');
-        return { name: normalizeName(claims.name), slack };
+        const email = claims.email_verified === true && typeof claims.email === 'string' && claims.email.length <= 254 ? claims.email.trim().toLowerCase() : undefined;
+        return { name: normalizeName(claims.name), slack, provider: 'slack' as const, ...(email ? { email, emailVerified: true } : {}) };
       })();
       if (this.sessions.size >= 1000) throw new Error('Session capacity');
       const previous = cookie(request, SESSION_COOKIE);

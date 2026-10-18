@@ -1,4 +1,7 @@
 import { laptopThrowMotion } from './laptop-throw.ts';
+import { AdminUI } from './admin-ui.ts';
+import { defaultWorldPolicy, policyAllows } from './world-policy.ts';
+import type { WorldPolicy } from './world-policy.ts';
 import { ART_WIDTH, ART_HEIGHT, configureArtCamera } from './art-resolution.ts';
 import { ChatUI } from './chat-ui.ts';
 import { playerIdentity } from './identity.ts';
@@ -83,6 +86,9 @@ export class OfficeScene extends Phaser.Scene {
   private pokemonJournal?: PokemonJournalUI;
   private birthdaysUI?: BirthdaysUI;
   private devWorldUI?: DevWorldUI;
+  private adminUI?: AdminUI;
+  private worldPolicy: WorldPolicy = defaultWorldPolicy();
+  getWorldPolicy(): WorldPolicy { return this.worldPolicy; }
   private spellsUI?: SpellsUI;
   private combatUI?: CombatUI;
   private spellsView?: SpellsView;
@@ -192,6 +198,9 @@ export class OfficeScene extends Phaser.Scene {
     this.controls.attach(this.game.canvas);
     this.setupRoomTools();
     this.setupReactions();
+    this.adminUI = new AdminUI(this.inputController.signal, action => this.connection?.setPolicy(action) ?? false, () => {
+      if (document.querySelector('dialog[open]')) return false; this.controls.clear(); this.setEditMode('none'); return true;
+    });
     this.spellsView = new SpellsView(this);
     this.combatUI = new CombatUI(this, this.inputController.signal, (action) => this.connection?.arenaAction(action) ?? false);
     this.spellsUI = new SpellsUI(this.inputController.signal, (action) => { this.controls.clear(); this.setEditMode('none'); return this.connection?.castSpell(action) ?? false; }, () => {
@@ -258,6 +267,11 @@ export class OfficeScene extends Phaser.Scene {
       birthdayThread: (state) => this.birthdaysUI?.receiveThread(state),
       devWorld: (state) => this.devWorldUI?.receive(state),
       devWorldResult: (id, error) => this.devWorldUI?.result(id, error),
+      policy: state => {
+        this.worldPolicy = state.policy; this.adminUI?.receive(state); this.dailyUI?.setPolicy(state.policy); this.updateRoomButtons();
+        document.dispatchEvent(new Event('waiwai-policy-changed'));
+      },
+      policyResult: (id, error) => this.adminUI?.result(id, error),
       ice: (state) => { this.combatUI?.receiveIce(state); this.spellsUI?.receiveIce(state.activeUntil, state.serverNow); },
       arena: (state) => this.combatUI?.receive(state.state),
       arenaResult: (result) => this.combatUI?.result(result.actionId, result.error),
@@ -323,6 +337,7 @@ export class OfficeScene extends Phaser.Scene {
       this.chatUI?.destroy();
       this.birthdaysUI?.destroy();
       this.devWorldUI?.destroy();
+      this.adminUI?.destroy();
       this.combatUI?.destroy(); this.spellsUI?.destroy(); this.spellsView?.destroy();
       this.lighting?.destroy();
       this.vehicleDocks?.destroy(); this.vehicleUI?.destroy(); this.announcementsUI?.destroy(); this.dailyUI?.destroy(); this.arcadeUI?.destroy(); this.cockpitUI?.destroy(); this.cockpitView?.destroy(); this.dailyView?.destroy(); this.lostItems?.destroy();
@@ -339,6 +354,7 @@ export class OfficeScene extends Phaser.Scene {
     this.announcementsUI?.setConnected(this.connected); this.dailyUI?.setConnected(this.connected); this.cockpitUI?.setConnected(this.connected); this.arcadeUI?.setConnected(this.connected);
     this.birthdaysUI?.setConnected(this.connected);
     this.devWorldUI?.setConnected(this.connected);
+    this.adminUI?.setConnected(this.connected);
     this.combatUI?.setConnected(this.connected, this.localId); this.spellsUI?.setConnected(this.connected, this.localId); if (!this.connected) this.spellsView?.clear();
     this.lostItems?.setConnected(this.connected);
     this.vehicleUI?.setConnected(this.connected); this.vehicleDocks?.setConnected(this.connected);
@@ -420,6 +436,10 @@ export class OfficeScene extends Phaser.Scene {
         document.querySelector('#office-notice')!.textContent = '自販機でペットボトルを受け取りました。ひと息つこう。';
       }
       if (player.roomId !== this.roomId) this.showRoom(player.roomId);
+      if (reason === 'policy') {
+        this.controls.clear(); this.setEditMode('none');
+        document.querySelector('#office-notice')!.textContent = '管理者がフロアを休止したため、公開中のフロアへ移動しました。';
+      }
       if (player.accountId || player.slackVerified) {
         this.playerName = player.name;
         this.slack = player.slack ?? null;
@@ -598,10 +618,16 @@ export class OfficeScene extends Phaser.Scene {
   private updateRoomButtons(): void {
     for (const button of document.querySelectorAll<HTMLButtonElement>('[data-room]')) {
       const current = button.dataset.room === this.roomId;
-      button.disabled = !this.connected || current;
+      const allowed = policyAllows(this.worldPolicy, 'rooms', button.dataset.room!);
+      button.disabled = !this.connected || current || !allowed;
+      button.hidden = !allowed;
+      button.dataset.roomBlocked = String(!allowed);
+      button.title = allowed ? `${getRoom(button.dataset.room as RoomId).name}へ移動` : '管理者により利用停止中';
       if (current) button.setAttribute('aria-current', 'location');
       else button.removeAttribute('aria-current');
     }
+    const openCount = ROOMS.filter(room => policyAllows(this.worldPolicy, 'rooms', room.id)).length;
+    document.querySelectorAll('[data-open-room-count]').forEach(node => { node.textContent = `${openCount} ROOMS TO EXPLORE`; });
   }
 
   private setupRoomTools(): void {

@@ -6,6 +6,7 @@ import type { PokemonKind } from '../src/game/pokemon.ts';
 import type { RoomId } from '../src/game/rooms.ts';
 import type { LostItemOverride } from '../src/game/lost-items.ts';
 import type { DevWorldAction } from '../src/game/dev-world.ts';
+import type { SpawnPolicy } from '../src/game/pokemon-spawns.ts';
 export function allowDevWorld(enabled: boolean | undefined, request: Pick<IncomingMessage, 'headers'>): boolean {
   if (!enabled) return false;
   try {
@@ -24,7 +25,7 @@ export class WorldTestControls {
   refresh(now: number): boolean { if (this.day === pokemonDay(now)) return false; this.day = pokemonDay(now); this.reset(); return true; }
   get preview(): boolean { return !!this.eventOverride; }
   event(now: number) { return this.eventOverride ? previewEventAt(now, this.eventOverride.episodeId, this.eventOverride.roomId) : dailyEventAt(now); }
-  roster(now: number) { return pokemonRoster(now, this.pokemonSalt, this.kinds, this.pokemonRoom); }
+  roster(now: number, policy?: SpawnPolicy) { return pokemonRoster(now, this.pokemonSalt, this.kinds, this.pokemonRoom, policy); }
   apply(action: DevWorldAction, now: number): void {
     this.refresh(now);
     if (action.command === 'reset') { this.reset(); return; }

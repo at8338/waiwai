@@ -23,7 +23,7 @@ export default defineConfig(({ mode }) => {
             .catch(() => { response.writeHead(500).end('Authentication unavailable'); });
         });
         if (server.httpServer) {
-          const close = attachOffice(server.httpServer as Server, auth, { chat, devControls: mode !== 'production', objectsFile: env.WAIWAI_DATA_FILE ?? '.local/office-objects.json', membersFile: env.WAIWAI_MEMBERS_FILE ?? '.local/office-members.json', linksFile: env.WAIWAI_LINKS_FILE ?? '.local/office-links.json', birthdaysFile: env.WAIWAI_BIRTHDAYS_FILE ?? join(dirname(env.WAIWAI_DATA_FILE ?? '.local/office-objects.json'), 'office-birthdays.json'), announcementsFile: env.WAIWAI_ANNOUNCEMENTS_FILE ?? join(dirname(env.WAIWAI_DATA_FILE ?? '.local/office-objects.json'), 'office-announcements.json') });
+          const close = attachOffice(server.httpServer as Server, auth, { chat, policyFile: env.WAIWAI_POLICY_FILE ?? join(dirname(env.WAIWAI_DATA_FILE ?? '.local/office-objects.json'), 'office-policy.json'), administratorId: env.WAIWAI_ADMIN_ACCOUNT_ID, devControls: mode !== 'production', objectsFile: env.WAIWAI_DATA_FILE ?? '.local/office-objects.json', membersFile: env.WAIWAI_MEMBERS_FILE ?? '.local/office-members.json', linksFile: env.WAIWAI_LINKS_FILE ?? '.local/office-links.json', birthdaysFile: env.WAIWAI_BIRTHDAYS_FILE ?? join(dirname(env.WAIWAI_DATA_FILE ?? '.local/office-objects.json'), 'office-birthdays.json'), announcementsFile: env.WAIWAI_ANNOUNCEMENTS_FILE ?? join(dirname(env.WAIWAI_DATA_FILE ?? '.local/office-objects.json'), 'office-announcements.json') });
           server.httpServer.once('close', () => { close(); personal.store.close(); auth.close(); });
         }
       },

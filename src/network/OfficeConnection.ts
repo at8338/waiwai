@@ -1,4 +1,5 @@
 import type { ChatAction, ChatEvent } from '../game/chat.ts';
+import type { PolicyAction } from '../game/world-policy.ts';
 import type { ArcadeAction } from '../game/arcade.ts';
 import type { BirthdayAction } from '../game/birthdays.ts';
 import type { DevWorldAction } from '../game/dev-world.ts';
@@ -22,6 +23,8 @@ import type { ReactionKind } from '../game/reactions.ts';
 
 export type ConnectionState = 'connecting' | 'online' | 'reconnecting';
 export type ConnectionHandlers = {
+  policy?: (message: Extract<ServerMessage, { type: 'world-policy' }>) => void;
+  policyResult?: (id: string, error?: string) => void;
   chat?: (event: ChatEvent) => void;
   ice?: (message: Extract<ServerMessage, { type: 'ice-state' }>) => void;
   arena?: (message: Extract<ServerMessage, { type: 'arena-state' }>) => void;
@@ -106,7 +109,7 @@ export class OfficeConnection {
         this.handlers.state('online');
         this.send({ type: 'profile', ...this.profile });
       } else if (message.type === 'player') {
-        if (message.player.id === this.id && (message.reason === 'spell' || message.reason === 'rest')) {
+        if (message.player.id === this.id && (message.reason === 'spell' || message.reason === 'rest' || message.reason === 'policy')) {
           this.pending = undefined; this.warpRequest = undefined; window.clearTimeout(this.watchdog); this.nextRequestAt = performance.now() + movementStep(message.player.riding?.kind);
         }
         if (message.player.id === this.id && message.requestId !== undefined) {
@@ -120,7 +123,7 @@ export class OfficeConnection {
         this.players.set(message.player.id, message.player);
         this.slots.set(message.player.slot, message.player.id);
         if (message.player.id === this.id && message.reason === 'vending') this.profile = { ...this.profile, appearance: message.player.appearance };
-        this.handlers.player(message.player, message.reason === 'reset' || message.reason === 'join' || message.reason === 'room' || message.reason === 'warp' || message.reason === 'spell' || message.reason === 'rest', message.reason);
+        this.handlers.player(message.player, message.reason === 'reset' || message.reason === 'join' || message.reason === 'room' || message.reason === 'warp' || message.reason === 'spell' || message.reason === 'rest' || message.reason === 'policy', message.reason);
         if (message.player.id === this.id && message.reason === 'warp' && message.requestId === this.warpRequest) {
           this.warpRequest = undefined;
           this.handlers.travelComplete?.();
@@ -153,6 +156,8 @@ export class OfficeConnection {
       else if (message.type === 'robot-state') this.handlers.robotState?.(message);
       else if (message.type === 'robot-result') this.handlers.robotResult?.(message);
       else if (message.type === 'daily-event') this.handlers.dailyEvent?.(message);
+      else if (message.type === 'world-policy') this.handlers.policy?.(message);
+      else if (message.type === 'policy-result') this.handlers.policyResult?.(message.actionId, message.error);
       else if (message.type === 'dev-world-state') this.handlers.devWorld?.(message);
       else if (message.type === 'dev-world-result') this.handlers.devWorldResult?.(message.actionId, message.error);
       else if (message.type === 'birthdays') this.handlers.birthdays?.(message);
@@ -241,6 +246,7 @@ export class OfficeConnection {
   chat(action: ChatAction): boolean { if (!this.online) return false; this.send(action); return true; }
   birthday(action: BirthdayAction): boolean { if (!this.online) return false; this.send(action); return true; }
   devWorld(action: DevWorldAction): boolean { if (!this.online) return false; this.send(action); return true; }
+  setPolicy(action: PolicyAction): boolean { if (!this.online) return false; this.send(action); return true; }
   castSpell(action: SpellAction): boolean { if (!this.online) return false; this.send(action); return true; }
   arenaAction(action: ArenaAction): boolean { if (!this.online) return false; this.send(action); return true; }
 

@@ -7,7 +7,7 @@
 1. [Slackアプリ管理](https://api.slack.com/apps)でWaiwai用アプリを作成し、利用するワークスペースを選びます。今回利用予定のワークスペースは `cbsmapps.slack.com` です。チャンネルURLはClient IDやワークスペースIDの代わりにはなりません。
 2. **Basic Information → App Credentials** のClient ID・Client Secretを確認します。
 3. **OAuth & Permissions → Redirect URLs** に `https://<Waiwaiのホスト>/auth/slack/callback` を登録します。実際に使用するHTTPSホストを指定してください。
-4. **User Token Scopes** でSign in with Slack用の `openid`・`profile` を設定します。Waiwaiの認証要求もこの2つだけです。メール・チャンネル・メッセージ読み取り／送信権限は要求しません。
+4. **User Token Scopes** でSign in with Slack用の `openid`・`profile`・`email` を設定します。`email` は管理者本人の初期確認に使います。チャンネル・メッセージ読み取り／送信権限は要求しません。既存の利用者は、追加後にログアウトして再ログインしてください。
 
 [Slack公式のSign in with Slack手順](https://docs.slack.dev/authentication/sign-in-with-slack/)に準拠しています。アプリの公開範囲・ワークスペース側のアプリ承認設定によって、管理者の設定が必要になる場合があります。
 
@@ -44,7 +44,7 @@ npm start
 
 ## 認証処理
 
-`openid-client` を使用し、Slackの固定エンドポイントへ認証要求・コード交換・署名鍵取得を行います。認証要求は `openid profile`、`response_type=code`、`response_mode=form_post` です。state・nonce・PKCEを毎回生成し、RS256署名、issuer、audience、期限、nonce、Slack IDとsubjectの整合性を検証します。
+`openid-client` を使用し、Slackの固定エンドポイントへ認証要求・コード交換・署名鍵取得を行います。認証要求は `openid profile email`、`response_type=code`、`response_mode=form_post` です。state・nonce・PKCEを毎回生成し、RS256署名、issuer、audience、期限、nonce、Slack IDとsubjectの整合性を検証します。メールは署名済みIDトークンの `email_verified=true` の場合だけセッションに保持します。管理者の固定方法は [管理者モード](admin-mode.md) を参照してください。
 
 ログイン開始から10分以内・1回限りのトランザクションを、HttpOnly / Secure / SameSite=None Cookieでブラウザーに紐づけます。これはSlackからのクロスサイトPOSTコールバックで使用します。ログイン成功後のランダムなセッションCookieはHttpOnly / Secure / SameSite=Laxで、Domainを指定しません。ログアウトは同一OriginのPOSTだけを受け付けます。
 
