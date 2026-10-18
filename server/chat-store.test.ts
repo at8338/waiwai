@@ -47,6 +47,31 @@ test('only the global conversation can queue Slack exports and forged author/ide
   assert.equal(parseClientMessage(JSON.stringify({type:'chat-send',target:{kind:'dm',peerId:b.id},text:'private',shareSlack:true,actionId:randomUUID()})),undefined);store.close();
 });
 
+test('group membership protects history/send/read, survives restart and keeps offline unread private', t => {
+  const dir = mkdtempSync(join(tmpdir(), 'waiwai-groups-')); t.after(() => rmSync(dir, {recursive:true,force:true})); const file = join(dir,'chat.sqlite');
+  let store = new ChatStore(file); for (const p of [a,b,c]) store.account(p.id,p.name,true);
+  const id = randomUUID(), target = store.createGroup(a,id,'project',[b.id]);
+  assert.deepEqual(store.createGroup(a,id,'project',[b.id]),target);
+  assert.throws(() => store.createGroup(c,id,'project',[b.id]));
+  assert.throws(() => store.createGroup(a,id,'renamed',[b.id]));
+  assert.throws(() => store.createGroup(a,id,'project',[b.id,c.id]));
+  const sent = store.append(a,target,'group secret',randomUUID()).message;
+  for (const forbidden of [() => store.history(c,target), () => store.append(c,target,'intrude',randomUUID()), () => store.read(c,target,sent.seq), () => store.append(a,target,'export',randomUUID(),true)]) assert.throws(forbidden);
+  assert.equal(store.visible(c,sent),false); assert.equal(store.inbox(c).some(t=>t.target.kind==='group'),false); assert.equal(store.nextSlack(),undefined);
+  store.close(); store = new ChatStore(file);
+  assert.equal(store.history(b,target).messages[0].text,'group secret');
+  const thread = store.inbox(b).find(t=>t.target.kind==='group')!; assert.equal(thread.unread,1); assert.equal(thread.members?.length,2);
+  store.read(b,target,sent.seq); assert.equal(store.inbox(b).find(t=>t.target.kind==='group')!.unread,0);
+  assert.throws(() => store.createGroup(a,randomUUID(),'bad',['guest:00000000-0000-4000-a000-000000000099'])); store.close();
+});
+
+test('group protocol validates membership bounds and ignores browser supplied ownership', () => {
+  const data = {type:'chat-group-create',groupId:randomUUID(),name:'test',memberIds:[b.id],actionId:randomUUID(),owner:c.id};
+  const action = parseClientMessage(JSON.stringify(data)); assert.ok(action && !('owner' in action));
+  for (const bad of [{memberIds:[]},{memberIds:[b.id,b.id]},{memberIds:['unknown']},{name:'x'.repeat(41)},{groupId:'bad'}]) assert.equal(parseClientMessage(JSON.stringify({...data,...bad})),undefined);
+  assert.equal(parseClientMessage(JSON.stringify({type:'chat-send',target:{kind:'group',groupId:data.groupId},text:'private',shareSlack:true,actionId:randomUUID()})),undefined);
+});
+
 test('a SQLite backup captures live WAL messages and refuses to overwrite an existing backup', async t => {
   const { execFileSync } = await import('node:child_process');
   const dir=mkdtempSync(join(tmpdir(),'waiwai-chat-backup-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));

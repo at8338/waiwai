@@ -40,7 +40,7 @@ export class ChatService {
   }
   private queueTestReply(actor: ChatActor, action: Extract<ChatAction, { type: 'chat-send' }>, message: ChatMessage): void {
     const target = action.target;
-    const participant = target.kind === 'dm' ? this.testParticipants.get(target.peerId) : target.kind === 'room' ? [...this.testParticipants.values()].find(p => p.actor().roomId === target.roomId) : undefined;
+    const participant = target.kind === 'dm' ? this.testParticipants.get(target.peerId) : target.kind === 'room' ? [...this.testParticipants.values()].find(p => p.actor().roomId === target.roomId) : target.kind === 'group' ? [...this.testParticipants.values()].find(p => this.store.inGroup(target.groupId, p.actor().id)) : undefined;
     if (!participant || this.testReplies.size >= 256) return;
     const timer = setTimeout(() => {
       this.testReplies.delete(timer);
@@ -75,6 +75,15 @@ export class ChatService {
   action(ws: WebSocket, action: ChatAction): void {
     const actor = this.clients.get(ws)?.(); if (!actor) return;
     try {
+      if (action.type === 'chat-group-create') {
+        const recent = (this.rates.get(actor.id) ?? []).filter(t => t > Date.now() - 5000);
+        if (recent.length >= 6) throw new ChatError('少し待ってから操作してください。');
+        recent.push(Date.now()); this.rates.set(actor.id, recent);
+        for (const id of action.memberIds) if (id.startsWith('guest:') && !this.testParticipants.has(id) && ![...this.clients.values()].some(get => get().id === id)) throw new ChatError('退出済みのゲストは追加できません。');
+        const target = this.store.createGroup(actor, action.groupId, action.name, action.memberIds);
+        for (const client of this.clients.keys()) this.state(client);
+        this.send(ws, { type: 'chat-group-created', actionId: action.actionId, target }); return;
+      }
       if (action.type === 'chat-send' && action.target.kind === 'dm' && action.target.peerId.startsWith('guest:') && !this.testParticipants.has(action.target.peerId) && ![...this.clients.values()].some(get => get().id === (action.target as { peerId: string }).peerId)) throw new ChatError('ゲストは退出しています。継続したDMにはログインが必要です。');
       if (action.type === 'chat-history') { this.send(ws, { type: 'chat-history', actionId: action.actionId, target: action.target, ...this.store.history(actor, action.target, action.before) }); return; }
       if (action.type === 'chat-read') {

@@ -1,6 +1,8 @@
 import { laptopThrowMotion } from './laptop-throw.ts';
 import { AdminUI } from './admin-ui.ts';
 import { DummyAvatarsUI } from './dummy-avatars-ui.ts';
+import { FocusUI } from './focus-ui.ts';
+import { ClickTravel } from './click-travel.ts';
 import { defaultWorldPolicy, policyAllows } from './world-policy.ts';
 import type { WorldPolicy } from './world-policy.ts';
 import { ART_WIDTH, ART_HEIGHT, configureArtCamera } from './art-resolution.ts';
@@ -39,7 +41,7 @@ import Phaser from 'phaser';
 import { avatarTexture, laptopTexture, createAvatarTextures, drawOffice, drawRoomObject } from './art.ts';
 import { Controls } from './controls.ts';
 import { Walker, areaAt, ROWS, TILE } from './world.ts';
-import type { Direction, Furniture } from './world.ts';
+import type { Direction, Furniture, Point } from './world.ts';
 import { OfficeConnection } from '../network/OfficeConnection.ts';
 import type { ConnectionState } from '../network/OfficeConnection.ts';
 import type { Player } from '../network/protocol.ts';
@@ -50,7 +52,8 @@ import { DEFAULT_APPEARANCE, parseAppearance } from './avatar.ts';
 import type { Appearance } from './avatar.ts';
 import { ROOMS, getRoom } from './rooms.ts';
 import type { RoomId } from './rooms.ts';
-import { MAX_ROOM_OBJECTS, OBJECT_CATALOG, objectContains, objectSize, placementProblem } from './objects.ts';
+import { MAX_ROOM_OBJECTS, OBJECT_CATALOG, objectContains, objectSize, placementProblem, walkableWithObjects } from './objects.ts';
+import type { IceSnapshot } from './arena.ts';
 import type { ObjectKind, RoomObject } from './objects.ts';
 import { ObjectLinksEditor } from './object-links-editor.ts';
 import { boardInFront, objectTargets, targetAt } from './object-links.ts';
@@ -96,7 +99,15 @@ export class OfficeScene extends Phaser.Scene {
   private spellsView?: SpellsView;
   private buddyChoice: BuddyKind | null = null;
   readonly walker = new Walker();
-  private controls = new Controls();
+  private clickTravel = new ClickTravel();
+  private clickTimer?: ReturnType<typeof setTimeout>;
+  private lastClick?: { x: number; y: number; time: number; origin: Point };
+  private mouseMovement = false;
+  private travelIce?: IceSnapshot;
+  private travelIceOffset = 0;
+  private destinationMarker?: Phaser.GameObjects.Graphics;
+  private focusUI?: FocusUI;
+  private controls = new Controls(() => { this.clickTravel.clear(); clearTimeout(this.clickTimer); this.lastClick = undefined; });
   private avatar!: AvatarView;
   private outfit = 0;
   private playerName = 'あなた';
@@ -159,7 +170,7 @@ export class OfficeScene extends Phaser.Scene {
     configureArtCamera(this);
     this.mapViews = drawOffice(this, this.roomId, () => { if (this.editMode === 'none') this.dailyUI?.openCalendar(); }, (game) => { if (this.editMode === 'none') this.arcadeUI?.open(game); }, (item) => this.openBoard(item));
     this.lostItems = new LostItemsView(this, this.inputController.signal, (item) => {
-      if (this.editMode !== 'none' || document.querySelector('dialog[open]')) return;
+      if (this.editMode !== 'none' || document.querySelector('dialog[open]:not(.chat-docked)')) return;
       this.controls.clear();
       const entry = LOST_ITEM_CATALOG[item.kind];
       document.querySelector('#lost-item-title')!.textContent = entry.name;
@@ -168,23 +179,23 @@ export class OfficeScene extends Phaser.Scene {
     });
     document.querySelector('#lost-item-close')!.addEventListener('click', () => document.querySelector<HTMLDialogElement>('#lost-item-info')!.close(), { signal: this.inputController.signal });
     this.dailyUI = new DailyEventsUI(this.inputController.signal, (room) => this.connection?.changeRoom(room), () => {
-      if (document.querySelector('dialog[open]')) return false;
+      if (document.querySelector('dialog[open]:not(.chat-docked)')) return false;
       this.controls.clear(); this.setEditMode('none'); return true;
     });
     this.dailyView = new DailyEventsView(this, () => { if (this.editMode === 'none') this.dailyUI?.inspect(); });
     this.dailyView.setDecorations(this.mapViews);
     this.cockpitUI = new CockpitUI(this.inputController.signal, (action, id) => this.connection?.robot(action, id) ?? false, (room) => this.connection?.changeRoom(room), () => {
-      if (document.querySelector('dialog[open]')) return false; this.controls.clear(); this.setEditMode('none'); return true;
+      if (document.querySelector('dialog[open]:not(.chat-docked)')) return false; this.controls.clear(); this.setEditMode('none'); return true;
     });
     this.cockpitView = new CockpitView(this);
     this.arcadeUI = new ArcadeUI(this.inputController.signal, (action) => this.connection?.arcade(action) ?? false, () => {
-      if (document.querySelector('dialog[open]')) return false; this.controls.clear(); this.setEditMode('none'); return true;
+      if (document.querySelector('dialog[open]:not(.chat-docked)')) return false; this.controls.clear(); this.setEditMode('none'); return true;
     });
     this.lighting = new RoomLighting(this);
     this.skyWindow = new SkyWindowView(document.querySelector<HTMLCanvasElement>('#sky-window')!);
     createAvatarTextures(this);
     this.pokemonJournal = new PokemonJournalUI(this.inputController.signal, () => {
-      if (document.querySelector('dialog[open]')) return false;
+      if (document.querySelector('dialog[open]:not(.chat-docked)')) return false;
       this.controls.clear(); this.setEditMode('none'); return true;
     });
     this.companions = new CompanionsView(this, (kind, owner) => {
@@ -201,19 +212,19 @@ export class OfficeScene extends Phaser.Scene {
     this.setupRoomTools();
     this.setupReactions();
     this.adminUI = new AdminUI(this.inputController.signal, action => this.connection?.setPolicy(action) ?? false, () => {
-      if (document.querySelector('dialog[open]')) return false; this.controls.clear(); this.setEditMode('none'); return true;
+      if (document.querySelector('dialog[open]:not(.chat-docked)')) return false; this.controls.clear(); this.setEditMode('none'); return true;
     });
     this.spellsView = new SpellsView(this);
     this.dummyUI = new DummyAvatarsUI(this.inputController.signal, action => this.connection?.controlDummies(action) ?? false, () => this.roomId);
     this.combatUI = new CombatUI(this, this.inputController.signal, (action) => this.connection?.arenaAction(action) ?? false);
     this.spellsUI = new SpellsUI(this.inputController.signal, (action) => { this.controls.clear(); this.setEditMode('none'); return this.connection?.castSpell(action) ?? false; }, () => {
-      if (document.querySelector('dialog[open]')) return false; this.controls.clear(); this.setEditMode('none'); return true;
+      if (document.querySelector('dialog[open]:not(.chat-docked)')) return false; this.controls.clear(); this.setEditMode('none'); return true;
     });
     if (import.meta.env.DEV) this.devWorldUI = new DevWorldUI(this.inputController.signal, (action) => this.connection?.devWorld(action) ?? false, (room) => this.connection?.changeRoom(room), () => {
-      if (document.querySelector('dialog[open]')) return false; this.controls.clear(); this.setEditMode('none'); return true;
+      if (document.querySelector('dialog[open]:not(.chat-docked)')) return false; this.controls.clear(); this.setEditMode('none'); return true;
     });
     this.birthdaysUI = new BirthdaysUI(this.inputController.signal, (action) => this.connection?.birthday(action) ?? false, () => {
-      if (document.querySelector('dialog[open]')) return false; this.controls.clear(); this.setEditMode('none'); return true;
+      if (document.querySelector('dialog[open]:not(.chat-docked)')) return false; this.controls.clear(); this.setEditMode('none'); return true;
     });
     this.announcementsUI = new AnnouncementsUI(this.inputController.signal, (action) => this.connection?.announcement(action) ?? false, () => { this.controls.clear(); this.setEditMode('none'); });
     this.vehicleUI = new TransportUI(this.inputController.signal, (action, id) => this.connection?.vehicle(action, id) ?? false, () => { this.controls.clear(); this.setEditMode('none'); });
@@ -222,6 +233,8 @@ export class OfficeScene extends Phaser.Scene {
       resolve: (id) => objectTargets(this.roomId, this.objects).find((o) => o.id === id),
       send: (edit) => this.connection?.editLinks(edit), open: () => this.controls.clear() });
     this.chatUI = new ChatUI(this.inputController.signal, action => this.connection?.chat(action) ?? false, () => { this.controls.clear(); this.setEditMode('none'); }, id => [...this.players.values()].find(p => playerIdentity(p) === id)?.slack);
+    this.focusUI = new FocusUI(this.inputController.signal, this.chatUI, () => this.game.scale.refresh(), () => this.controls.clear(), enabled => { this.mouseMovement = enabled; this.controls.clear(); this.setEditMode('none'); });
+    this.destinationMarker = this.add.graphics().setDepth(10000);
     this.directoryUI = new PeopleDirectory({ signal: this.inputController.signal,
       open: () => this.controls.clear(),
       warp: (id) => { this.controls.clear(); this.setEditMode('none'); return this.connection?.warpTo(id) ?? false; },
@@ -264,7 +277,7 @@ export class OfficeScene extends Phaser.Scene {
       robotState: (state) => { if (this.roomId === 'cockpit') { this.cockpitUI?.receive(state); this.cockpitView?.receive(state); } },
       robotResult: (result) => this.cockpitUI?.result(result.actionId, result.error),
       dailyEvent: (state) => { this.dailyUI?.receive(state); this.dailyView?.receive(state); this.skyWindow?.setDailyEvent(state); },
-      announcements: (state) => { this.announcementsUI?.snapshot(state); this.dailyUI?.receiveSchedules(state); },
+      announcements: (state) => { this.announcementsUI?.snapshot(state); this.dailyUI?.receiveSchedules(state); this.focusUI?.receive(state); },
       birthdays: (state) => { this.birthdaysUI?.receive(state); this.dailyUI?.receiveBirthdays(state); },
       chat: event => this.chatUI?.receive(event),
       birthdayThread: (state) => this.birthdaysUI?.receiveThread(state),
@@ -277,7 +290,7 @@ export class OfficeScene extends Phaser.Scene {
       policyResult: (id, error) => this.adminUI?.result(id, error),
       dummies: state => this.dummyUI?.receive(state),
       dummyResult: (id, error) => this.dummyUI?.result(id, error),
-      ice: (state) => { this.combatUI?.receiveIce(state); this.spellsUI?.receiveIce(state.activeUntil, state.serverNow); },
+      ice: (state) => { this.travelIce = state; this.travelIceOffset = state.serverNow - Date.now(); this.combatUI?.receiveIce(state); this.spellsUI?.receiveIce(state.activeUntil, state.serverNow); },
       arena: (state) => this.combatUI?.receive(state.state),
       arenaResult: (result) => this.combatUI?.result(result.actionId, result.error),
       spellResult: (result) => this.spellsUI?.result(result.actionId, result.error),
@@ -339,6 +352,7 @@ export class OfficeScene extends Phaser.Scene {
       this.voice?.destroy();
       this.connection?.destroy();
       this.companions?.clear();
+      this.focusUI?.destroy();
       this.chatUI?.destroy();
       this.birthdaysUI?.destroy();
       this.devWorldUI?.destroy();
@@ -362,6 +376,7 @@ export class OfficeScene extends Phaser.Scene {
     this.devWorldUI?.setConnected(this.connected);
     this.adminUI?.setConnected(this.connected);
     this.dummyUI?.setConnected(this.connected);
+    this.focusUI?.setConnected(this.connected);
     this.combatUI?.setConnected(this.connected, this.localId); this.spellsUI?.setConnected(this.connected, this.localId); if (!this.connected) this.spellsView?.clear();
     this.lostItems?.setConnected(this.connected);
     this.vehicleUI?.setConnected(this.connected); this.vehicleDocks?.setConnected(this.connected);
@@ -434,7 +449,7 @@ export class OfficeScene extends Phaser.Scene {
       this.updateReactionTools();
       if (reason === 'spell') {
         this.controls.clear(); this.setEditMode('none');
-        for (const dialog of document.querySelectorAll<HTMLDialogElement>('dialog[open]')) dialog.close();
+        for (const dialog of document.querySelectorAll<HTMLDialogElement>('dialog[open]:not(.chat-docked)')) dialog.close();
         this.directoryUI?.fail('魔法で移動しました。現在の場所から操作できます。');
       }
       if (reason === 'vending' && player.appearance) {
@@ -589,6 +604,7 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   private showRoom(id: RoomId): void {
+    this.controls.clear(); this.travelIce = undefined;
     this.spellsView?.clear();
     this.reactions.clear();
     this.roomId = id; this.combatUI?.setRoom(id); this.arcadeUI?.setRoom(id); this.cockpitUI?.setRoom(id); this.cockpitView?.setRoom(id);
@@ -660,6 +676,24 @@ export class OfficeScene extends Phaser.Scene {
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => this.previewObject(pointer));
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
       if (this.editMode === 'none' && over.length) return;
+      if (pointer.button !== 0 || pointer.getDistance() > 8) return;
+      if (this.editMode === 'none' && this.mouseMovement && this.connected && this.objectsReady && !this.isResting() && !this.restPending && !document.querySelector('dialog[open]:not(.chat-docked)')) {
+        const point = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
+        const tile = { x: Math.floor(point.x / TILE), y: Math.floor(point.y / TILE) };
+        if (this.travelWalkable(tile.x, tile.y)) {
+          const double = this.lastClick && this.lastClick.x === tile.x && this.lastClick.y === tile.y && performance.now() - this.lastClick.time <= 320;
+          const origin = this.lastClick?.origin ?? { ...this.walker.tile };
+          this.clickTravel.clear(); clearTimeout(this.clickTimer);
+          const travel = () => {
+            if (!this.mouseMovement || !this.connected || this.isResting() || document.querySelector('dialog[open]:not(.chat-docked)')) return;
+            const ok = this.clickTravel.set(double ? origin : this.walker.tile, tile, (x,y) => this.travelWalkable(x,y), !!double);
+            document.querySelector('#click-move-status')!.textContent = !ok ? 'そこへ歩ける通路がありません。' : double ? 'ダッシュ！ · 壁の手前で止まります' : '目的地まで移動中 · キー操作で中止';
+          };
+          if (double) { this.lastClick = undefined; travel(); }
+          else { this.lastClick = { ...tile, time: performance.now(), origin: { ...this.walker.tile } }; this.clickTimer = setTimeout(travel, 250); }
+          return;
+        }
+      }
       this.editAt(pointer);
     });
   }
@@ -851,6 +885,10 @@ export class OfficeScene extends Phaser.Scene {
     }
   }
 
+  private travelWalkable(x: number, y: number): boolean {
+    return walkableWithObjects(x, y, this.roomId, this.objects) && !this.travelIce?.shields.some(s => s.roomId === this.roomId && s.x === x && s.y === y && s.expiresAt > Date.now() + this.travelIceOffset);
+  }
+
   update(time: number, delta: number): void {
     const now = Date.now();
     this.lostItems?.update(now); this.dailyView?.update(now, this.reducedMotion);
@@ -865,11 +903,17 @@ export class OfficeScene extends Phaser.Scene {
     this.companions?.update(time, delta, this.reducedMotion);
     this.spellsView?.update(this.reducedMotion); this.combatUI?.update(this.reducedMotion);
     this.walker.update(delta);
+    if (document.querySelector('dialog[open]:not(.chat-docked)')) this.controls.clear();
     if (this.isResting() || this.restPending) this.controls.clear();
     if (this.editMode === 'none' && !this.isResting() && !this.restPending && !this.walker.moving && this.connection?.readyToMove) {
       const dash = this.controls.takeDash(), direction = dash ?? this.controls.direction();
-      if (direction) { if (this.localId) this.reactions.delete(this.localId); if (dash) this.connection.dash(direction); else this.connection.move(direction); }
+      const click = !direction && this.mouseMovement ? this.clickTravel.next(this.walker.tile, (x,y) => this.travelWalkable(x,y)) : undefined;
+      if (this.clickTravel.lastStop) { document.querySelector('#click-move-status')!.textContent = this.clickTravel.lastStop === 'arrived' ? '到着しました。床をクリックすると移動できます。' : '通路がふさがったため停止しました。別の場所を選んでください。'; this.clickTravel.lastStop = undefined; }
+      const next = direction ?? click?.direction;
+      if (next) { if (direction) this.clickTravel.clear(); if (this.localId) this.reactions.delete(this.localId); if (dash || click?.dash) this.connection.dash(next); else this.connection.move(next); }
     }
+    this.destinationMarker?.clear();
+    if (this.clickTravel.goal) { const p = this.clickTravel.goal; this.destinationMarker?.lineStyle(1, 0xffed9c, 0.9).strokeRect(p.x * TILE + 2, p.y * TILE + 2, TILE - 4, TILE - 4); }
     this.drawAvatar(this.avatar, this.walker, this.appearance, this.playerName, time, this.localId);
     this.avatar.sprite.setAlpha(this.connected ? 1 : 0.45);
     for (const peer of this.peers.values()) {
@@ -888,7 +932,7 @@ export class OfficeScene extends Phaser.Scene {
     const board = boardInFront(this.roomId, this.walker.tile);
     if (!board) this.frontBoard = undefined;
     else if (board.id !== this.frontBoard && this.connected && this.editMode === 'none' && !this.walker.moving &&
-      !document.querySelector('dialog[open]') && this.linksUI?.hasLinks(board.id)) {
+      !document.querySelector('dialog[open]:not(.chat-docked)') && this.linksUI?.hasLinks(board.id)) {
       this.frontBoard = board.id; this.linksUI.open(board);
     }
     this.game.canvas.dataset.roomId = this.roomId;

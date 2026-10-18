@@ -23,6 +23,26 @@ test('three clients receive only their DM and current-room traffic; offline inbo
   chat.action(serverClients[0],{type:'chat-send',target:{kind:'room',roomId:'office'},text:'office-only',shareSlack:false,actionId:randomUUID()});
   chat.action(serverClients[2],{type:'chat-history',target:{kind:'room',roomId:'office'},actionId:randomUUID()});await new Promise(r=>setTimeout(r,40));assert.equal(logs[2].some(e=>JSON.stringify(e).includes('office-only')),false);assert.equal(logs[2].some(e=>e.type==='chat-result' && e.error),true);
 });
+test('live group traffic and membership are delivered only to members across floors and reconnects', async t => {
+  const chat = new ChatService(), server = createServer(), { WebSocketServer } = await import('ws'), wss = new WebSocketServer({server});
+  const sockets: WebSocket[] = [], clients: WebSocket[] = [], logs: ChatEvent[][] = [[],[],[]];
+  wss.on('connection',(ws,req) => {const i=Number(req.url!.slice(1)); sockets[i]=ws; chat.join(ws,()=>({...actor(i),roomId:i===1?'cafe':'office'}));});
+  await new Promise<void>(r=>server.listen(0,'127.0.0.1',r));
+  t.after(async()=>{clients.forEach(c=>c.terminate());sockets.forEach(c=>c.terminate());chat.close();wss.close();await new Promise<void>(r=>server.close(()=>r()));});
+  for(let i=0;i<3;i++){const ws=new WebSocket(`ws://127.0.0.1:${(server.address() as AddressInfo).port}/${i}`); clients.push(ws);ws.on('message',raw=>logs[i].push(JSON.parse(String(raw))));await once(ws,'open');}
+  const groupId=randomUUID();chat.action(sockets[0],{type:'chat-group-create',groupId,name:'private group',memberIds:[actor(1).id],actionId:randomUUID()});
+  chat.action(sockets[0],{type:'chat-send',target:{kind:'group',groupId},text:'private group message',shareSlack:false,actionId:randomUUID()});
+  await new Promise(r=>setTimeout(r,140));
+  assert.equal(logs[1].some(m=>m.type==='chat-message' && m.message.text==='private group message'),true);
+  assert.equal(logs[2].some(m=>JSON.stringify(m).includes('private group')),false);
+  chat.action(sockets[2],{type:'chat-history',target:{kind:'group',groupId},actionId:randomUUID()});
+  await new Promise(r=>setTimeout(r,30)); assert.ok(logs[2].some(m=>m.type==='chat-result' && m.error));
+  chat.leave(sockets[1]);chat.action(sockets[0],{type:'chat-send',target:{kind:'group',groupId},text:'offline group message',shareSlack:false,actionId:randomUUID()});
+  chat.join(sockets[1],()=>actor(1));await new Promise(r=>setTimeout(r,30));
+  const state=logs[1].filter((m):m is Extract<ChatEvent,{type:'chat-state'}>=>m.type==='chat-state').at(-1)!;
+  assert.equal(state.threads.find(t=>t.target.kind==='group')!.unread,2);
+});
+
 test('Slack events require a fresh raw-body signature, correct workspace/channel, deduplicate and ignore bot loops',async t=>{
   const chat=new ChatService(undefined,config);const server=createServer((req,res)=>{void chat.handle(req,res).then(handled=>{if(!handled)res.writeHead(404).end();});});await new Promise<void>(r=>server.listen(0,'127.0.0.1',r));t.after(async()=>{chat.close();await new Promise<void>(r=>server.close(()=>r()));});
   const url=`http://127.0.0.1:${(server.address() as AddressInfo).port}/api/slack/events`;
