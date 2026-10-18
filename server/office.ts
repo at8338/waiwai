@@ -255,7 +255,7 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
   const sendDummies = (target?: WebSocket) => {
     for (const client of players.keys()) if (!target || target === client) send(client, {
       type: 'dummy-state', enabled: !!dummies.list().length, count: dummies.list().length,
-      ...(dummies.list()[0] ? { roomId: dummies.list()[0].roomId } : {}), editable: policies.isAdministrator(auth?.identify(requests.get(client)!)?.user),
+      ...(dummies.list()[0] && dummies.list().every(p => p.roomId === dummies.list()[0].roomId) ? { roomId: dummies.list()[0].roomId } : {}), editable: policies.isAdministrator(auth?.identify(requests.get(client)!)?.user),
     });
   };
   const configureDummies = (enabled: boolean, roomId: RoomId) => {
@@ -417,7 +417,6 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
         if (ids.includes(player.id)) { finish('自分以外の人を選んでください。'); return; }
         if (targets.some((person) => !person)) { finish('選んだ人が退出しました。一覧を確認してください。'); return; }
         const selected = targets as Player[];
-        if (message.spell === 'call' && selected.some(person => person.dummy)) { finish('テスト用アバターは管理画面から呼べます。'); return; }
         if (selected.some((person) => arena.active(person.id))) { finish('その人は魔法対戦中です。終了後に呼んでください。'); return; }
         if (message.spell === 'call' && selected.some((person) => now - (summonedAt.get(person.id) ?? -Infinity) < SPELLS.call.cooldown)) { finish('その人はコールで移動したばかりです。少し待ってください。'); return; }
         if (message.spell === 'rura' && now - lastWarp < 1000) { finish('少し待ってから移動してください。'); return; }
@@ -428,13 +427,15 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
         if (!destinations) { finish('移動先の床を確認できません。相手が少し動いてから試してください。'); return; }
         spellTimes.set(message.spell, now); if (message.spell === 'rura') lastWarp = now;
         for (const [index, mover] of movers.entries()) {
-          const client = [...players].find(([, person]) => person.id === mover.id)![0];
+          const client = [...players].find(([, person]) => person.id === mover.id)?.[0];
           leaveArena(mover.id); leaveArcade(mover.id); Object.assign(mover, destinations[index], { roomId: destinationRoom, facing: 'down' });
+          if (mover.dummy) dummies.summoned(mover.id, now);
           resetBuddy(mover, collisionObjects(destinationRoom)); contacts.get(mover.id)?.(); pending.delete(mover.id);
           movementBlocks.set(mover.id, now + movementStep(mover.riding?.kind)); if (message.spell === 'call') summonedAt.set(mover.id, now);
           broadcast({ type: 'player', player: mover, reason: 'spell' });
-          chat.state(client); sendObjects(client, destinationRoom); sendPets(client, destinationRoom); sendRobot(client); sendArcade(client); sendLinks(client, destinationRoom); sendIce(client); sendArena(client);
+          if (client) { chat.state(client); sendObjects(client, destinationRoom); sendPets(client, destinationRoom); sendRobot(client); sendArcade(client); sendLinks(client, destinationRoom); sendIce(client); sendArena(client); }
         }
+        if (movers.some(mover => mover.dummy)) sendDummies();
         directoryDirty = true; voice.refresh();
         const effect: Extract<ServerMessage, { type: 'spell-effect' }> = { type: 'spell-effect', id: randomUUID(), spell: message.spell, casterId: player.id, casterName: player.name, roomId: destinationRoom, origin, destinations, targetIds: movers.map((person) => person.id) };
         for (const [client, person] of players) if (person.roomId === destinationRoom) send(client, effect);

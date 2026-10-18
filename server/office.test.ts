@@ -507,6 +507,45 @@ test('call summons several people across rooms atomically, synchronizes voice an
   assert.equal(a.seen.some((m) => m.type === 'player' && m.reason === 'spell' && m.player.id === a.welcome.id), false);
 });
 
+test('call summons selected dummies and real people across floors while retaining chat, cooldowns and replay protection', async t => {
+  const { connect } = await fixture(t, undefined, undefined, undefined, undefined, undefined, undefined, false, undefined, true);
+  const observer = await connect(), caster = await connect(), human = await connect();
+  const bots = caster.welcome.players.filter(p => p.dummy);
+  caster.send({ type: 'change-room', roomId: 'cafe', requestId: 1 });
+  const anchor = (await caster.next('player', m => m.reason === 'room' && m.player.id === caster.welcome.id)).player;
+  human.send({ type: 'change-room', roomId: 'library', requestId: 1 });
+  await human.next('player', m => m.reason === 'room' && m.player.id === human.welcome.id);
+  const action = { type: 'spell-cast', spell: 'call', actionId: randomUUID(), targetIds: [bots[0].id, bots[1].id, human.welcome.id] };
+  caster.send(action); assert.equal((await caster.next('spell-result', m => m.actionId === action.actionId)).error, undefined);
+  for (const id of action.targetIds) {
+    const arrived = (await observer.next('player', m => m.reason === 'spell' && m.player.id === id)).player;
+    assert.equal(arrived.roomId, 'cafe');
+    assert.equal(Math.abs(arrived.x - anchor.x) + Math.abs(arrived.y - anchor.y), 1);
+  }
+  await human.next('objects', m => m.roomId === 'cafe');
+  const effect = await caster.next('spell-effect', m => m.spell === 'call');
+  assert.deepEqual(effect.targetIds, action.targetIds);
+  const split = await caster.next('dummy-state', m => m.roomId === undefined); assert.equal(split.count, 3); assert.equal(split.enabled, true);
+  const directory = await caster.next('directory', m => m.people.some(p => p.playerId === bots[0].id && p.roomId === 'cafe'));
+  assert.equal(directory.people.find(p => p.playerId === bots[2].id)!.roomId, 'office');
+  const tooSoon = randomUUID(); observer.send({ type: 'spell-cast', spell: 'call', actionId: tooSoon, targetIds: [bots[0].id] });
+  assert.match((await observer.next('spell-result', m => m.actionId === tooSoon)).error!, /移動したばかり/);
+  caster.send(action); assert.equal((await caster.next('spell-result', m => m.actionId === action.actionId)).error, undefined);
+  assert.equal(caster.seen.filter(m => m.type === 'spell-effect' && m.spell === 'call').length, 1);
+  const roomMessage = randomUUID(); caster.send({ type: 'chat-send', actionId: roomMessage, target: { kind: 'room', roomId: 'cafe' }, text: 'こんにちは', shareSlack: false });
+  assert.equal((await caster.next('chat-result', m => m.actionId === roomMessage)).error, undefined);
+  const reply = await caster.next('chat-message', m => m.message.authorId === `guest:${bots[0].id}`);
+  await human.next('chat-message', m => m.message.id === reply.message.id);
+  assert.equal(observer.seen.some(m => m.type === 'chat-message' && m.message.id === reply.message.id), false);
+  const dm = randomUUID(); caster.send({ type: 'chat-send', actionId: dm, target: { kind: 'dm', peerId: `guest:${bots[1].id}` }, text: 'お辞儀', shareSlack: false });
+  assert.equal((await caster.next('chat-result', m => m.actionId === dm)).error, undefined);
+  await caster.next('chat-message', m => m.message.authorId === `guest:${bots[1].id}`);
+  await human.next('reaction', m => m.playerId === bots[1].id && m.roomId === 'cafe');
+  const late = await connect();
+  assert.equal(late.welcome.players.find(p => p.id === bots[0].id)!.roomId, 'cafe');
+  assert.equal(late.welcome.players.find(p => p.id === bots[2].id)!.roomId, 'office');
+});
+
 test('rura moves only the caster next to the target, and fire is a shared room-local visual with no player movement', async (t) => {
   const { connect } = await fixture(t), a = await connect(), b = await connect(), c = await connect();
   b.send({ type: 'change-room', roomId: 'cafe', requestId: 1 }); const target = (await b.next('player', (m) => m.reason === 'room')).player;

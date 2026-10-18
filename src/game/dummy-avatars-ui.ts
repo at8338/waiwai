@@ -41,7 +41,9 @@ export class DummyAvatarsUI {
     this.section.hidden = !this.state?.editable;
     this.hint.hidden = !this.state?.enabled;
     this.hint.textContent = '「テスト」付きの人は自動応答アバターです。クリックしてDMを送れます。滞在人数にも含みます。';
-    this.section.querySelector('#dummy-admin-summary')!.textContent = this.state?.roomId ? `${getRoom(this.state.roomId).name}に${this.state.count}体を表示中` : '現在は非表示です。';
+    this.section.querySelector('#dummy-admin-summary')!.textContent = this.state?.enabled
+      ? this.state.roomId ? `${getRoom(this.state.roomId).name}に${this.state.count}体を表示中` : `複数のフロアに${this.state.count}体を表示中`
+      : '現在は非表示です。';
     for (const button of this.section.querySelectorAll<HTMLButtonElement>('button')) button.disabled = !this.connected || !!this.pending || !this.state?.editable || button.id === 'dummy-hide' && !this.state?.enabled;
   }
   destroy(): void { clearTimeout(this.timer); this.section.remove(); this.hint.remove(); }
