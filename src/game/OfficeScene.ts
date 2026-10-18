@@ -364,6 +364,7 @@ export class OfficeScene extends Phaser.Scene {
     document.querySelector('#app')!.setAttribute('data-connection', state);
     document.querySelector('#profile-presence')!.textContent = this.connected ? 'オフィスにいます' : '接続を待っています';
     (document.querySelector('#reset-position') as HTMLButtonElement).disabled = !this.connected;
+    this.updateRoomButtons();
     this.renderParticipants();
     this.chatUI?.connection(this.connected);
     this.directoryUI?.setConnection(this.connected, this.localId);
@@ -521,8 +522,9 @@ export class OfficeScene extends Phaser.Scene {
     document.querySelectorAll('[data-room-count]').forEach((node) => { node.textContent = `${localCount}人がこの部屋にいます`; });
     for (const room of ROOMS) {
       const count = [...this.players.values()].filter((p) => p.roomId === room.id).length;
-      const label = document.querySelector(`[data-room-occupancy="${room.id}"]`);
-      if (label) label.textContent = `${count}人${room.id === this.roomId ? ' · いまここ' : ''}`;
+      for (const label of document.querySelectorAll(`[data-room-occupancy="${room.id}"]`)) {
+        label.textContent = `${count}人${room.id === this.roomId && !label.classList.contains('room-shortcut-count') ? ' · いまここ' : ''}`;
+      }
     }
   }
 
@@ -587,10 +589,19 @@ export class OfficeScene extends Phaser.Scene {
     document.querySelector('#map-title')!.textContent = `${room.name}へ、ようこそ。`;
     document.querySelector('#room-number')!.textContent = String(ROOMS.indexOf(room) + 1).padStart(2, '0');
     document.querySelector('.map-legend')!.textContent = id === 'arcade' ? '8台の筐体で、対戦・協力・リズム遊び。ひとりでも気軽にどうぞ。' : id === 'cockpit' ? '操縦パネルでシミュレーターへ。機体の部位から、各部屋へ移動できます。' : `${room.description} 近づいて会話。人をクリックしてSlackへ、家具をクリックしてリンクへ。`;
-    for (const button of document.querySelectorAll<HTMLButtonElement>('[data-room]')) button.disabled = button.dataset.room === id;
+    this.updateRoomButtons();
     // Other-room roster entries are kept for occupancy, but avatars stay local.
     for (const player of this.players.values()) if (player.id !== this.localId && player.roomId === id) this.receivePlayer(player, true);
     this.updateObjectTools();
+  }
+
+  private updateRoomButtons(): void {
+    for (const button of document.querySelectorAll<HTMLButtonElement>('[data-room]')) {
+      const current = button.dataset.room === this.roomId;
+      button.disabled = !this.connected || current;
+      if (current) button.setAttribute('aria-current', 'location');
+      else button.removeAttribute('aria-current');
+    }
   }
 
   private setupRoomTools(): void {
@@ -600,7 +611,9 @@ export class OfficeScene extends Phaser.Scene {
       if (!this.connected) return;
       this.controls.clear();
       this.connection?.changeRoom(button.dataset.room as RoomId);
-      document.querySelector<HTMLDialogElement>('#room-dialog')!.close();
+      const dialog = document.querySelector<HTMLDialogElement>('#room-dialog')!;
+      if (dialog.open) dialog.close();
+      else this.game.canvas.focus({ preventScroll: true });
     }, { signal });
     for (const button of document.querySelectorAll<HTMLButtonElement>('[data-object-mode]')) button.addEventListener('click', () => {
       this.setEditMode(button.dataset.objectMode as typeof this.editMode);
