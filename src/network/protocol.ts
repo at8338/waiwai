@@ -1,4 +1,6 @@
 import { parsePolicyAction } from '../game/world-policy.ts';
+import { parseDummyControl } from '../game/dummy-avatars.ts';
+import type { DummyControl, DummyState } from '../game/dummy-avatars.ts';
 import type { PolicyAction, PolicySnapshot } from '../game/world-policy.ts';
 import { parseChatAction } from '../game/chat.ts';
 import type { ChatAction, ChatEvent } from '../game/chat.ts';
@@ -39,7 +41,7 @@ import { isReactionKind } from '../game/reactions.ts';
 import type { ReactionKind } from '../game/reactions.ts';
 
 export type Profile = { name: string; outfit: number; appearance?: Appearance; buddy?: BuddyKind | null; slack?: SlackIdentity | null };
-export type Player = Profile & { id: string; slot: number; roomId: RoomId; x: number; y: number; facing: Direction; slackVerified?: boolean; accountId?: string; buddyPosition?: BuddyPosition; riding?: Riding; resting?: boolean };
+export type Player = Profile & { id: string; slot: number; roomId: RoomId; x: number; y: number; facing: Direction; dummy?: boolean; slackVerified?: boolean; accountId?: string; buddyPosition?: BuddyPosition; riding?: Riding; resting?: boolean };
 // Profiles travel only on join/edit; movement is coalesced into one frame per 50ms.
 // Small numeric slot maps to a UUID in the welcome/join profile. Bits 0–1 are
 // direction; bit 2 means snap/reset. UUIDs and identities stay out of frames.
@@ -47,6 +49,7 @@ export type Position = [slot: number, x: number, y: number, flags: number, buddy
 export const MAX_PLAYERS = 150;
 export const POSITION_FRAME_MS = 50;
 export type ClientMessage =
+  | DummyControl
   | PolicyAction
   | ChatAction
   | ArenaAction
@@ -72,6 +75,8 @@ export type ClientMessage =
   | { type: 'dash'; direction: Direction; requestId: number }
   | { type: 'reset'; requestId: number };
 export type ServerMessage =
+  | ({ type: 'dummy-state' } & DummyState)
+  | { type: 'dummy-result'; actionId: string; error?: string }
   | ({ type: 'world-policy' } & PolicySnapshot)
   | { type: 'policy-result'; actionId: string; error?: string }
   | ChatEvent
@@ -121,6 +126,7 @@ export function parseClientMessage(raw: string): ClientMessage | undefined {
   try { value = JSON.parse(raw); } catch { return; }
   if (!value || typeof value !== 'object') return;
   const data = value as Record<string, unknown>;
+  const dummy = parseDummyControl(data); if (dummy) return dummy;
   const policy = parsePolicyAction(data); if (policy) return policy;
   if (data.type === 'arena-action' && (data.command === 'join' || data.command === 'leave') && validAnnouncementId(data.actionId)) return { type: 'arena-action', command: data.command, actionId: data.actionId };
   const chat = parseChatAction(data); if (chat) return chat;

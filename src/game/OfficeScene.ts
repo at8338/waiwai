@@ -1,5 +1,6 @@
 import { laptopThrowMotion } from './laptop-throw.ts';
 import { AdminUI } from './admin-ui.ts';
+import { DummyAvatarsUI } from './dummy-avatars-ui.ts';
 import { defaultWorldPolicy, policyAllows } from './world-policy.ts';
 import type { WorldPolicy } from './world-policy.ts';
 import { ART_WIDTH, ART_HEIGHT, configureArtCamera } from './art-resolution.ts';
@@ -87,6 +88,7 @@ export class OfficeScene extends Phaser.Scene {
   private birthdaysUI?: BirthdaysUI;
   private devWorldUI?: DevWorldUI;
   private adminUI?: AdminUI;
+  private dummyUI?: DummyAvatarsUI;
   private worldPolicy: WorldPolicy = defaultWorldPolicy();
   getWorldPolicy(): WorldPolicy { return this.worldPolicy; }
   private spellsUI?: SpellsUI;
@@ -202,6 +204,7 @@ export class OfficeScene extends Phaser.Scene {
       if (document.querySelector('dialog[open]')) return false; this.controls.clear(); this.setEditMode('none'); return true;
     });
     this.spellsView = new SpellsView(this);
+    this.dummyUI = new DummyAvatarsUI(this.inputController.signal, action => this.connection?.controlDummies(action) ?? false, () => this.roomId);
     this.combatUI = new CombatUI(this, this.inputController.signal, (action) => this.connection?.arenaAction(action) ?? false);
     this.spellsUI = new SpellsUI(this.inputController.signal, (action) => { this.controls.clear(); this.setEditMode('none'); return this.connection?.castSpell(action) ?? false; }, () => {
       if (document.querySelector('dialog[open]')) return false; this.controls.clear(); this.setEditMode('none'); return true;
@@ -272,6 +275,8 @@ export class OfficeScene extends Phaser.Scene {
         document.dispatchEvent(new Event('waiwai-policy-changed'));
       },
       policyResult: (id, error) => this.adminUI?.result(id, error),
+      dummies: state => this.dummyUI?.receive(state),
+      dummyResult: (id, error) => this.dummyUI?.result(id, error),
       ice: (state) => { this.combatUI?.receiveIce(state); this.spellsUI?.receiveIce(state.activeUntil, state.serverNow); },
       arena: (state) => this.combatUI?.receive(state.state),
       arenaResult: (result) => this.combatUI?.result(result.actionId, result.error),
@@ -338,6 +343,7 @@ export class OfficeScene extends Phaser.Scene {
       this.birthdaysUI?.destroy();
       this.devWorldUI?.destroy();
       this.adminUI?.destroy();
+      this.dummyUI?.destroy();
       this.combatUI?.destroy(); this.spellsUI?.destroy(); this.spellsView?.destroy();
       this.lighting?.destroy();
       this.vehicleDocks?.destroy(); this.vehicleUI?.destroy(); this.announcementsUI?.destroy(); this.dailyUI?.destroy(); this.arcadeUI?.destroy(); this.cockpitUI?.destroy(); this.cockpitView?.destroy(); this.dailyView?.destroy(); this.lostItems?.destroy();
@@ -355,6 +361,7 @@ export class OfficeScene extends Phaser.Scene {
     this.birthdaysUI?.setConnected(this.connected);
     this.devWorldUI?.setConnected(this.connected);
     this.adminUI?.setConnected(this.connected);
+    this.dummyUI?.setConnected(this.connected);
     this.combatUI?.setConnected(this.connected, this.localId); this.spellsUI?.setConnected(this.connected, this.localId); if (!this.connected) this.spellsView?.clear();
     this.lostItems?.setConnected(this.connected);
     this.vehicleUI?.setConnected(this.connected); this.vehicleDocks?.setConnected(this.connected);
@@ -528,7 +535,7 @@ export class OfficeScene extends Phaser.Scene {
       name.textContent = player.name + (player.id === this.localId ? '（あなた）' : '');
       if (player.id !== this.localId) name.setAttribute('aria-label', `${player.name}さんのWaiwai内DMを開く`);
       item.children[1].textContent = areaAt(player);
-      item.children[2].textContent = player.accountId?.startsWith('entra:') ? 'Microsoftログイン済み' : player.slackVerified ? 'Slackログイン済み' : player.slack ? 'Slack手動設定' : 'ゲスト';
+      item.children[2].textContent = player.dummy ? 'テスト用 · 自動返信 · マイクなし' : player.accountId?.startsWith('entra:') ? 'Microsoftログイン済み' : player.slackVerified ? 'Slackログイン済み' : player.slack ? 'Slack手動設定' : 'ゲスト';
       const reaction = this.reactions.get(player.id);
       item.dataset.reaction = reaction?.kind ?? '';
       item.dataset.resting = String(!!player.resting);

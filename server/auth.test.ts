@@ -205,6 +205,38 @@ test('administrator policy uses signed verified Slack email, denies spoofing, ev
   assert.equal((await late.next('daily-event')).disabled, true);
 });
 
+test('only the verified administrator can enable dummies; floor bans relocate them and hiding cancels pending replies', async t => {
+  const f = await fixture(t);
+  f.change({ email: 'tt-asahara@kddi.com', email_verified: true });
+  const admin = await f.connect(await f.login());
+  assert.equal(admin.welcome.players.some(p => p.dummy), false);
+  assert.equal((await admin.next('dummy-state')).editable, true);
+  const enable = randomUUID(); admin.ws.send(JSON.stringify({ type: 'dummy-control', enabled: true, roomId: 'library', actionId: enable }));
+  assert.equal((await admin.next('dummy-result')).error, undefined);
+  assert.equal((await admin.next('dummy-state', m => m.enabled)).roomId, 'library');
+  const bot = (await admin.next('player', m => !!m.player.dummy)).player;
+  const ban = randomUUID(); admin.ws.send(JSON.stringify({ type: 'policy-set', revision: 0, group: 'rooms', id: 'library', allowed: false, actionId: ban }));
+  assert.equal((await admin.next('policy-result')).error, undefined);
+  assert.equal((await admin.next('dummy-state', m => m.enabled && m.roomId === 'office')).count, 3);
+  await new Promise(r => setTimeout(r, 1050));
+  const target = { kind: 'dm', peerId: `guest:${bot.id}` }, send = randomUUID();
+  admin.ws.send(JSON.stringify({ type: 'chat-send', target, text: 'cancel this reply', shareSlack: false, actionId: send }));
+  assert.equal((await admin.next('chat-result', m => m.actionId === send)).error, undefined);
+  const hide = randomUUID(); admin.ws.send(JSON.stringify({ type: 'dummy-control', enabled: false, actionId: hide }));
+  assert.equal((await admin.next('dummy-result', m => m.actionId === hide)).error, undefined);
+  await admin.next('dummy-state', m => !m.enabled);
+  // Retransmitting a successful command cannot recreate or relocate the avatars.
+  admin.ws.send(JSON.stringify({ type: 'dummy-control', enabled: true, roomId: 'library', actionId: enable }));
+  assert.equal((await admin.next('dummy-result', m => m.actionId === enable)).error, undefined);
+  await new Promise(r => setTimeout(r, 750));
+  const history = randomUUID(); admin.ws.send(JSON.stringify({ type: 'chat-history', target, actionId: history }));
+  assert.equal((await admin.next('chat-history', m => m.actionId === history)).messages.length, 1);
+  const late = await f.connect(''); assert.equal(late.welcome.players.some(p => p.dummy), false);
+  await new Promise(r => setTimeout(r, 300));
+  const closed = randomUUID(); admin.ws.send(JSON.stringify({ type: 'dummy-control', enabled: true, roomId: 'library', actionId: closed }));
+  assert.match((await admin.next('dummy-result', m => m.actionId === closed)).error!, /公開中/);
+});
+
 test('session cookies are secure and host-only; guest messages cannot claim a verified Slack identity', async (t) => {
   const f = await fixture(t);
   const result = await f.callback(await f.begin());

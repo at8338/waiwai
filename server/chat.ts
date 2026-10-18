@@ -29,6 +29,32 @@ export class ChatService {
   private abort = new AbortController();
   private slack?: SlackChatConfig;
   private http: typeof fetch;
+  private testParticipants = new Map<string, { actor: () => ChatActor; reply: (text: string) => string | undefined }>();
+  private testReplies = new Set<ReturnType<typeof setTimeout>>();
+  setTestParticipants(participants: { actor: () => ChatActor; reply: (text: string) => string | undefined }[]): void {
+    for (const timer of this.testReplies) clearTimeout(timer); this.testReplies.clear();
+    this.testParticipants.clear();
+    for (const participant of participants) {
+      const actor = participant.actor(); this.store.account(actor.id, actor.name, false); this.testParticipants.set(actor.id, participant);
+    }
+  }
+  private queueTestReply(actor: ChatActor, action: Extract<ChatAction, { type: 'chat-send' }>, message: ChatMessage): void {
+    const target = action.target;
+    const participant = target.kind === 'dm' ? this.testParticipants.get(target.peerId) : target.kind === 'room' ? [...this.testParticipants.values()].find(p => p.actor().roomId === target.roomId) : undefined;
+    if (!participant || this.testReplies.size >= 256) return;
+    const timer = setTimeout(() => {
+      this.testReplies.delete(timer);
+      if (this.closed || !this.testParticipants.has(participant.actor().id)) return;
+      const bot = participant.actor(); if (target.kind === 'room' && bot.roomId !== target.roomId) return;
+      try {
+        const text = participant.reply(action.text); if (!text) return;
+        const replyTarget = target.kind === 'dm' ? { kind: 'dm' as const, peerId: actor.id } : target;
+        const result = this.store.append(bot, replyTarget, text, `test-reply:${message.id}`, false);
+        if (result.fresh) this.publish(result.message);
+      } catch { /* Test participants never interrupt delivery of a real message. */ }
+    }, 650);
+    timer.unref(); this.testReplies.add(timer);
+  }
   constructor(file?: string, slack?: SlackChatConfig, http: typeof fetch = fetch) {
     this.slack = slack; this.http = http;
     this.store = new ChatStore(file);
@@ -49,7 +75,7 @@ export class ChatService {
   action(ws: WebSocket, action: ChatAction): void {
     const actor = this.clients.get(ws)?.(); if (!actor) return;
     try {
-      if (action.type === 'chat-send' && action.target.kind === 'dm' && action.target.peerId.startsWith('guest:') && ![...this.clients.values()].some(get => get().id === (action.target as { peerId: string }).peerId)) throw new ChatError('ゲストは退出しています。継続したDMにはログインが必要です。');
+      if (action.type === 'chat-send' && action.target.kind === 'dm' && action.target.peerId.startsWith('guest:') && !this.testParticipants.has(action.target.peerId) && ![...this.clients.values()].some(get => get().id === (action.target as { peerId: string }).peerId)) throw new ChatError('ゲストは退出しています。継続したDMにはログインが必要です。');
       if (action.type === 'chat-history') { this.send(ws, { type: 'chat-history', actionId: action.actionId, target: action.target, ...this.store.history(actor, action.target, action.before) }); return; }
       if (action.type === 'chat-read') {
         this.store.read(actor, action.target, action.through);
@@ -61,7 +87,7 @@ export class ChatService {
         if (action.shareSlack && !this.slack) throw new ChatError('Slack連携は管理者の設定後に利用できます。');
         this.store.account(actor.id, actor.name, actor.persistent);
         const result = this.store.append(actor, action.target, action.text, action.actionId, action.shareSlack);
-        if (result.fresh) this.publish(result.message);
+        if (result.fresh) { this.publish(result.message); this.queueTestReply(actor, action, result.message); }
       }
       this.send(ws, { type: 'chat-result', actionId: action.actionId, delivery: action.type === 'chat-send' && action.shareSlack ? 'slack-queued' : 'saved' });
     } catch (error) { this.send(ws, { type: 'chat-result', actionId: action.actionId, error: error instanceof ChatError ? error.message : '保存できませんでした。時間をおいて再送してください。' }); }
@@ -104,5 +130,5 @@ export class ChatService {
     } catch { if (!this.closed) this.store.slackRetry(message.seq, Math.min(3600, 10 * 2 ** Math.min(message.attempts, 8))); }
     finally { this.sending = false; }
   }
-  close(): void { this.closed = true; clearInterval(this.timer); clearTimeout(this.summaryTimer); this.abort.abort(); this.clients.clear(); this.store.close(); }
+  close(): void { this.closed = true; for (const timer of this.testReplies) clearTimeout(timer); this.testReplies.clear(); this.testParticipants.clear(); clearInterval(this.timer); clearTimeout(this.summaryTimer); this.abort.abort(); this.clients.clear(); this.store.close(); }
 }

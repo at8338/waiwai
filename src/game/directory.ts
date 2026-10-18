@@ -4,7 +4,7 @@ import type { Player } from '../network/protocol.ts';
 import type { RoomId } from './rooms.ts';
 
 export type Member = { id: string; name: string; slack?: SlackIdentity };
-export type Person = { id: string; name: string; slack: SlackIdentity | null; verified: boolean; online: boolean; playerId?: string; roomId?: RoomId };
+export type Person = { id: string; name: string; slack: SlackIdentity | null; verified: boolean; online: boolean; playerId?: string; roomId?: RoomId; dummy?: boolean };
 export const memberId = (slack: SlackIdentity): string => `slack:${slack.teamId}:${slack.userId}`;
 
 export function directoryPeople(members: readonly Member[], players: Iterable<Player>): Person[] {
@@ -14,7 +14,7 @@ export function directoryPeople(members: readonly Member[], players: Iterable<Pl
     const id = playerIdentity(p);
     // One row per verified Slack account. The most recently connected tab is
     // its destination; a remaining tab keeps the account online after an exit.
-    people.set(id, { id, name: p.name, slack: p.slackVerified ? p.slack! : null, verified, online: true, playerId: p.id, roomId: p.roomId });
+    people.set(id, { id, name: p.name, slack: p.slackVerified ? p.slack! : null, verified, online: true, playerId: p.id, roomId: p.roomId, ...(p.dummy ? { dummy: true } : {}) });
   }
   return [...people.values()];
 }

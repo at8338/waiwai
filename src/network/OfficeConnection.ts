@@ -1,5 +1,6 @@
 import type { ChatAction, ChatEvent } from '../game/chat.ts';
 import type { PolicyAction } from '../game/world-policy.ts';
+import type { DummyControl } from '../game/dummy-avatars.ts';
 import type { ArcadeAction } from '../game/arcade.ts';
 import type { BirthdayAction } from '../game/birthdays.ts';
 import type { DevWorldAction } from '../game/dev-world.ts';
@@ -23,6 +24,8 @@ import type { ReactionKind } from '../game/reactions.ts';
 
 export type ConnectionState = 'connecting' | 'online' | 'reconnecting';
 export type ConnectionHandlers = {
+  dummies?: (message: Extract<ServerMessage, { type: 'dummy-state' }>) => void;
+  dummyResult?: (id: string, error?: string) => void;
   policy?: (message: Extract<ServerMessage, { type: 'world-policy' }>) => void;
   policyResult?: (id: string, error?: string) => void;
   chat?: (event: ChatEvent) => void;
@@ -157,6 +160,8 @@ export class OfficeConnection {
       else if (message.type === 'robot-result') this.handlers.robotResult?.(message);
       else if (message.type === 'daily-event') this.handlers.dailyEvent?.(message);
       else if (message.type === 'world-policy') this.handlers.policy?.(message);
+      else if (message.type === 'dummy-state') this.handlers.dummies?.(message);
+      else if (message.type === 'dummy-result') this.handlers.dummyResult?.(message.actionId, message.error);
       else if (message.type === 'policy-result') this.handlers.policyResult?.(message.actionId, message.error);
       else if (message.type === 'dev-world-state') this.handlers.devWorld?.(message);
       else if (message.type === 'dev-world-result') this.handlers.devWorldResult?.(message.actionId, message.error);
@@ -247,6 +252,7 @@ export class OfficeConnection {
   birthday(action: BirthdayAction): boolean { if (!this.online) return false; this.send(action); return true; }
   devWorld(action: DevWorldAction): boolean { if (!this.online) return false; this.send(action); return true; }
   setPolicy(action: PolicyAction): boolean { if (!this.online) return false; this.send(action); return true; }
+  controlDummies(action: DummyControl): boolean { if (!this.online) return false; this.send(action); return true; }
   castSpell(action: SpellAction): boolean { if (!this.online) return false; this.send(action); return true; }
   arenaAction(action: ArenaAction): boolean { if (!this.online) return false; this.send(action); return true; }
 
