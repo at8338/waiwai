@@ -1,3 +1,4 @@
+import { mapTap } from './map-tap.ts';
 import { laptopPixels, LAPTOP_WIDTH, LAPTOP_HEIGHT } from './laptop-art.ts';
 import { ARCADE_GAMES, ARCADE_IDS } from './arcade.ts';
 import type { ArcadeGame } from './arcade.ts';
@@ -35,13 +36,13 @@ function drawFurniture(scene: Phaser.Scene, item: Furniture, openCalendar?: () =
   const x=tx*TILE,y=ty*TILE,w=tw*TILE,h=th*TILE;
   const g=scene.add.graphics().setDepth(y+h);
   for(const pixel of furniturePixels(item))rect(g,pixel.color,pixel.x,pixel.y,pixel.w,pixel.h);
-  if(kind==='calendar'&&openCalendar)g.setInteractive(new Phaser.Geom.Rectangle(x,y,w,h),Phaser.Geom.Rectangle.Contains).on('pointerup',openCalendar);
-  if(kind==='board'&&openBoard)g.setInteractive(new Phaser.Geom.Rectangle(x,y-14,w,h+14),Phaser.Geom.Rectangle.Contains).on('pointerup',()=>openBoard(item));
+  if(kind==='calendar'&&openCalendar)g.setInteractive(new Phaser.Geom.Rectangle(x,y,w,h),Phaser.Geom.Rectangle.Contains).on('pointerup',mapTap(openCalendar));
+  if(kind==='board'&&openBoard)g.setInteractive(new Phaser.Geom.Rectangle(x,y-14,w,h+14),Phaser.Geom.Rectangle.Contains).on('pointerup',mapTap(()=>openBoard(item)));
   if (item.label && kind !== 'parking') {
     const label = scene.add.text(x + w / 2, y + h + 3, item.label, {
     fontFamily: 'sans-serif', fontSize: '8px', color: '#f4efd5', backgroundColor: '#314a55', padding: { x: 3, y: 2 },
   }).setOrigin(0.5, 0).setResolution(1).setDepth(kind === 'calendar' ? ROWS * TILE + 18 : y + h + 4);
-    if (kind === 'calendar' && openCalendar) label.setInteractive({ useHandCursor: true }).on('pointerup', openCalendar);
+    if (kind === 'calendar' && openCalendar) label.setInteractive({ useHandCursor: true }).on('pointerup', mapTap(openCalendar));
   }
 }
 
@@ -167,7 +168,7 @@ export function drawOffice(scene: Phaser.Scene, roomId: RoomId = 'office', openC
     else if (id === 'toast') { rect(screen, color, x + 16, y + 15, 18, 10); rect(screen, 0xefbf76, x + 21, y + 10, 8, 8); }
     else { for (let i = 0; i < 3; i++) rect(screen, color, x + 12 + i * 9, y + 19, 5, 7); rect(screen, 0xefbf76, x + 23, y + 11, 4, 4); }
     const label = scene.add.text(x + 24, y + 55, game.label, { fontFamily: 'monospace', fontSize: '7px', color: game.color, backgroundColor: '#30364c', padding: { x: 3, y: 2 } }).setOrigin(.5).setDepth(338);
-    if (openArcade) label.setInteractive({ useHandCursor: true }).on('pointerup', () => openArcade(id));
+    if (openArcade) label.setInteractive({ useHandCursor: true }).on('pointerup', mapTap(() => openArcade(id)));
   }
   if (roomId !== 'arena') {
     const door = scene.add.graphics().setDepth(-90);

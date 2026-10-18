@@ -1,3 +1,4 @@
+import { mapTap } from './map-tap.ts';
 import Phaser from 'phaser';
 import { VEHICLES, VEHICLE_DOCKS } from './transport.ts';
 import type { VehicleKind, VehicleUnit } from './transport.ts';
@@ -38,16 +39,16 @@ export class VehicleDocksView {
         fontFamily: 'sans-serif', fontSize: '7px', color: '#fbf4d7', backgroundColor: '#4d6e62', padding: { x: 2, y: 2 },
       }).setOrigin(0.5, 0).setDepth(ROWS * TILE + 18));
       this.views.push(this.scene.add.zone((dock.x + 1.5) * TILE, (dock.y + 0.5) * TILE, dock.w * TILE, TILE)
-        .setDepth(ROWS * TILE + 19).setInteractive({ useHandCursor: true }).on('pointerup', () => this.open()));
+        .setDepth(ROWS * TILE + 19).setInteractive({ useHandCursor: true }).on('pointerup', mapTap(() => this.open())));
     }
     for (const unit of this.units.filter((u) => u.ground?.roomId === this.room && !u.riderId)) {
       const ground = unit.ground!, x = (ground.x + 0.5) * TILE, y = (ground.y + 0.5) * TILE;
       const shadow = this.scene.add.ellipse(x, y + 5, 24, 7, 0x51645c, 0.22).setDepth(y - 7);
       const sprite = this.scene.add.image(x, y + 8, vehicleTexture(this.scene, unit.kind, 'right', 0))
-        .setOrigin(0.5, 1).setScale(0.85).setDepth(y - 6).setInteractive({ useHandCursor: true }).on('pointerup', () => this.open(unit.id));
+        .setOrigin(0.5, 1).setScale(0.85).setDepth(y - 6).setInteractive({ useHandCursor: true }).on('pointerup', mapTap(() => this.open(unit.id)));
       const label = this.scene.add.text(x, y + 9, VEHICLES[unit.kind].name, {
         fontFamily: 'sans-serif', fontSize: '7px', color: '#fff6da', backgroundColor: '#4d6e62', padding: { x: 2, y: 1 },
-      }).setOrigin(0.5, 0).setDepth(y - 5).setInteractive({ useHandCursor: true }).on('pointerup', () => this.open(unit.id));
+      }).setOrigin(0.5, 0).setDepth(y - 5).setInteractive({ useHandCursor: true }).on('pointerup', mapTap(() => this.open(unit.id)));
       this.views.push(shadow, sprite, label);
     }
   }

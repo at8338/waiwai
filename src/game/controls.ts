@@ -7,7 +7,8 @@ const bindings: Record<string, Direction> = {
 };
 
 export class Controls {
-  constructor(private onClear?: () => void) {}
+  private onClear?: () => void;
+  constructor(onClear?: () => void) { this.onClear = onClear; }
   private held = new Map<string, Direction>();
   private tapped?: Direction;
   private dash?: Direction;
@@ -18,7 +19,7 @@ export class Controls {
     const { signal } = this.controller;
     canvas.tabIndex = 0;
     canvas.setAttribute('role', 'application');
-    canvas.setAttribute('aria-label', 'ひだまりオフィス。矢印キーまたはWASDで移動。Tabキーでマップから移動できます。');
+    canvas.setAttribute('aria-label', 'ひだまりオフィス。床をタップ・クリックして移動。矢印キーまたはWASDも使えます。Tabキーでマップから移動できます。');
     canvas.addEventListener('pointerdown', () => canvas.focus({ preventScroll: true }), { signal });
     canvas.addEventListener('keydown', (event) => {
       const direction = bindings[event.code];
@@ -45,12 +46,17 @@ export class Controls {
         this.onClear?.();
         event.preventDefault();
         button.setPointerCapture(event.pointerId);
-        this.held.set(`pointer-${event.pointerId}`, button.dataset.direction as Direction);
+        const direction = button.dataset.direction as Direction;
+        if (this.doubleTap.press(direction, performance.now())) this.dash = direction;
+        this.held.set(`pointer-${event.pointerId}`, direction);
         this.tapped = button.dataset.direction as Direction;
         button.classList.add('pressed');
       }, { signal });
       const release = (event: PointerEvent) => {
-        this.held.delete(`pointer-${event.pointerId}`);
+        const wasHeld = this.held.delete(`pointer-${event.pointerId}`);
+        if (event.type === 'pointercancel' || event.type === 'lostpointercapture' && wasHeld) {
+          this.tapped = undefined; this.dash = undefined; this.doubleTap.clear();
+        }
         button.classList.remove('pressed');
       };
       button.addEventListener('pointerup', release, { signal });
@@ -58,7 +64,7 @@ export class Controls {
       button.addEventListener('lostpointercapture', release, { signal });
       // A keyboard or assistive-technology click moves one tile.
       button.addEventListener('click', (event) => {
-        if (event.detail === 0) button.dispatchEvent(new CustomEvent('walk-step', { bubbles: true, detail: button.dataset.direction }));
+        if (event.detail === 0) { this.onClear?.(); button.dispatchEvent(new CustomEvent('walk-step', { bubbles: true, detail: button.dataset.direction })); }
       }, { signal });
     });
   }

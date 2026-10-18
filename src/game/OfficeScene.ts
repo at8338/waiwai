@@ -1,3 +1,4 @@
+import { isMapTap, mapTap } from './map-tap.ts';
 import { laptopThrowMotion } from './laptop-throw.ts';
 import { AdminUI } from './admin-ui.ts';
 import { DummyAvatarsUI } from './dummy-avatars-ui.ts';
@@ -494,10 +495,10 @@ export class OfficeScene extends Phaser.Scene {
       if (!peer) {
         peer = { player, walker: new Walker(), view: this.makeAvatar(false) };
         peer.view.sprite.setInteractive({ useHandCursor: true })
-          .on('pointerup', () => { if (this.editMode === 'none') this.openDirectMessage(player.id); });
-        peer.view.vehicle.setInteractive({ useHandCursor: true }).on('pointerup', () => { if (this.editMode === 'none') this.openDirectMessage(player.id); });
+          .on('pointerup', mapTap(() => { if (this.editMode === 'none') this.openDirectMessage(player.id); }));
+        peer.view.vehicle.setInteractive({ useHandCursor: true }).on('pointerup', mapTap(() => { if (this.editMode === 'none') this.openDirectMessage(player.id); }));
         peer.view.label.setInteractive({ useHandCursor: true })
-          .on('pointerup', () => { if (this.editMode === 'none') this.openDirectMessage(player.id); });
+          .on('pointerup', mapTap(() => { if (this.editMode === 'none') this.openDirectMessage(player.id); }));
         this.peers.set(player.id, peer);
         snap = true;
       }
@@ -642,7 +643,7 @@ export class OfficeScene extends Phaser.Scene {
     this.mapViews = drawOffice(this, id, () => { if (this.editMode === 'none') this.dailyUI?.openCalendar(); }, (game) => { if (this.editMode === 'none') this.arcadeUI?.open(game); }, (item) => this.openBoard(item));
     this.dailyView?.setDecorations(this.mapViews);
     const room = getRoom(id);
-    this.game.canvas.setAttribute('aria-label', `${room.name}。矢印キーまたはWASDで移動。Tabキーでマップから移動できます。`);
+    this.game.canvas.setAttribute('aria-label', `${room.name}。床をタップ・クリックして移動。矢印キーまたはWASDも使えます。Tabキーでマップから移動できます。`);
     document.querySelectorAll('[data-room-name]').forEach((node) => { node.textContent = room.name; });
     document.querySelector('#room-description')!.textContent = room.description;
     document.querySelector('#robot-location')!.textContent = `WAIWAI-01 / ${robotLocation(id)}`;
@@ -693,7 +694,7 @@ export class OfficeScene extends Phaser.Scene {
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => this.previewObject(pointer));
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
       if (this.editMode === 'none' && over.length) return;
-      if (pointer.button !== 0 || pointer.getDistance() > 8) return;
+      if (pointer.button !== 0 || !isMapTap(pointer)) return;
       if (this.editMode === 'none' && this.mouseMovement && this.connected && this.objectsReady && !this.isResting() && !this.restPending && !document.querySelector('dialog[open]:not(.chat-docked)')) {
         const point = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
         const tile = { x: Math.floor(point.x / TILE), y: Math.floor(point.y / TILE) };
@@ -973,7 +974,7 @@ export function startOffice(parent: HTMLElement, slack: SlackIdentity | null = n
     backgroundColor: '#ead3a5', pixelArt: true, roundPixels: true,
     render: { antialias: false },
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-    scene: [scene], input: { keyboard: false }, audio: { noAudio: true },
+    scene: [scene], input: { keyboard: false, touch: { capture: false }, mouse: { preventDefaultWheel: false } }, audio: { noAudio: true },
   });
   return { game, scene };
 }

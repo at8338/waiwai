@@ -1,3 +1,4 @@
+import { mapTap } from './map-tap.ts';
 import Phaser from 'phaser';
 import type { DailyEventSnapshot } from './daily-events.ts';
 import { episodeById } from './daily-event-catalog.ts';
@@ -30,13 +31,13 @@ export class DailyEventsView {
   constructor(private scene: Phaser.Scene, inspect: () => void) {
     this.floor = scene.add.graphics().setDepth(-74);
     this.scenery = scene.add.graphics().setDepth(210);
-    this.scenery.setInteractive(new Phaser.Geom.Rectangle(0, 0, 480, 320), (_area: unknown, x: number, y: number) => [...this.damageZones, ...this.inspectAreas].some(shape => damageContains(shape, x, y))).on('pointerup', inspect);
+    this.scenery.setInteractive(new Phaser.Geom.Rectangle(0, 0, 480, 320), (_area: unknown, x: number, y: number) => [...this.damageZones, ...this.inspectAreas].some(shape => damageContains(shape, x, y))).on('pointerup', mapTap(inspect));
     this.effects = scene.add.graphics().setDepth(330);
     this.art = scene.add.graphics();
-    this.art.setInteractive(new Phaser.Geom.Rectangle(0, 0, 48, 48), Phaser.Geom.Rectangle.Contains).on('pointerup', inspect);
+    this.art.setInteractive(new Phaser.Geom.Rectangle(0, 0, 48, 48), Phaser.Geom.Rectangle.Contains).on('pointerup', mapTap(inspect));
     this.damageShape = scene.make.graphics({ x: 0, y: 0 });
     this.damageMask = this.damageShape.createGeometryMask(); this.damageMask.invertAlpha = true;
-    this.label = scene.add.text(240, 280, '✦ 今日の事件 · クリックで調べる', { fontFamily: 'sans-serif', fontSize: '8px', color: '#fff1ce', backgroundColor: '#694f47', padding: { x: 5, y: 3 } }).setOrigin(.5, 1).setResolution(2).setDepth(331).setInteractive({ useHandCursor: true }).on('pointerup', inspect);
+    this.label = scene.add.text(240, 280, '✦ 今日の事件 · クリックで調べる', { fontFamily: 'sans-serif', fontSize: '8px', color: '#fff1ce', backgroundColor: '#694f47', padding: { x: 5, y: 3 } }).setOrigin(.5, 1).setResolution(2).setDepth(331).setInteractive({ useHandCursor: true }).on('pointerup', mapTap(inspect));
     this.hide();
   }
   setDecorations(views: Phaser.GameObjects.GameObject[]): void {

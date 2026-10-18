@@ -1,3 +1,4 @@
+import { MobileOfficeUI } from './mobile-ui.ts';
 import type { ChatUI } from './chat-ui.ts';
 import type { AnnouncementSnapshot } from './announcements.ts';
 import { focusIcon } from './focus-icons.ts';
@@ -8,6 +9,7 @@ export class FocusUI {
   private toolbar = document.createElement('div');
   private placements: { node: HTMLElement; marker: Comment }[] = [];
   private active = false;
+  private mobile: MobileOfficeUI;
   private connected = false;
   private broadcasts: AnnouncementSnapshot = { announcements: [], schedules: [], serverNow: Date.now() };
   private offset = 0;
@@ -163,6 +165,7 @@ export class FocusUI {
       this.refreshMap();
     }); this.resize.observe(document.querySelector('#game')!); this.resize.observe(this.shell.querySelector('#focus-map-host')!);
     this.renderTicker();
+    this.mobile = new MobileOfficeUI(this.shell, this.chat, signal, this.refreshMap, this.clearMovement);
   }
   activateDefaults(loginRequired: boolean): void { this.mouse.click(); this.toggle(true); if (loginRequired) this.openPersonal(); }
   private openPersonal(): void { this.clearMovement(); if (!this.personal.open) this.personal.showModal(); }
@@ -189,17 +192,17 @@ export class FocusUI {
       const lost = document.querySelector<HTMLDetailsElement>('#lost-items-panel')!; this.lostExpanded = lost.open; lost.open = true; this.move(lost, this.lost.querySelector('#focus-lost-host')!);
       for (const id of ['daily-event-panel', 'birthday-banner', 'birthday-status', 'arena-panel', 'arcade-panel', 'cockpit-panel', 'connection-message']) this.move(document.getElementById(id)!, this.shell.querySelector('#focus-content')!);
       this.shell.classList.toggle('chat-hidden', window.matchMedia('(max-width: 900px)').matches);
-      document.body.classList.add('office-focused'); this.chat.setDocked(this.shell.querySelector<HTMLElement>('#focus-chat-host')!, () => this.shell.classList.remove('chat-hidden'));
+      document.body.classList.add('office-focused');
     } else {
       this.tooltip.hidden = true;
       this.shell.querySelector<HTMLElement>('.focus-feedback')!.hidden = true; clearTimeout(this.feedbackTimer);
       this.personal.close(); this.lost.close(); this.showFurniture(false);
-      this.chat.setDocked();
       for (const { node, marker } of this.placements) marker.replaceWith(node); this.placements = [];
       this.shell.querySelector('.focus-operation-statuses')?.remove();
       document.querySelector<HTMLDetailsElement>('#lost-items-panel')!.open = this.lostExpanded;
       document.body.classList.remove('office-focused'); this.shell.hidden = true;
     }
+    this.mobile.setActive(enabled);
     this.button.setAttribute('aria-pressed', String(enabled)); this.button.textContent = enabled ? '⛶ 通常表示' : '⛶ フォーカスモード';
     this.refreshMap(); document.querySelector<HTMLCanvasElement>('#game canvas')?.focus({ preventScroll: true });
   }
@@ -212,5 +215,5 @@ export class FocusUI {
     const line = this.shell.querySelector<HTMLElement>('#focus-broadcast-text')!; line.textContent = text;
     line.classList.toggle('is-scrolling', !!active.length); line.style.setProperty('--ticker-seconds', `${Math.max(18, text.length * 0.35)}s`);
   }
-  destroy(): void { this.toggle(false); clearInterval(this.timer); clearTimeout(this.feedbackTimer); this.resize.disconnect(); this.toolsResize.disconnect(); this.sourceObserver.disconnect(); this.statusObserver.disconnect(); this.personal.remove(); this.lost.remove(); this.shell.remove(); this.toolbar.remove(); }
+  destroy(): void { this.toggle(false); this.mobile.destroy(); clearInterval(this.timer); clearTimeout(this.feedbackTimer); this.resize.disconnect(); this.toolsResize.disconnect(); this.sourceObserver.disconnect(); this.statusObserver.disconnect(); this.personal.remove(); this.lost.remove(); this.shell.remove(); this.toolbar.remove(); }
 }

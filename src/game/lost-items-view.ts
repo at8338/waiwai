@@ -1,3 +1,4 @@
+import { mapTap } from './map-tap.ts';
 import Phaser from 'phaser';
 import { LOST_ITEM_CATALOG, lostItemPixels } from './lost-items.ts';
 import type { LostItem, LostItemsSnapshot } from './lost-items.ts';
@@ -29,7 +30,7 @@ export class LostItemsView {
       const g = this.scene.add.graphics().setPosition((item.x + 0.5) * TILE, (item.y + 0.5) * TILE).setDepth(-20);
       g.fillStyle(0x5c604f, 0.15).fillRect(-5, 4, 11, 3);
       for (const p of lostItemPixels(item.kind)) g.fillStyle(p.color).fillRect(p.x - 8, p.y - 8, p.w, p.h);
-      g.setInteractive(new Phaser.Geom.Rectangle(-8, -8, TILE, TILE), Phaser.Geom.Rectangle.Contains).on('pointerup', () => this.open(item));
+      g.setInteractive(new Phaser.Geom.Rectangle(-8, -8, TILE, TILE), Phaser.Geom.Rectangle.Contains).on('pointerup', mapTap(() => this.open(item)));
       this.views.push(g);
       const li = document.createElement('li'), button = document.createElement('button');
       button.type = 'button'; button.dataset.lostId = item.id; button.textContent = LOST_ITEM_CATALOG[item.kind].name;

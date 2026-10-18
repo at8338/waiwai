@@ -1,3 +1,4 @@
+import { mapTap } from './map-tap.ts';
 import { movementStep } from './transport.ts';
 import Phaser from 'phaser';
 import { BUDDIES, buddyMapPixels, buddyMapSize, PET_STEP_MS } from './buddies.ts';
@@ -36,7 +37,7 @@ export class CompanionsView {
       const sprite = this.scene.add.image(0, 0, this.texture(kind, position.facing, 0)).setOrigin(0.5, 1).setInteractive({ useHandCursor: true, pixelPerfect: true, alphaTolerance: 32 });
       view = { sprite, shadow: this.scene.add.ellipse(0, 0, 10, 4, 0x384a3d, 0.16), walker: new Walker(pet ? PET_STEP_MS : stepMs), kind, owner };
       const created = view;
-      sprite.on('pointerup', () => this.click(created.kind, created.owner));
+      sprite.on('pointerup', mapTap(() => this.click(created.kind, created.owner)));
       this.views.set(id, view); snap = true;
     }
     if (stepMs) view.walker.setStepMs(stepMs);
