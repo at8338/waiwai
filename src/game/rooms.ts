@@ -22,6 +22,8 @@ export type Room = {
   outlook: 'window' | 'open' | 'none';
   spawn: Point; door: Point; furniture: Furniture[];
   sections?: readonly RoomSection[]; partitions?: readonly Point[];
+  /** Decorative entrance on the south wall; no room, interaction or travel target. */
+  restroomEntrance?: { x: number };
 };
 const f = (kind: Furniture['kind'], x: number, y: number, w = 1, h = 1): Furniture => ({ kind, x, y, w, h });
 export const officeFurniture: Furniture[] = [
@@ -87,6 +89,10 @@ export const ROOMS: Room[] = [
   { id: 'arena', name: '魔法闘技場', description: 'ファイアと氷の盾で、気軽に魔法対決。HP100、先に0になったら負け。観戦もどうぞ。', icon: '⚔', floor: 0x716780, grain: 0x62586f, wall: 0xd5c9de, rug: 0xb4a0bf, style: 'checker', outlook: 'none', ...common,
     furniture: [tool('monitor', 'MAGIC ARENA', 11, 1, 8, 2), ...[8,21].flatMap((x) => [f('reactor', x, 5, 2, 2), f('reactor', x, 13, 2, 2)])] },
 ];
+// Shared amenities belong to a few public floors, rather than every room.
+for (const room of ROOMS) if (['office', 'cafe', 'library', 'arcade', 'project', 'canteen'].includes(room.id)) {
+  room.restroomEntrance = { x: 3 };
+}
 // A hanging calendar on the north wall, away from the window panes.
 for (const room of ROOMS) room.furniture.push({ kind: 'calendar', x: 27, y: 0, w: 2, h: 1, label: '館内カレンダー' });
 export function isRoomId(value: unknown): value is RoomId { return typeof value === 'string' && (ROOM_IDS as readonly string[]).includes(value); }

@@ -45,6 +45,43 @@ function drawFurniture(scene: Phaser.Scene, item: Furniture, openCalendar?: () =
   }
 }
 
+function drawRestroomEntrance(scene: Phaser.Scene, tileX: number): void {
+  const x = tileX * TILE, bottom = ROWS * TILE;
+  const depth = (ROWS - 2) * TILE;
+  const g = scene.add.graphics().setDepth(depth);
+  // A closed door recessed into the wall, with a brass handle and a WC window.
+  rect(g, 0x655c50, x - 2, bottom - 32, 32, 32);
+  rect(g, 0xf5eddb, x - 1, bottom - 31, 30, 30);
+  rect(g, 0x344c56, x + 2, bottom - 28, 24, 27);
+  rect(g, 0x8aaca8, x + 3, bottom - 27, 22, 25);
+  rect(g, 0xa8c4b9, x + 4, bottom - 26, 2, 23);
+  rect(g, 0x6e9192, x + 23, bottom - 26, 2, 24);
+  rect(g, 0xe8eee0, x + 8, bottom - 24, 12, 8);
+  rect(g, 0x4e6d73, x + 8, bottom - 13, 12, 8);
+  rect(g, 0x87a6a2, x + 9, bottom - 12, 10, 6);
+  rect(g, 0x4d6667, x + 21, bottom - 13, 3, 5);
+  rect(g, 0xf2ce7d, x + 20, bottom - 13, 4, 2);
+  rect(g, 0x6b6860, x - 2, bottom - 2, 32, 2);
+  scene.add.text(x + 14, bottom - 23, 'WC', { fontFamily: 'monospace', fontSize: '6px', color: '#344c56' })
+    .setOrigin(.5, 0).setResolution(2).setDepth(depth + 1);
+
+  // Small, legible wall plaque: two familiar pictograms above the Japanese label.
+  const sx = x + 35, sy = bottom - 27;
+  rect(g, 0x455d65, sx, sy, 34, 24);
+  rect(g, 0xf8f3e3, sx + 1, sy + 1, 32, 22);
+  for (const [offset, color] of [[8, 0x427ba0], [23, 0xb96c78]]) {
+    rect(g, color, sx + offset, sy + 3, 3, 3);
+    rect(g, color, sx + offset, sy + 7, 3, 5);
+    rect(g, color, sx + offset - 2, sy + 7, 2, 4);
+    rect(g, color, sx + offset + 3, sy + 7, 2, 4);
+    rect(g, color, sx + offset, sy + 12, 1, 3);
+    rect(g, color, sx + offset + 2, sy + 12, 1, 3);
+  }
+  rect(g, 0xb96c78, sx + 21, sy + 10, 7, 3);
+  scene.add.text(sx + 17, sy + 15, 'トイレ', { fontFamily: 'sans-serif', fontSize: '7px', color: '#344c56' })
+    .setOrigin(.5, 0).setResolution(2).setDepth(depth + 1);
+}
+
 export function drawOffice(scene: Phaser.Scene, roomId: RoomId = 'office', openCalendar?: () => void, openArcade?: (game: ArcadeGame) => void, openBoard?: (item: Furniture) => void): Phaser.GameObjects.GameObject[] {
   const before = new Set(scene.children.list);
   const room = getRoom(roomId);
@@ -93,7 +130,10 @@ export function drawOffice(scene: Phaser.Scene, roomId: RoomId = 'office', openC
   }
   for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
     if (!isWall(x, y, roomId)) continue;
-    const g = scene.add.graphics().setDepth(y * TILE + TILE);
+    // Keep the recessed entrance behind people standing in front of it.
+    const restroomWall = room.restroomEntrance && y === ROWS - 1
+      && x >= room.restroomEntrance.x - 1 && x < room.restroomEntrance.x + 5;
+    const g = scene.add.graphics().setDepth(restroomWall ? (ROWS - 2) * TILE - 1 : y * TILE + TILE);
     rect(g, 0x795b42, x * TILE, y * TILE, TILE, TILE);
     rect(g, room.wall, x * TILE + 1, y * TILE, TILE - 2, 9);
     rect(g, 0xf9f0d0, x * TILE + 1, y * TILE, TILE - 2, 2);
@@ -116,6 +156,7 @@ export function drawOffice(scene: Phaser.Scene, roomId: RoomId = 'office', openC
     rect(sign, section.color, label.x - label.width / 2, label.y - label.height, 3, label.height);
   }
   room.furniture.forEach((item) => drawFurniture(scene, item, openCalendar, openBoard));
+  if (room.restroomEntrance) drawRestroomEntrance(scene, room.restroomEntrance.x);
   if (roomId === 'arcade') for (const id of ARCADE_IDS) {
     const game = ARCADE_GAMES[id], x = game.x * TILE, y = game.y * TILE;
     const screen = scene.add.graphics().setDepth(y + 48);
