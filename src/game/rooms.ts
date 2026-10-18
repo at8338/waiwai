@@ -10,12 +10,6 @@ export const PROJECT_SECTIONS: readonly RoomSection[] = [
   { id: 'cms', name: 'CMS', x: 1, y: 12, w: 12, h: 7, color: 0xc59ca9, entrance: { x: 6, y: 11, w: 2 } },
   { id: 'infra', name: 'インフラ', x: 17, y: 12, w: 12, h: 7, color: 0x9ba8bd, entrance: { x: 22, y: 11, w: 2 } },
 ];
-// Each section has its own two-tile doorway; a cross-shaped corridor connects all four.
-const projectPartitions: Point[] = [
-  ...[13, 16].flatMap((x) => Array.from({ length: 18 }, (_, n) => ({ x, y: n + 1 })).filter((p) => p.y !== 9 && p.y !== 10)),
-  ...[8, 11].flatMap((y) => Array.from({ length: 28 }, (_, n) => ({ x: n + 1, y })).filter((p) => p.x !== 14 && p.x !== 15
-    && !PROJECT_SECTIONS.some((section) => p.y === section.entrance.y && p.x >= section.entrance.x && p.x < section.entrance.x + section.entrance.w))),
-];
 export type Room = {
   id: RoomId; name: string; description: string; icon: string;
   floor: number; grain: number; wall: number; rug: number; style: 'wood' | 'tile' | 'grass' | 'stars' | 'checker' | 'control' | 'mech';
@@ -71,7 +65,7 @@ export const ROOMS: Room[] = [
       tool('sofa', '見学シート', 3, 16, 5, 1), tool('sofa', 'クルーシート', 22, 16, 5, 1),
     ] },
   { id: 'project', name: '上位プラン案件部屋', description: 'アプリ・バックエンド・CMS・インフラ。4つの区画と、入口の看板がある案件チームの拠点。', icon: '▦', floor: 0xd9d9c7, grain: 0xc2c7b4, wall: 0xe6e5d2, rug: 0x91a7a0, style: 'tile', outlook: 'window', ...common,
-    sections: PROJECT_SECTIONS, partitions: projectPartitions,
+    sections: PROJECT_SECTIONS,
     furniture: [
       ...PROJECT_SECTIONS.flatMap((section) => [
         { ...f('board', section.x + 1, section.y, 4, 1), boardMount: 'wall' as const },

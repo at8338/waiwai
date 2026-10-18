@@ -67,16 +67,18 @@ test('identical coordinates in different rooms never share audio', () => {
 });
 
 
-test('four project sections have named, walkable entrances and protected routes', () => {
+test('four project sections retain their named areas with open boundaries', () => {
   assert.deepEqual(PROJECT_SECTIONS.map((section) => section.name), ['アプリ', 'バックエンド', 'CMS', 'インフラ']);
   for (const section of PROJECT_SECTIONS) {
     assert.equal(areaAt({ roomId: 'project', x: section.x + 6, y: section.y + 4 }), section.name);
     for (let x = section.entrance.x; x < section.entrance.x + section.entrance.w; x++) assert.ok(canWalk(x, section.entrance.y, 'project'));
-    assert.equal(isWall(section.entrance.x - 1, section.entrance.y, 'project'), true);
+    assert.equal(isWall(section.entrance.x - 1, section.entrance.y, 'project'), false);
   }
+  for (let y = 1; y < ROWS - 1; y++) for (let x = 1; x < COLS - 1; x++) assert.equal(isWall(x, y, 'project'), false);
+  for (const [x,y] of [[13,5], [16,5], [8,8], [10,11]]) assert.ok(canWalk(x,y,'project'));
   assert.equal(areaAt({ roomId: 'project', x: 15, y: 10 }), '共用通路');
   const plant: RoomObject = { id: 'route', owner: 'qa', roomId: 'project', kind: 'plant', x: 6, y: 8, rotation: 0 };
   assert.equal(placementProblem(plant, []), undefined);
-  assert.match(placementProblem({ ...plant, id: 'second', x: 7 }, [plant])!, /通り道/);
+  assert.equal(placementProblem({ ...plant, id: 'second', x: 7 }, [plant]), undefined);
   for (const roomId of ['project', 'canteen']) assert.deepEqual(parseClientMessage(JSON.stringify({ type: 'change-room', roomId, requestId: 1 })), { type: 'change-room', roomId, requestId: 1 });
 });
