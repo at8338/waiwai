@@ -1,6 +1,6 @@
 # MacセットアップとGCP dev構築手順
 
-この手順には将来の構築用コマンドも含みます。今回の作業は設計・IaC実装・検証とローカル認証までで、API有効化・IAM変更・課金リソース作成・Terraform applyは実行しません。
+この手順には将来の構築用コマンドも含みます。現在は設計・IaC実装・検証・ローカル認証と事前plan確認までで、API有効化・IAM変更・課金リソース作成・Terraform applyは未実施です。
 
 ## Macのツール
 
@@ -79,7 +79,9 @@ terraform -chdir=infra-gcp/environments/dev apply dev.tfplan
 terraform -chdir=infra-gcp/environments/dev output
 ```
 
-Azure側のstate/backend/tfvarsはこの手順へ流用しません。Terraformが既存資源の置換・削除を示した場合は、そのまま適用せず所有範囲と既存stateを確認します。今回は`plan`自体も実GCPに対しては実行していません。
+Azure側のstate/backend/tfvarsはこの手順へ流用しません。Terraformが既存資源の置換・削除を示した場合は、そのまま適用せず所有範囲と既存stateを確認します。
+
+backend未作成の段階では、bootstrapの実入力planと、GCS backendを外した隔離コピーによるdevの予備planを確認できます。devの予備planは実行用ではありません。正式な会社/VPN許可IP、ドメイン・DNS、bootstrapを確定した後、元のrootをGCS backendで初期化し直して実行用planを作成します。命名や入力の変更前に保存したplanは使いません。[全体一覧](resource-inventory.md)で、planに含まれない配備・認証・運用作業も確認します。
 
 ## 作成後の入口
 

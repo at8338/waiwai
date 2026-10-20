@@ -10,6 +10,10 @@ run "dev_names_and_reserved_labels" {
     condition     = output.labels.environment == "dev" && output.labels.managed_by == "terraform" && output.labels.owner == "team"
     error_message = "Company labels may extend but never override reserved labels."
   }
+  assert {
+    condition     = output.names.firewall_rules.ssh == "dev-waiwai-tky-fw-office-ssh-001" && output.names.firewall_rules.web == "dev-waiwai-tky-fw-office-web-001" && output.names.firewall_rules.turn_tcp == "dev-waiwai-tky-fw-office-turn-tcp-001" && output.names.firewall_rules.turn_udp == "dev-waiwai-tky-fw-office-turn-udp-001"
+    error_message = "The naming module must own all complete Firewall names with a final three-digit sequence."
+  }
 }
 run "project_disambiguation" {
   command = apply

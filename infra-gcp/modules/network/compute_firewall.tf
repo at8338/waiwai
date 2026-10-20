@@ -9,7 +9,7 @@ locals {
 resource "google_compute_firewall" "ingress" {
   for_each      = local.ingress
   project       = var.project_id
-  name          = "${var.names.firewall_prefix}-${replace(each.key, "_", "-")}"
+  name          = var.names.firewall_rules[each.key]
   network       = google_compute_network.office.id
   direction     = "INGRESS"
   priority      = 1000

@@ -1,10 +1,11 @@
 # Waiwai Google Cloud
 
-GCPの設計書は`doc-gcp/`、Terraformは[`infra-gcp/`](../infra-gcp/README.md)です。対象は**devのみ**。設計・IaC実装・認証不要の検証と、このMacのCLI設定までを扱い、リソースの作成・Terraform apply・アプリ公開は行いません。
+GCPの設計書は`doc-gcp/`、Terraformは[`infra-gcp/`](../infra-gcp/README.md)です。対象は**devのみ**。設計・IaC実装・認証不要の検証、このMacのCLI設定、実入力による事前plan確認を扱います。リソースの作成・Terraform apply・アプリ公開は未実施です。
 
 | 資料 | 内容 |
 |---|---|
 | [基本設計](design.md) | 東京の単一VM、HTTPS・音声・保存・認証・バックアップ |
+| [リソースと公開作業の全体一覧](resource-inventory.md) | Terraformの20件、自動生成物、VM内サービス、公開・運用に残る作業 |
 | [命名・ラベル規則](naming.md) | AWS/Azureの規則をGCPの制約に合わせて適用 |
 | [Terraform開発規約](terraform.md) | リソース単位の分割、state・Provider・検証の分離 |
 | [Mac設定と構築手順](setup.md) | CLI、認証、既存プロジェクト、将来のplan/apply |
