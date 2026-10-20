@@ -1,6 +1,6 @@
 # Cloud Domainsでの取得とCloud DNS
 
-ドメインの取得・請求とDNSをGCPへまとめます。2026-10-20に`bootstrap-dns`だけをapplyし、`waiwailand-agentoffice.com`を年12 USDで登録しました。登録状態は`ACTIVE`、連絡先プライバシーは`REDACTED_CONTACT_DATA`、DNSSEC・自動更新・移管ロックは有効です。登録者メールの確認は本人の操作待ちです。VM・state用GCS・アプリ公開用Aレコードはまだ作成していません。
+ドメインの取得・請求とDNSをGCPへまとめます。2026-10-20に`bootstrap-dns`だけをapplyし、`waiwailand-agentoffice.com`を年12 USDで登録しました。登録状態は`ACTIVE`、連絡先プライバシーは`REDACTED_CONTACT_DATA`、DNSSEC・自動更新・移管ロックは有効です。登録者メールの確認も完了し、`UNVERIFIED_EMAIL`の解消を登録リソースで確認しています。VM・state用GCS・アプリ公開用Aレコードはまだ作成していません。
 
 登録時には実行先project、CLI/ADC本人、紐づく課金先を照合しました。DNS bootstrapのlocal stateとバックアップ、登録操作の記録はGit対象外で保全しています。再実行時は登録済みドメインへ購入コマンドを送らず、まず既存登録を照会します。
 
