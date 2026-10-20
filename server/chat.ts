@@ -26,6 +26,8 @@ export class ChatService {
   private dirty = new Set<WebSocket>();
   private sending = false;
   private closed = false;
+  private identityAllowed?: (id: string) => boolean;
+  allowIdentity(check: (id: string) => boolean): void { this.identityAllowed = check; }
   private abort = new AbortController();
   private slack?: SlackChatConfig;
   private http: typeof fetch;
@@ -67,7 +69,7 @@ export class ChatService {
     const actor = this.clients.get(ws)?.(); if (!actor) return;
     this.send(ws, { type: 'chat-state', selfId: actor.id, persistent: actor.persistent, threads: this.store.inbox(actor), slackEnabled: !!this.slack, ...(this.slack ? { slackChannel: this.slack.label } : {}) });
   }
-  private send(ws: WebSocket, data: ChatEvent): void { if (ws.readyState !== WebSocket.OPEN) return; if (ws.bufferedAmount > 1024 * 1024) { ws.terminate(); return; } ws.send(JSON.stringify(data)); }
+  private send(ws: WebSocket, data: ChatEvent): void { const actor = this.clients.get(ws)?.(); if (actor && this.identityAllowed && !this.identityAllowed(actor.id)) { ws.close(4003, 'Server access ended'); return; } if (ws.readyState !== WebSocket.OPEN) return; if (ws.bufferedAmount > 1024 * 1024) { ws.terminate(); return; } ws.send(JSON.stringify(data)); }
   private publish(message: ChatMessage): void {
     for (const [ws, getActor] of this.clients) if (this.store.visible(getActor(), message)) { this.send(ws, { type: 'chat-message', message }); this.dirty.add(ws); }
     if (!this.summaryTimer) this.summaryTimer = setTimeout(() => { this.summaryTimer = undefined; const clients = [...this.dirty]; this.dirty.clear(); for (const ws of clients) this.state(ws); }, 100);
@@ -75,6 +77,9 @@ export class ChatService {
   action(ws: WebSocket, action: ChatAction): void {
     const actor = this.clients.get(ws)?.(); if (!actor) return;
     try {
+      if (this.identityAllowed && !this.identityAllowed(actor.id)) { ws.close(4003, 'Server access ended'); return; }
+      if ('target' in action && action.target.kind === 'dm' && this.identityAllowed && !this.identityAllowed(action.target.peerId)) throw new ChatError('同じサーバーのメンバーを選んでください。');
+      if (action.type === 'chat-group-create' && this.identityAllowed && action.memberIds.some(id => !this.identityAllowed!(id))) throw new ChatError('同じサーバーのメンバーを選んでください。');
       if (action.type === 'chat-group-create') {
         const recent = (this.rates.get(actor.id) ?? []).filter(t => t > Date.now() - 5000);
         if (recent.length >= 6) throw new ChatError('少し待ってから操作してください。');

@@ -46,13 +46,13 @@ import { REACTION_COOLDOWN_MS } from '../src/game/reactions.ts';
 
 class EditError extends Error {}
 
-export function attachOffice(server: Server, auth?: OfficeAuthService, options: { chat?: ChatService; objectsFile?: string; membersFile?: string; linksFile?: string; announcementsFile?: string; birthdaysFile?: string; policyFile?: string; administratorId?: string; devControls?: boolean; dummyAvatars?: boolean; birthdayClock?: () => number; eventClock?: () => number; lostClock?: () => number } = {}): () => void {
+export function attachOffice(server: Server, auth?: OfficeAuthService, options: { authorized?: (request: IncomingMessage) => boolean; administratorCheck?: (user?: import('../src/slack/auth.ts').AuthUser) => boolean; memberAllowed?: (id: string) => boolean; memberStore?: MemberStore; onAccessChange?: (check: () => void) => () => void; chat?: ChatService; objectsFile?: string; membersFile?: string; linksFile?: string; announcementsFile?: string; birthdaysFile?: string; policyFile?: string; administratorId?: string; devControls?: boolean; dummyAvatars?: boolean; birthdayClock?: () => number; eventClock?: () => number; lostClock?: () => number } = {}): () => void {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 });
   const players = new Map<WebSocket, Player>();
   const dummies = new DummyAvatars();
   const allPeople = () => [...players.values(), ...dummies.list()];
   const requests = new Map<WebSocket, IncomingMessage>();
-  const policies = new WorldPolicyStore(options.policyFile, options.administratorId);
+  const policies = new WorldPolicyStore(options.policyFile, options.administratorId, options.administratorCheck);
   let policy = policies.snapshot();
   const roomAllowed = (id: RoomId) => policyAllows(policy, 'rooms', id);
   const pokemonAllowed = (id: string) => policyAllows(policy, 'pokemon', id);
@@ -63,9 +63,9 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
   const store = new ObjectStore(options.objectsFile);
   const arena = new MagicArena(), ice = new IceShields();
   let publishedArena = "";
-  const members = new MemberStore(options.membersFile);
+  const members = (options.memberStore ?? new MemberStore(options.membersFile));
   const chat = options.chat ?? new ChatService();
-  for (const member of members.list()) chat.store.account(member.id, member.name, true);
+  for (const member of members.list().filter(member => !options.memberAllowed || options.memberAllowed(member.id))) chat.store.account(member.id, member.name, true);
   const links = new LinkStore(options.linksFile);
   const announcements = new AnnouncementStore(options.announcementsFile);
   const birthdayClock = options.birthdayClock ?? Date.now;
@@ -87,6 +87,7 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
   const vectors = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
   const sendRaw = (ws: WebSocket, serialized: string) => {
     if (ws.readyState !== WebSocket.OPEN) return;
+    if (options.authorized && requests.has(ws) && !options.authorized(requests.get(ws)!)) { ws.close(4003, 'Server access ended'); return; }
     if (ws.bufferedAmount > 64 * 1024) { ws.terminate(); return; }
     ws.send(serialized);
   };
@@ -96,7 +97,11 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
     for (const ws of players.keys()) if (ws !== except) sendRaw(ws, serialized);
   };
   const sendBirthdays = (target?: WebSocket) => {
-    for (const [client, player] of players) if (!target || target === client) send(client, { type: 'birthdays', ...birthdays.snapshot(birthdayOwner(player)) });
+    for (const [client, player] of players) if (!target || target === client) {
+      const snapshot = birthdays.snapshot(birthdayOwner(player));
+      snapshot.entries = snapshot.entries.filter(entry => !persistentIdentity(entry.id) || !options.memberAllowed || options.memberAllowed(entry.id));
+      send(client, { type: 'birthdays', ...snapshot });
+    }
   };
   let birthdayDate = birthdayDay(birthdayClock());
   const birthdayTimer = setInterval(() => { const date = birthdayDay(birthdayClock()); if (date !== birthdayDate) { birthdayDate = date; sendBirthdays(); } }, 1000); birthdayTimer.unref();
@@ -165,7 +170,7 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
   }, 5000);
   announcementTimer.unref();
   const voice = new VoiceRoom(players, send, readIceProvider());
-  const directory = (): Extract<ServerMessage, { type: 'directory' }> => ({ type: 'directory', people: directoryPeople(members.list(), allPeople()), ...(directoryWarning ? { warning: directoryWarning } : {}) });
+  const directory = (): Extract<ServerMessage, { type: 'directory' }> => ({ type: 'directory', people: directoryPeople(members.list().filter(member => !options.memberAllowed || options.memberAllowed(member.id)), allPeople()), ...(directoryWarning ? { warning: directoryWarning } : {}) });
   const fleet = new VehicleFleet();
   const sendFleet = (ws?: WebSocket) => { const message: ServerMessage = { type: 'vehicles', units: fleet.list() }; if (ws) send(ws, message); else broadcast(message); };
   const pending = new Map<string, Position>();
@@ -349,6 +354,7 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
     ws.on('pong', () => alive.add(ws));
     ws.on('error', () => ws.terminate());
     ws.on('message', (data, isBinary) => {
+      if (options.authorized && !options.authorized(request)) { ws.close(4003, 'Server access ended'); return; }
       if (identity && auth?.identify(request)?.id !== identity.id) { ws.close(4001, 'Session ended'); return; }
       if (isBinary) { ws.close(1003, 'Text messages only'); return; }
       const now = Date.now();
@@ -366,7 +372,7 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
       }
       if (message.type === 'policy-set') {
         const current = auth?.identify(request);
-        void policies.apply(message, current?.user, () => players.has(ws) && !!current && auth?.identify(request)?.id === current.id && !!auth?.canJoin(request)).then(() => {
+        void policies.apply(message, current?.user, () => players.has(ws) && (!options.authorized || options.authorized(request)) && !!current && auth?.identify(request)?.id === current.id && !!auth?.canJoin(request)).then(() => {
           applyPolicy(); send(ws, { type: 'policy-result', actionId: message.actionId });
         }).catch(error => { sendPolicy(ws); send(ws, { type: 'policy-result', actionId: message.actionId, error: error instanceof PolicyError ? error.message : '設定を保存できませんでした。時間をおいて試してください。' }); });
         return;
@@ -454,6 +460,9 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
         if (message.command === 'lost' || message.command === 'reset') sendLostItems();
         sendDailyEvent(); sendDevWorld(); send(ws, { type: 'dev-world-result', actionId: message.actionId }); return;
       }
+      if ((message.type === 'birthday-thread' || message.type === 'birthday-comment' || message.type === 'birthday-cheer') && persistentIdentity(message.id) && options.memberAllowed && !options.memberAllowed(message.id)) {
+        send(ws, { type: 'birthday-result', actionId: message.actionId, error: '同じサーバーのメンバーを選んでください。' }); return;
+      }
       if (message.type === 'birthday-thread') {
         try {
           const thread = birthdays.thread(message.id, message.date); birthdayThreads.set(ws, { id: message.id, date: message.date });
@@ -464,7 +473,7 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
       if (message.type === 'birthday-save' || message.type === 'birthday-delete' || message.type === 'birthday-cheer' || message.type === 'birthday-comment') {
         if (now - lastBirthday < 750) { send(ws, { type: 'birthday-result', actionId: message.actionId, error: '少し待ってから操作してください。' }); return; }
         lastBirthday = now;
-        void birthdays.apply(message, birthdayOwner(player), player.name, () => players.has(ws) && (!identity || auth?.identify(request)?.id === identity.id)).then(() => {
+        void birthdays.apply(message, birthdayOwner(player), player.name, () => players.has(ws) && (!options.authorized || options.authorized(request)) && (!identity || auth?.identify(request)?.id === identity.id)).then(() => {
           if (message.type !== 'birthday-comment') sendBirthdays();
           sendBirthdayThreads(); send(ws, { type: 'birthday-result', actionId: message.actionId });
         }).catch((error: unknown) => send(ws, { type: 'birthday-result', actionId: message.actionId, error: error instanceof BirthdayError ? error.message : '誕生日を保存できませんでした。時間をおいて試してください。' }));
@@ -490,7 +499,7 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
           send(ws, { type: 'announcement-result', actionId: message.actionId, error: '少し待ってから、もう一度設定してください。放送の間隔は10秒です。' }); return;
         }
         lastAnnouncementEdit = now; if (message.type === 'announcement-publish') lastPublish = now;
-        void announcements.apply(message, player.name, () => players.has(ws) && (!identity || auth?.identify(request)?.id === identity.id)).then((changed) => {
+        void announcements.apply(message, player.name, () => players.has(ws) && (!options.authorized || options.authorized(request)) && (!identity || auth?.identify(request)?.id === identity.id)).then((changed) => {
           if (changed) sendAnnouncements();
           send(ws, { type: 'announcement-result', actionId: message.actionId });
         }).catch((error: unknown) => send(ws, { type: 'announcement-result', actionId: message.actionId, error: error instanceof AnnouncementError ? error.message : '放送・予定を保存できませんでした。時間をおいて試してください。' }));
@@ -545,7 +554,7 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
         const roomId = player.roomId;
         const owner = playerIdentity(player);
         void links.transact((state) => {
-          if (!players.has(ws) || player.roomId !== roomId || (identity && auth?.identify(request)?.id !== identity.id)) throw new EditError('接続または部屋が変わったため、操作を取り消しました。');
+          if (!players.has(ws) || options.authorized && !options.authorized(request) || player.roomId !== roomId || (identity && auth?.identify(request)?.id !== identity.id)) throw new EditError('接続または部屋が変わったため、操作を取り消しました。');
           // Discard bindings left by removed furniture before applying a new edit.
           const liveTargets = new Set(ROOMS.flatMap((room) => objectTargets(room.id, store.list()).map((o) => `${room.id}:${o.id}`)));
           state.bindings = state.bindings.filter((b) => liveTargets.has(`${b.roomId}:${b.objectId}`));
@@ -603,7 +612,7 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
         const roomId = player.roomId;
         const owner = playerIdentity(player);
         void store.transact((objects) => {
-          if (!players.has(ws) || player.roomId !== roomId || (identity && auth?.identify(request)?.id !== identity.id)) throw new EditError('部屋が変わったため操作を取り消しました。');
+          if (!players.has(ws) || options.authorized && !options.authorized(request) || player.roomId !== roomId || (identity && auth?.identify(request)?.id !== identity.id)) throw new EditError('部屋が変わったため操作を取り消しました。');
           const existing = 'id' in message ? objects.find((o) => o.id === message.id) : undefined;
           if (message.type !== 'object-place' && (!existing || existing.roomId !== roomId || existing.owner !== owner)) throw new EditError('自分が置いた家具・小物だけを編集できます。');
           if (message.type === 'object-remove') { objects.splice(objects.indexOf(existing!), 1); return; }
@@ -712,14 +721,23 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
     let sameOrigin = false;
     try { sameOrigin = !!origin && new URL(origin).host === request.headers.host; } catch { /* invalid origin */ }
     if (!sameOrigin || players.size >= MAX_PLAYERS) { socket.destroy(); return; }
-    if (auth && !auth.canJoin(request)) {
+    if (auth && !auth.canJoin(request) || options.authorized && !options.authorized(request)) {
       socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n'); socket.destroy(); return;
     }
     wss.handleUpgrade(request, socket, head, (ws) => wss.emit('connection', ws, request));
   };
   server.on('upgrade', upgrade);
+  const unsubscribeAccess = options.onAccessChange?.(() => {
+    for (const [client, request] of requests) if (options.authorized && !options.authorized(request)) {
+      chat.leave(client); voice.leave(client); client.close(4003, 'Server access ended');
+      const timer = setTimeout(() => client.terminate(), 500); timer.unref();
+    }
+    for (const member of members.list().filter(member => !options.memberAllowed || options.memberAllowed(member.id))) chat.store.account(member.id, member.name, true);
+    directoryDirty = true; sendBirthdays();
+  });
   const heartbeat = setInterval(() => {
     for (const ws of wss.clients) {
+      if (options.authorized && !options.authorized(requests.get(ws)!)) { ws.close(4003, 'Server access ended'); continue; }
       if (!alive.delete(ws)) { ws.terminate(); continue; }
       ws.ping();
     }
@@ -738,6 +756,7 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
     clearInterval(frame);
     clearInterval(petTimer);
     unsubscribe?.();
+    unsubscribeAccess?.();
     server.off('upgrade', upgrade);
     for (const ws of wss.clients) ws.terminate();
     wss.close();

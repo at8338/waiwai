@@ -52,9 +52,10 @@ export class FocusUI {
     this.shell.querySelector('#focus-exit')!.addEventListener('click', () => this.toggle(false), { signal });
     const chatToggle = document.createElement('button'); chatToggle.type = 'button'; chatToggle.textContent = 'チャットを表示／隠す';
     this.shell.querySelector('.focus-heading')!.append(chatToggle);
+    const serverName = document.createElement('span'); serverName.dataset.serverName = ''; serverName.textContent = document.getElementById('server-open')?.textContent?.replace('サーバー：', '') ?? ''; this.shell.querySelector('.focus-heading strong')!.append(serverName);
     chatToggle.addEventListener('click', () => { this.shell.classList.toggle('chat-hidden'); this.refreshMap(); }, { signal });
     const utilities = this.shell.querySelector('#focus-utilities')!;
-    for (const [id, label] of [['chat-open', 'チャット'], ['people-open', '人を探す'], ['daily-event-go', '今日の事件'], ['event-journal-open', '事件図鑑'], ['office-calendar-open', 'カレンダー'], ['broadcast-open', '館内放送'], ['schedule-open', '予定・定例'], ['spells-open', '魔法'], ['vehicle-open', '乗りもの'], ['room-picker-open', 'フロア一覧'], ['reset-position', '入口にもどる'], ['help-button', '操作ヘルプ'], ['admin-open', '管理者モード'], ['dev-world-open', '出現テスト']]) {
+    for (const [id, label] of [['server-open', 'サーバーを選ぶ'], ['chat-open', 'チャット'], ['people-open', '人を探す'], ['daily-event-go', '今日の事件'], ['event-journal-open', '事件図鑑'], ['office-calendar-open', 'カレンダー'], ['broadcast-open', '館内放送'], ['schedule-open', '予定・定例'], ['spells-open', '魔法'], ['vehicle-open', '乗りもの'], ['room-picker-open', 'フロア一覧'], ['reset-position', '入口にもどる'], ['help-button', '操作ヘルプ'], ['admin-open', '管理者モード'], ['dev-world-open', '出現テスト']]) {
       const target = document.getElementById(id) as HTMLButtonElement | null; if (!target) continue;
       const button = document.createElement('button'); button.type = 'button'; button.dataset.focusProxy = id; button.textContent = label; utilities.append(button); this.proxies.push({ target, button });
     }

@@ -20,6 +20,8 @@ export class AdminUI {
     this.dialog.id = 'admin-dialog'; this.dialog.className = 'admin-dialog dialog-list-layout'; this.dialog.setAttribute('aria-labelledby', 'admin-title');
     this.dialog.innerHTML = `<span class="eyebrow">OFFICE ADMINISTRATION</span><h2 id="admin-title" tabindex="-1" autofocus>オフィスの管理</h2><p>許可したものだけが館内に登場します。変更は全員に反映され、サーバーに保存されます。</p><div class="admin-tabs" role="group" aria-label="管理する種類">${Object.entries(labels).map(([id, name]) => `<button type="button" data-admin-group="${id}" aria-pressed="false">${name}</button>`).join('')}</div><label class="admin-search">名前・番号で探す<input id="admin-query" type="search" maxlength="80" placeholder="部屋名・キャラクター名など"></label><label class="admin-category"><input id="admin-category-enabled" type="checkbox"> <span></span></label><p id="admin-summary"></p><div id="admin-items" class="admin-items dialog-scroll"></div><p id="admin-status" role="status"></p><p id="admin-updated" class="field-hint"></p><div class="dialog-actions"><button type="button" id="admin-close">閉じる</button></div>`;
     document.body.append(this.dialog);
+    const spaces = document.getElementById('server-admin-open');
+    if (spaces) { this.dialog.querySelector('.admin-tabs')!.before(spaces); spaces.addEventListener('click', () => this.dialog.close(), { signal, capture: true }); }
     const generations = document.createElement('fieldset'); generations.id = 'admin-pokemon-generations'; generations.hidden = true;
     generations.innerHTML = '<legend>世代ごとに表示をON / OFF</legend><p>チェックした世代を館内に表示します。世代をOFFにしても、個別の禁止設定・図鑑の発見記録は保持します。</p><div class="admin-generation-grid"></div>';
     for (const generation of POKEMON_GENERATIONS) {

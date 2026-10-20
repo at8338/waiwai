@@ -1,5 +1,6 @@
 // Small UI pictograms; accessible names live on their buttons.
 const paths: Record<string, string> = {
+  'server-open': '<rect x="3" y="2" width="18" height="7" rx="2"/><rect x="3" y="12" width="18" height="7" rx="2"/><path d="M7 5h1m-1 10h1m3-10h6m-6 10h6M12 19v5m-5 0h10"/>',
   'mouse-move-toggle': '<path d="m5 2 15 10-8 2-3 8L5 2Z"/>',
   'office-focus-toggle': '<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M9 9h6v6H9z"/>',
   'voice-toggle': '<path d="M3 16v-5a9 9 0 0 1 18 0v5M3 14h4v8H3zm14 0h4v8h-4"/>',
