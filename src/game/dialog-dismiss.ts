@@ -9,7 +9,16 @@ export function setupDialogDismissals(root: HTMLElement): () => void {
     const bar = document.createElement('div'); bar.className = 'dialog-dismiss-bar';
     const button = document.createElement('button');
     button.type = 'button'; button.className = 'dialog-dismiss-button';
-    button.textContent = '×'; button.setAttribute('aria-label', 'ポップアップを閉じる');
+    // Draw the cross without font metrics, which differ between Windows and macOS.
+    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    icon.setAttribute('viewBox', '0 0 24 24');
+    icon.setAttribute('aria-hidden', 'true'); icon.setAttribute('focusable', 'false');
+    const cross = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    cross.setAttribute('d', 'M6 6 18 18 M18 6 6 18');
+    cross.setAttribute('fill', 'none'); cross.setAttribute('stroke', 'currentColor');
+    cross.setAttribute('stroke-width', '2'); cross.setAttribute('stroke-linecap', 'round');
+    icon.append(cross); button.append(icon);
+    button.setAttribute('aria-label', 'ポップアップを閉じる');
     button.title = '閉じる（Esc）';
     const dismiss = () => {
       if (!dialog.open) return;

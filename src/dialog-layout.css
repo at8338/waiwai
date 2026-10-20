@@ -18,7 +18,13 @@ dialog.has-dismiss-controls:not(.chat-docked) .dialog-dismiss-bar {
 }
 dialog.has-dismiss-controls .dialog-dismiss-button {
   position: absolute; right: -8px; top: -8px; width: 36px; height: 36px;
-  min-height: 36px; flex-basis: 36px; font-size: 25px;
+  min-height: 36px; flex-basis: 36px;
+  /* Dialog-specific button padding must not shift or clip the shared icon. */
+  display: grid; place-items: center; margin: 0; padding: 0;
+  border: 1px solid #b6c3a8; border-radius: 50%; line-height: 1;
+}
+dialog.has-dismiss-controls .dialog-dismiss-button > svg {
+  display: block; width: 20px; height: 20px; pointer-events: none;
 }
 :where(dialog:not(.chat-docked)) .dialog-actions {
   position: sticky; bottom: calc(-1 * var(--dialog-padding)); z-index: 5;
