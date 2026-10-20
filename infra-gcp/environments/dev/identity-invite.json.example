@@ -1,0 +1,5 @@
+{
+  "action": "invite",
+  "email": "member@example.com",
+  "name": "メンバー"
+}

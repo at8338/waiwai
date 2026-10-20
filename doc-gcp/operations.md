@@ -2,7 +2,7 @@
 
 ## アプリの公開前
 
-TerraformはVMとサービス基盤までを作ります。アプリ本体、認証Secret、TURN共有鍵、ドメインの購入・登録者情報、招待/MFA設定はTerraformに含めません。Cloud DNSのzoneとAレコードはTerraformで管理します。今回アプリをデプロイする処理は実行せず、GCP専用の自動デプロイスクリプトもこの変更の対象外です。Azureの`deploy.mjs`はAzure出力とGraphの検査を前提とするため、そのままGCPへ実行しません。
+TerraformはVMとサービス基盤までを作ります。アプリ本体、認証設定、TURN共有鍵、ドメインの購入・登録者情報、招待/MFA設定はTerraformに含めません。Cloud DNSのzoneとAレコードはTerraformで管理します。今回アプリをデプロイする処理は実行せず、GCP専用の自動デプロイスクリプトもこの変更の対象外です。Azureの`deploy.mjs`はAzure出力とGraphの検査を前提とするため、そのままGCPへ実行しません。
 
 Terraform管理対象以外の自動生成物・VM内サービス・外部設定を含む[全体一覧](resource-inventory.md)で、完了している基盤定義と公開・運用に残る作業を確認します。
 
@@ -10,7 +10,7 @@ Terraform管理対象以外の自動生成物・VM内サービス・外部設定
 
 - アプリの配置は`/opt/waiwai/releases/<release>`と`/opt/waiwai/current`、環境は`/etc/waiwai/app.env`。Node.jsのアプリ用ユーザーは`waiwai`。
 - `HOST=127.0.0.1`・`PORT=5173`・`NODE_ENV=production`。`WAIWAI_DATA_FILE=/var/lib/waiwai/office-objects.json`と既存の各保存先を同じマウント上に設定する。追加サーバーも`/var/lib/waiwai/spaces/`に含める。
-- Microsoftを採用する場合は`REQUIRE_ENTRA_LOGIN=true`と既存Entra設定、アプリ割当・招待・全利用者のMFAを確認する。Slackを含む別の公開方針を採用する場合も認証必須とMFAの適用先を改めて確定し、ゲスト公開へフォールバックしない。
+- GCPでは`REQUIRE_IDENTITY_PLATFORM_LOGIN=true`とGCIPのproject/API key/originを設定する。招待・メール確認・TOTP必須、管理者の固定UID、旧IDとの対応を[認証手順](identity-platform.md)に従って確認する。ゲストやSlack/Entraによる迂回を許可しない。
 - `ENTRA_REDIRECT_URI`または`SLACK_REDIRECT_URI`はTerraform出力の新しいGCPドメインで登録し、旧一時URLのCookieやセッションを引き継げる前提にしない。利用者IDが同じなら個人データは停止移行後も引き継げる。
 - `TURN_SHARED_SECRET`と`/etc/waiwai-turn/turnserver.conf`は権限を制限してSSHで配備する。共有鍵を維持し、固定IPとVMのPrivate IPの対応、3478/5349、49160–49959の範囲、private/link-local/loopback/multicast等への中継禁止を設定する。
 - Caddyの証明書が発行されてから`waiwai-sync-turn-cert`でcoturnへ同期し、TURN TLSの更新を確認する。
@@ -22,7 +22,7 @@ Terraform管理対象以外の自動生成物・VM内サービス・外部設定
 
 AzureとGCPを同時に書き込み可能な状態で、JSONやSQLiteを定期コピーする運用は行いません。移行時は元のオフィスを停止し、`/var/lib/waiwai`相当をWAL・追加サーバーのDBも含めて保全し、新しいdataディスクへ復元します。移行前にSQLiteのスナップショットまたは停止中の完全バックアップを取得し、復元後にintegrity_check・所有者/0600のDB権限を確認します。
 
-Microsoft/Slackの不変ID、管理者ID、`office-spaces.json`、メンバー名簿、各サーバーのディレクトリを一緒に移行します。AzureのTerraform stateは移行対象に含めません。稼働データとTerraform stateは別物です。誕生日・チャット等の既存形式はアプリ共通です。
+Identity PlatformのUIDと旧Microsoft/Slackの不変IDの対応ファイル、管理者ID、`office-spaces.json`、メンバー名簿、各サーバーのディレクトリを一緒に移行します。AzureのTerraform stateは移行対象に含めません。稼働データとTerraform stateは別物です。誕生日・チャット等の既存形式はアプリ共通です。
 
 ## 性能と音声
 

@@ -13,3 +13,6 @@ mock_resource "google_dns_managed_zone" {
 mock_data "google_dns_managed_zone" {
   defaults = { dns_name = "waiwai-dev.example.com." }
 }
+mock_resource "google_service_account" {
+  defaults = { email = "dev-waiwai-tky-sa-id-001@waiwai-dev-example.iam.gserviceaccount.com" }
+}

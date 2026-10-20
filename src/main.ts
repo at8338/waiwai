@@ -199,11 +199,17 @@ const logout = document.querySelector<HTMLButtonElement>('#slack-logout')!;
 const retry = document.querySelector<HTMLButtonElement>('#slack-auth-retry')!;
 loginStatus.textContent = authUnavailable ? 'ログイン状態を確認できませんでした。再確認してください。'
   : auth.user ? `${auth.user.name}さんでログイン中`
-  : auth.required ? '会社のアカウントでログインして入室してください。'
+  : auth.required ? '招待されたアカウントでログインして入室してください。'
   : auth.configured ? 'ゲストとして入室しています。' : 'Slackログインは準備中です。管理者の連携設定後に利用できます。';
 if (!authUnavailable && auth.loginUrl) { loginLink.href = auth.loginUrl; loginLink.hidden = !!auth.user; }
 if (auth.microsoftLoginUrl && !auth.user) {
   const microsoft = document.createElement('a'); microsoft.id = 'microsoft-login-link'; microsoft.className = 'slack-login-button'; microsoft.href = auth.microsoftLoginUrl; microsoft.textContent = 'Microsoftでログイン'; loginLink.after(microsoft);
+}
+let disposeIdentityLogin: (() => void) | undefined;
+if (auth.identityPlatform && !authUnavailable && (!auth.user || new URL(location.href).searchParams.has('oobCode'))) {
+  const button = document.createElement('button'); button.type = 'button'; button.id = 'identity-login-open'; button.className = 'slack-login-button'; button.textContent = 'メールアドレスでログイン'; button.hidden = !!auth.user; loginLink.after(button);
+  document.querySelector('#slack-login-help')!.textContent = '招待されたメールアドレス・パスワードと、認証アプリのコードで入室できます。';
+  const { setupIdentityLogin } = await import('./slack/identity-login.ts'); disposeIdentityLogin = setupIdentityLogin(button);
 }
 logout.hidden = !auth.user;
 retry.hidden = !authUnavailable;
@@ -218,7 +224,7 @@ if (auth.user) {
 }
 const callbackStatus = new URL(window.location.href).searchParams.get('login');
 if (callbackStatus === 'failed' || callbackStatus === 'expired') {
-  loginStatus.textContent = callbackStatus === 'expired' ? 'ログインの有効時間が切れました。もう一度お試しください。' : 'Slackログインを完了できませんでした。キャンセルした場合も、もう一度試せます。';
+  loginStatus.textContent = callbackStatus === 'expired' ? 'ログインの有効時間が切れました。もう一度お試しください。' : 'ログインを完了できませんでした。もう一度お試しください。';
   const cleanUrl = new URL(window.location.href); cleanUrl.searchParams.delete('login');
   window.history.replaceState(null, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
 }
@@ -240,7 +246,7 @@ if (auth.user || authUnavailable) {
   slackTeam.readOnly = true; slackUser.readOnly = true;
   document.querySelector<HTMLElement>('.slack-settings-buttons')!.hidden = true;
   document.querySelector('#slack-settings-help')!.textContent = auth.user ? auth.user.slack ? 'Slackログインから自動設定され、接続中の参加者に共有されます。' : 'Slack設定は不要です。館内のチャットから連絡できます。' : 'ログイン状態の再確認後に設定できます。';
-  slackStatus.textContent = auth.user ? auth.user.slack ? 'Slackログイン済みです。手動設定は不要です。' : 'Microsoftでログインしています。SlackなしでもWaiwai内DMを使えます。' : 'ログイン状態を確認できていません。';
+  slackStatus.textContent = auth.user ? auth.user.slack ? 'Slackログイン済みです。手動設定は不要です。' : 'アカウントでログインしています。SlackなしでもWaiwai内DMを使えます。' : 'ログイン状態を確認できていません。';
 }
 const saveSlack = (identity: SlackIdentity | null) => {
   if (auth.user || authUnavailable) return;
@@ -281,4 +287,4 @@ dialog.addEventListener('close', () => game.canvas.focus({ preventScroll: true }
 
 document.querySelectorAll<HTMLDialogElement>('#avatar-dialog, #room-dialog, #object-links-dialog, #lost-item-info, #broadcast-dialog, #schedule-dialog, #event-detail-dialog, #event-journal-dialog, #office-calendar-dialog, #cockpit-dialog, #arcade-dialog').forEach((item) => item.addEventListener('close', () => game.canvas.focus({ preventScroll: true })));
 
-if (import.meta.hot) import.meta.hot.dispose(() => { spacesUI.destroy(); disposeDialogDismissals(); disposeAvatarEditor(); game.destroy(true); });
+if (import.meta.hot) import.meta.hot.dispose(() => { disposeIdentityLogin?.(); spacesUI.destroy(); disposeDialogDismissals(); disposeAvatarEditor(); game.destroy(true); });

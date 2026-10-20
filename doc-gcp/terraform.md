@@ -19,7 +19,7 @@ npm run infra:gcp:check
 
 検証は実backendや実入力を除いた一時コピーで実施します。format・7対象のinit（backend無効）/validate/GoogleモックテストとMacセットアップの構文を確認します。Google認証は不要です。Provider取得にネットワークが必要ですが、`--plugin-dir <mirror>`で既存ミラーを指定することもできます。CIは同じ検証だけで、GCPへのplan/applyやデプロイを行いません。モック内の`command = apply`は仮想Providerと破棄するローカルstateだけに適用します。
 
-命名、予約ラベル、公開ポート、CIDR制限、VM保護、OS Login+2FA、サービスアカウントなし、バックアップ、cloud-initのYAML、独立データディスク、devの出力契約を確認します。これは実GCPの課金・Policy・DNS/証明書・性能・復元の確認の代わりにはなりません。
+命名、予約ラベル、公開ポート、CIDR制限、VM保護、OS Login+2FA、認証読取専用サービスアカウント・招待制/TOTP設定、バックアップ、cloud-initのYAML、独立データディスク、devの出力契約を確認します。これは実GCPの課金・Policy・DNS/証明書・性能・復元の確認の代わりにはなりません。
 
 Azureディレクトリの改名はmodule内のTerraformアドレスを変更しないため、新たなmoved/importは不要です。AzureのstateをGCSへmigrateしたり、GCPのstateへAzure資源をimportしたりしません。プロバイダー更新・クラウド切り替え・既存データ移行はそれぞれ分けてレビューします。
 

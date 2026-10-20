@@ -31,7 +31,15 @@ resource "google_compute_instance" "office" {
     enable_vtpm                 = true
     enable_integrity_monitoring = true
   }
-  # No VM service account: the app currently needs no Google Cloud API tokens.
+  # Keyless ADC for Identity Platform user lookups only; IAM grants the single
+  # firebaseauth.users.get permission, never user administration or Editor.
+  dynamic "service_account" {
+    for_each = var.service_account_email == null ? [] : [var.service_account_email]
+    content {
+      email  = service_account.value
+      scopes = ["https://www.googleapis.com/auth/cloud-platform"]
+    }
+  }
   metadata = {
     enable-oslogin         = "TRUE"
     enable-oslogin-2fa     = "TRUE"

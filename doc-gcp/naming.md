@@ -21,6 +21,9 @@ dev-waiwai-tky-vm-office-001
 | Firewall用network tag | dev-waiwai-tky-office-001 |
 | Cloud DNS公開ゾーン | dev-waiwai-tky-dns-office-001 |
 | DNS Aレコード | 入力domainに末尾`.`を付けたFQDN（例：`waiwai-dev.example.com.`） |
+| 認証用サービスアカウント | dev-waiwai-tky-sa-id-001 |
+| 認証読取カスタムロール | dev_waiwai_tky_role_id_001 |
+| Identity Platform config | projects/{project_id}/config（project singleton） |
 | stateバケット | dev-waiwai-tky-gcs-tfstate-001-{hash8} |
 | GCS backend prefix | waiwai/gcp/dev/001 |
 
@@ -35,3 +38,5 @@ network tagは名前付きインフラリソースではなくVMの属性なの�
 クラウドが異なれば名前もstateも別です。Azureのリソース名やURLをGCPにコピーしません。命名要素の変更で置換が必要な場合は、既存資源を削除して整えるのではなく移行としてレビューします。
 
 Cloud DNSゾーンは基本ルールどおりで、Globalリソースの`tky`は利用地域です。DNSレコード名とCloud Domains登録IDは実ドメインそのものが識別子になるため、`dev-...-001`を付けません。レコードはゾーン/FQDN/種別`A`の組で識別し、DNSが生成するNS/SOAやDNSSEC鍵を独自名へ変えません。
+
+サービスアカウントIDは30文字制限に合わせ用途を`id`とし、メールのprojectサフィックスはGoogleの形式を使います。カスタムロールIDはハイフンを使えないため、同じ命名要素をアンダースコアで区切ります。Identity Platform configには任意名を付けられず、project singletonの`projects/{project_id}/config`を使います。認証ユーザーはTerraformで管理せず、管理者の招待処理で固定UIDを発行します。

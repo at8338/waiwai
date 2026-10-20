@@ -6,9 +6,11 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { extname, resolve, sep } from 'node:path';
 import { readAuthConfig, readEntraConfig, OfficeAuth } from './auth.ts';
+import { IdentityPlatformAuth, readIdentityPlatformConfig } from './identity-platform.ts';
 
 try { process.loadEnvFile(); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
-const auth = new OfficeAuth(readAuthConfig(process.env), readEntraConfig(process.env));
+const identityConfig = readIdentityPlatformConfig(process.env);
+const auth = new OfficeAuth(readAuthConfig(process.env), readEntraConfig(process.env), identityConfig ? new IdentityPlatformAuth(identityConfig) : undefined);
 
 const personal = new PersonalService(auth, process.env.WAIWAI_PERSONAL_FILE ?? join(dirname(process.env.WAIWAI_DATA_FILE ?? '.local/office-objects.json'), 'office-personal.sqlite'));
 const root = fileURLToPath(new URL('../dist/', import.meta.url));

@@ -7,6 +7,10 @@ run "dev_names_and_reserved_labels" {
     error_message = "Keep dev-only names, distinct cloud state and GCS-compatible bucket names."
   }
   assert {
+    condition     = output.names.identity_service_account == "dev-waiwai-tky-sa-id-001" && length(output.names.identity_service_account) <= 30 && output.names.identity_reader_role == "dev_waiwai_tky_role_id_001"
+    error_message = "Identity resources must use deterministic names within service-account and custom-role restrictions."
+  }
+  assert {
     condition     = output.labels.environment == "dev" && output.labels.managed_by == "terraform" && output.labels.owner == "team"
     error_message = "Company labels may extend but never override reserved labels."
   }

@@ -355,7 +355,7 @@ export class OfficeScene extends Phaser.Scene {
     });
     this.sendProfile();
     if (this.loginRequired) {
-      document.querySelector('#connection-message')!.textContent = 'Slackでログインすると入室できます。';
+      document.querySelector('#connection-message')!.textContent = 'アカウントでログインすると入室できます。';
       document.querySelector('#connection-label')!.textContent = 'ログインを待っています';
     }
     const cleanup = () => {
@@ -567,7 +567,7 @@ export class OfficeScene extends Phaser.Scene {
       name.textContent = player.name + (player.id === this.localId ? '（あなた）' : '');
       if (player.id !== this.localId) name.setAttribute('aria-label', `${player.name}さんのWaiwai内DMを開く`);
       item.children[1].textContent = areaAt(player);
-      item.children[2].textContent = player.dummy ? 'テスト用 · 自動返信 · マイクなし' : player.accountId?.startsWith('entra:') ? 'Microsoftログイン済み' : player.slackVerified ? 'Slackログイン済み' : player.slack ? 'Slack手動設定' : 'ゲスト';
+      item.children[2].textContent = player.dummy ? 'テスト用 · 自動返信 · マイクなし' : player.slackVerified ? 'Slackログイン済み' : player.accountId && !player.accountId.startsWith('guest:') ? 'アカウントログイン済み' : player.slack ? 'Slack手動設定' : 'ゲスト';
       const reaction = this.reactions.get(player.id);
       item.dataset.reaction = reaction?.kind ?? '';
       item.dataset.resting = String(!!player.resting);

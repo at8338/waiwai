@@ -1,0 +1,12 @@
+dialog.identity-login { width: min(28rem, calc(100vw - 1rem)); max-height: calc(100dvh - 1rem); box-sizing: border-box; padding: 1.25rem; overflow-y: auto; }
+.identity-login h2 { font-size: 1.3rem; margin: .5rem 0; }
+.identity-login p { font-size: .9rem; }
+.identity-login form, .identity-login label { display: grid; gap: .5rem; }
+.identity-login form { gap: 1rem; }
+.identity-login input { min-width: 0; width: 100%; box-sizing: border-box; min-height: 44px; font-size: 16px; }
+.identity-login button, .identity-login a { min-height: 44px; touch-action: manipulation; }
+.identity-login-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: 1rem; }
+.identity-login [data-enrollment] { text-align: center; }
+.identity-login [data-qr] { max-width: 100%; width: 200px; }
+.identity-login [data-secret] { display: block; overflow-wrap: anywhere; user-select: all; margin: .5rem 0; }
+.identity-login [data-otp-link] { display: inline-block; }

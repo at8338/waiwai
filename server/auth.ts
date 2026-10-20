@@ -5,6 +5,7 @@ import * as oidc from 'openid-client';
 import { normalizeName } from '../src/network/protocol.ts';
 import { parseSlackIdentity } from '../src/slack/dm.ts';
 import type { AuthUser } from '../src/slack/auth.ts';
+import { IdentityPlatformAuth } from './identity-platform.ts';
 
 const SESSION_COOKIE = 'waiwai_session';
 const FLOW_COOKIE = 'waiwai_login';
@@ -217,27 +218,36 @@ export class OfficeAuth {
   private entra: SlackAuth;
   private slackConfig?: AuthConfig;
   private entraConfig?: AuthConfig;
-  constructor(slackConfig?: AuthConfig, entraConfig?: AuthConfig) {
+  private identityPlatform?: IdentityPlatformAuth;
+  constructor(slackConfig?: AuthConfig, entraConfig?: AuthConfig, identityPlatform?: IdentityPlatformAuth) {
+    this.identityPlatform = identityPlatform;
     this.slackConfig = slackConfig; this.entraConfig = entraConfig;
     if (slackConfig && entraConfig && new URL(slackConfig.redirectUri).origin !== new URL(entraConfig.redirectUri).origin) throw new Error('Login providers must use the same origin');
     this.slack = new SlackAuth(slackConfig); this.entra = new SlackAuth(entraConfig);
   }
-  identify(request: IncomingMessage): OfficeIdentity | undefined { return this.entra.identify(request) ?? (this.entraConfig?.required ? undefined : this.slack.identify(request)); }
+  identify(request: IncomingMessage): OfficeIdentity | undefined { return this.identityPlatform ? this.identityPlatform.identify(request) : this.entra.identify(request) ?? (this.entraConfig?.required ? undefined : this.slack.identify(request)); }
   canJoin(request: IncomingMessage): boolean {
     const identity = this.identify(request);
-    return identity ? !!userIdentity(identity.user) : !this.entraConfig?.required && !this.slackConfig?.required;
+    return identity ? !!userIdentity(identity.user) : !this.identityPlatform && !this.entraConfig?.required && !this.slackConfig?.required;
   }
-  onRevoke(notify: (id: string) => void): () => void { const a = this.slack.onRevoke(notify), b = this.entra.onRevoke(notify); return () => { a(); b(); }; }
+  onRevoke(notify: (id: string) => void): () => void { const a = this.slack.onRevoke(notify), b = this.entra.onRevoke(notify), c = this.identityPlatform?.onRevoke(notify); return () => { a(); b(); c?.(); }; }
   async handle(request: IncomingMessage, response: ServerResponse): Promise<boolean> {
     const path = request.url?.split('?')[0];
     if (path === '/api/auth/session') {
       if (request.method !== 'GET') { response.writeHead(405).end(); return true; }
+      if (this.identityPlatform) {
+        response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ configured: true, required: true, identityPlatform: true, loginUrl: null, microsoftLoginUrl: null, user: this.identityPlatform.identify(request)?.user ?? null })); return true;
+      }
       const config = this.entraConfig ?? this.slackConfig;
       const identity = config && request.headers.host === new URL(config.redirectUri).host ? this.identify(request) : undefined;
       response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ configured: !!config, loginUrl: this.slackConfig && !this.entraConfig?.required ? '/auth/slack' : null, microsoftLoginUrl: this.entraConfig ? '/auth/microsoft' : null, required: !!this.entraConfig?.required || !!this.slackConfig?.required, user: identity?.user ?? null })); return true;
     }
+    if (this.identityPlatform) {
+      if (path?.startsWith('/auth/slack') || path?.startsWith('/auth/microsoft')) { response.writeHead(403, { 'Cache-Control': 'no-store' }).end(); return true; }
+      return this.identityPlatform.handle(request, response);
+    }
     if (path === '/auth/logout') return (this.entra.identify(request) ? this.entra : this.slack).handle(request, response);
     return (path?.startsWith('/auth/microsoft') ? this.entra : this.slack).handle(request, response);
   }
-  close(): void { this.slack.close(); this.entra.close(); }
+  close(): void { this.slack.close(); this.entra.close(); this.identityPlatform?.close(); }
 }

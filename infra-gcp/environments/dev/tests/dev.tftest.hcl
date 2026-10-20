@@ -29,4 +29,12 @@ run "dev_composition_without_azure_dependencies" {
     condition     = output.dns_zone == "dev-waiwai-tky-dns-office-001" && google_dns_record_set.office.name == "waiwai-dev.example.com." && google_dns_record_set.office.type == "A" && google_dns_record_set.office.ttl == 300 && toset(google_dns_record_set.office.rrdatas) == toset([output.public_ip])
     error_message = "Point the matching registered domain at the reserved VM address, never a placeholder IP."
   }
+  assert {
+    condition     = google_identity_platform_config.office.sign_in[0].email[0].enabled && google_identity_platform_config.office.sign_in[0].email[0].password_required && !google_identity_platform_config.office.sign_in[0].anonymous[0].enabled && google_identity_platform_config.office.client[0].permissions[0].disabled_user_signup && google_identity_platform_config.office.client[0].permissions[0].disabled_user_deletion && toset(google_identity_platform_config.office.authorized_domains) == toset([var.domain])
+    error_message = "Identity Platform must allow password login only on the office domain and disable self-registration."
+  }
+  assert {
+    condition     = google_identity_platform_config.office.mfa[0].state == "ENABLED" && one(google_identity_platform_config.office.mfa[0].provider_configs).totp_provider_config[0].adjacent_intervals == 1 && toset(google_project_iam_custom_role.identity_reader.permissions) == toset(["firebaseauth.users.get"]) && module.office_vm.identity_service_account == google_service_account.identity_reader.email
+    error_message = "Enable TOTP enrollment and attach a keyless user-read-only identity to the VM."
+  }
 }

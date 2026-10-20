@@ -18,7 +18,7 @@ export class WorldPolicyStore {
   constructor(file?: string, configuredAdministrator?: string, administratorCheck?: (user?: AuthUser) => boolean) {
     this.administratorCheck = administratorCheck;
     this.file = file; this.configuredAdministrator = configuredAdministrator;
-    if (configuredAdministrator && !persistentIdentity(configuredAdministrator)) throw new Error('WAIWAI_ADMIN_ACCOUNT_ID must be a verified Slack or Entra account ID.');
+    if (configuredAdministrator && !persistentIdentity(configuredAdministrator)) throw new Error('WAIWAI_ADMIN_ACCOUNT_ID must be a verified immutable account ID.');
     if (!file) return;
     try {
       const raw = readFileSync(file, 'utf8');

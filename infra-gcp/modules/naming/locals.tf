@@ -14,10 +14,12 @@ locals {
       for rule in ["ssh", "web", "turn_tcp", "turn_udp"] :
       rule => "${local.prefix}-fw-office-${replace(rule, "_", "-")}-${local.sequence}"
     }
-    firewall_target = "${local.prefix}-office-${local.sequence}"
-    dns_zone        = "${local.prefix}-dns-office-${local.sequence}"
-    state_bucket    = "${local.prefix}-gcs-tfstate-${local.sequence}-${local.suffix}"
-    state_prefix    = "${var.project_name}/gcp/dev/${local.sequence}"
+    firewall_target          = "${local.prefix}-office-${local.sequence}"
+    dns_zone                 = "${local.prefix}-dns-office-${local.sequence}"
+    identity_service_account = "${local.prefix}-sa-id-${local.sequence}"
+    identity_reader_role     = replace("${local.prefix}-role-id-${local.sequence}", "-", "_")
+    state_bucket             = "${local.prefix}-gcs-tfstate-${local.sequence}-${local.suffix}"
+    state_prefix             = "${var.project_name}/gcp/dev/${local.sequence}"
   }
   labels = merge(var.labels, {
     application = var.project_name
