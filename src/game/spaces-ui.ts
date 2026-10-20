@@ -110,8 +110,7 @@ export class SpacesUI {
     create.addEventListener('submit', event => { event.preventDefault(); void this.save({ type: 'create', revision: snapshot.revision, name: name.value.trim() }); });
     return;
     }
-    const heading = document.createElement('h3'); heading.textContent = 'メンバーの所属'; body.append(heading);
-    const hint = document.createElement('p'); hint.textContent = '初めてログインした人は所属未設定です。チェックして保存すると入室できます。複数選択できます。管理者は全サーバーを管理・訪問できます。'; body.append(hint);
+    const hint = document.createElement('p'); hint.textContent = '入室先を選んで保存します。複数選択できます。新規ログインの人は所属未設定です。'; body.append(hint);
     const searchLabel = document.createElement('label'); searchLabel.textContent = 'メンバーを探す';
     const search = document.createElement('input'); search.type = 'search'; search.value = this.query; search.placeholder = '名前・アカウントID'; searchLabel.append(search); body.append(searchLabel);
     const members = document.createElement('div'); members.className = 'space-members'; body.append(members);
@@ -125,7 +124,7 @@ export class SpacesUI {
       previous.disabled = this.page === 0; next.disabled = (this.page + 1) * 20 >= found.length;
       count.textContent = found.length ? `${this.page * 20 + 1}〜${Math.min((this.page + 1) * 20, found.length)} / ${found.length}人` : '0人';
       previous.addEventListener('click', () => { this.page--; renderMembers(); }); next.addEventListener('click', () => { this.page++; renderMembers(); });
-      pager.append(previous, count, next); members.append(pager);
+      pager.append(...(found.length > 20 ? [previous, count, next] : [count])); members.append(pager);
       for (const member of found.slice(this.page * 20, (this.page + 1) * 20)) {
         const form = document.createElement('form'), title = document.createElement('strong'), id = document.createElement('small');
         form.className = 'space-member'; title.textContent = member.name; id.textContent = member.id; form.append(title, id);
