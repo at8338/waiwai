@@ -158,10 +158,14 @@ app.innerHTML = `
       <p id="object-links-help" class="links-help">使いたいリンクを選んで、作業をはじめよう。</p>
       <details id="object-links-settings"><summary>リンクを設定 · お気に入りを管理</summary>
         <p id="object-links-permission" class="links-help"></p>
+        <div class="favorite-filters"><label>リンクを探す<input id="favorite-query" type="search" placeholder="資料名・ツール名・URLで検索" maxlength="200" /></label><label>ツール<select id="favorite-service"><option value="">すべてのツール</option></select></label></div>
+        <label class="favorite-selected-filter"><input id="favorite-selected-only" type="checkbox" />選択中のみ表示</label>
+        <details id="favorite-selected-details" hidden><summary id="favorite-selection-caption">選択中のリンク</summary><div id="favorite-selection-preview" aria-label="選択中のリンク"></div></details>
+        <p id="favorite-result-count" class="links-help" role="status"></p>
         <div id="link-favorites" role="group" aria-label="共有のお気に入り"></div>
         <div class="link-save-row"><span id="object-links-selection"></span><button type="button" id="object-links-save">この選択を保存</button></div>
         <details id="favorite-add-section"><summary id="favorite-add-title">共有のお気に入りを追加</summary>
-          <form id="favorite-form"><label>リンクの名前<input name="title" maxlength="60" placeholder="チームのMiroボード" required /></label><label>URL<input name="url" type="url" maxlength="2048" placeholder="https://…" required /></label><p id="favorite-form-help" class="links-help">このサーバー内で共有されます。HTTPSのURLを登録できます。</p><div class="favorite-form-actions"><button type="submit">お気に入りに追加</button><button type="button" id="favorite-edit-cancel" hidden>編集をやめる</button></div></form>
+          <form id="favorite-form"><label>リンクの名前<input name="title" maxlength="60" placeholder="例：上位プランの構成図" required /></label><label>URL<input name="url" type="url" maxlength="2048" placeholder="https://…" required /></label><p id="favorite-service-preview" class="links-help" role="status"></p><p id="favorite-form-help" class="links-help">ツール名はURLから表示するので、名前には資料の内容だけでOKです。</p><div class="favorite-form-actions"><button type="submit">お気に入りに追加</button><button type="button" id="favorite-edit-cancel" hidden>編集をやめる</button></div></form>
         </details>
       </details>
       <ul id="object-link-list" aria-label="登録済みのリンク"></ul>
