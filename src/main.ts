@@ -21,6 +21,8 @@ import { startOffice } from './game/OfficeScene.ts';
 import { parseSlackIdentity, readSlackSettings, SLACK_STORAGE_KEY } from './slack/dm.ts';
 import type { SlackIdentity } from './slack/dm.ts';
 import type { AuthStatus } from './slack/auth.ts';
+import { entryRoute } from './slack/entry-route.ts';
+import { showEntryScreen } from './slack/entry-screen.ts';
 
 let auth: AuthStatus = { configured: false, loginUrl: null, user: null };
 let authUnavailable = false;
@@ -30,6 +32,9 @@ try {
   auth = await response.json() as AuthStatus;
 } catch { authUnavailable = true; }
 
+if (entryRoute(auth, authUnavailable, new URL(location.href)) !== 'office') {
+  await showEntryScreen(auth, authUnavailable);
+} else {
 try { await configurePersonalStorage(auth.user ? userIdentity(auth.user) : undefined, authUnavailable); }
 catch {
   document.querySelector('#app')!.innerHTML = '<p role="alert">ユーザーデータを読み込めませんでした。接続とログインを確認してください。</p><button id="personal-load-retry">再読み込み</button>';
@@ -49,6 +54,7 @@ app.innerHTML = `
     <a class="brand" href="./" aria-label="Waiwai ホーム"><span class="brand-mark" aria-hidden="true">w</span>waiwai<span class="brand-dot">.</span></a>
     <span class="tagline">ふらっと歩いて、誰かのとなりへ。</span>
     <span class="local-badge"><i></i> <span id="connection-label">接続しています</span></span>
+    <div id="account-controls" class="account-controls" hidden><span id="account-name"></span><button type="button" id="account-logout">ログアウト</button><span id="account-status" role="status"></span></div>
   </header>
   <main class="workspace">
     <aside class="sidebar" aria-label="オフィス情報とアバター設定">
@@ -184,6 +190,9 @@ app.innerHTML = `
 
 document.querySelector('[data-reaction="anger"]')!.before(document.querySelector('#toggle-rest')!);
 setupPersonalDataUI(auth.user?.name ?? 'ゲスト');
+const accountControls = document.querySelector<HTMLElement>('#account-controls')!;
+accountControls.hidden = !auth.user;
+document.querySelector('#account-name')!.textContent = auth.user ? `${auth.user.name}さん` : '';
 if (auth.user) document.querySelector('#buddy-dialog .field-hint')!.textContent = '選択とお気に入りは、ログインしたアカウントに保存します。';
 const parent = document.querySelector<HTMLElement>('#game')!;
 const disposeDialogDismissals = setupDialogDismissals(document.body);
@@ -228,15 +237,20 @@ if (callbackStatus === 'failed' || callbackStatus === 'expired') {
   const cleanUrl = new URL(window.location.href); cleanUrl.searchParams.delete('login');
   window.history.replaceState(null, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
 }
-logout.addEventListener('click', async () => {
-  if (!await finishPersonalWrites()) { loginStatus.textContent = '未保存の設定があります。プロフィール欄で保存を再試行してからログアウトしてください。'; return; }
-  logout.disabled = true;
+const headerLogout = document.querySelector<HTMLButtonElement>('#account-logout')!;
+const accountStatus = document.querySelector<HTMLElement>('#account-status')!;
+const logoutAccount = async () => {
+  if (logout.disabled || headerLogout.disabled) return;
+  logout.disabled = headerLogout.disabled = true; accountStatus.textContent = '保存してログアウトしています…';
   try {
+    if (!await finishPersonalWrites()) throw new Error('Unsaved personal settings');
     const response = await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin', signal: AbortSignal.timeout(5000) });
     if (!response.ok) throw new Error('Logout failed');
-    window.location.reload();
-  } catch { loginStatus.textContent = 'ログアウトできませんでした。もう一度お試しください。'; logout.disabled = false; }
-});
+    window.location.assign('/');
+  } catch { loginStatus.textContent = accountStatus.textContent = 'ログアウトできませんでした。設定の保存と接続を確認して、もう一度お試しください。'; logout.disabled = headerLogout.disabled = false; }
+};
+logout.addEventListener('click', () => { void logoutAccount(); });
+headerLogout.addEventListener('click', () => { void logoutAccount(); });
 const slackTeam = document.querySelector<HTMLInputElement>('#slack-team-id')!;
 const slackUser = document.querySelector<HTMLInputElement>('#slack-user-id')!;
 const slackStatus = document.querySelector<HTMLElement>('#slack-settings-status')!;
@@ -288,3 +302,4 @@ dialog.addEventListener('close', () => game.canvas.focus({ preventScroll: true }
 document.querySelectorAll<HTMLDialogElement>('#avatar-dialog, #room-dialog, #object-links-dialog, #lost-item-info, #broadcast-dialog, #schedule-dialog, #event-detail-dialog, #event-journal-dialog, #office-calendar-dialog, #cockpit-dialog, #arcade-dialog').forEach((item) => item.addEventListener('close', () => game.canvas.focus({ preventScroll: true })));
 
 if (import.meta.hot) import.meta.hot.dispose(() => { disposeIdentityLogin?.(); spacesUI.destroy(); disposeDialogDismissals(); disposeAvatarEditor(); game.destroy(true); });
+}

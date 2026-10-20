@@ -13,6 +13,13 @@ button { color: inherit; }
 .brand-mark { display: grid; place-items: center; width: 34px; height: 34px; background: var(--green); color: #f2e7b6; margin-right: 10px; font-family: monospace; font-size: 26px; font-weight: 900; border-radius: 5px; padding-bottom: 5px; }
 .brand-dot { color: #d3965f; }
 .tagline { font-size: 11px; color: #8b968a; letter-spacing: .09em; padding-top: 5px; }
+.account-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; max-width: 100%; color: #355b49; }
+.account-controls[hidden] { display: none; }
+.account-controls #account-name { max-width: 14em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.account-controls button { min-height: 36px; flex-shrink: 0; border: 1px solid #bdcbb5; border-radius: 6px; background: #fffdf5; padding: 7px 10px; font-size: 12px; }
+#account-status:empty { display: none; }
+#account-status { flex-basis: 100%; font-size: 11px; max-width: 25rem; }
+@media (max-width: 600px) { .account-controls { gap: 6px; } .account-controls #account-name { max-width: 8em; font-size: 11px; } .account-controls button { min-height: 44px; } }
 .local-badge { margin-left: auto; font-size: 10px; color: #758073; border: 1px solid #dde1d3; padding: 8px 12px; border-radius: 30px; display: flex; align-items: center; gap: 7px; }
 i { display: inline-block; width: 6px; height: 6px; background: #88a678; border-radius: 50%; }
 .workspace { display: grid; grid-template-columns: 260px minmax(0, 1fr); max-width: 1600px; margin: auto; min-height: calc(100vh - 145px); }

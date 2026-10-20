@@ -5,7 +5,7 @@ import QRCode from 'qrcode';
 import './identity-login.css';
 
 /** Tokens, passwords and TOTP secrets stay in memory; only an HttpOnly session survives. */
-export function setupIdentityLogin(anchor: HTMLElement): () => void {
+export function setupIdentityLogin(anchor: HTMLElement, options: { inline?: boolean } = {}): () => void {
   const dialog = document.createElement('dialog'); dialog.className = 'identity-login'; dialog.setAttribute('aria-labelledby', 'identity-login-title');
   dialog.innerHTML = `<h2 id="identity-login-title">Waiwaiにログイン</h2><p>招待されたメールアドレスでログインしてください。</p>
     <form><label>メールアドレス<input name="email" type="email" autocomplete="username" required maxlength="254"></label>
@@ -14,7 +14,8 @@ export function setupIdentityLogin(anchor: HTMLElement): () => void {
     <label data-code-label hidden>認証アプリの6桁コード<input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6"></label>
     <p data-status role="status" aria-live="polite"></p><button type="submit" data-submit>ログイン</button></form>
     <div class="identity-login-actions"><button type="button" data-reset>パスワードを忘れた</button><button type="button" data-verify hidden>確認メールを送る</button><button type="button" data-retry hidden>確認したのでログインし直す</button><button type="button" data-close>閉じる</button></div>`;
-  document.body.append(dialog);
+  (options.inline ? anchor.parentElement! : document.body).append(dialog);
+  if (options.inline) { anchor.hidden = true; dialog.querySelector<HTMLButtonElement>('[data-close]')!.hidden = true; }
   const form = dialog.querySelector('form')!, email = form.elements.namedItem('email') as HTMLInputElement, password = form.elements.namedItem('password') as HTMLInputElement, code = form.elements.namedItem('code') as HTMLInputElement;
   const status = dialog.querySelector<HTMLElement>('[data-status]')!, submit = dialog.querySelector<HTMLButtonElement>('[data-submit]')!;
   const enrollment = dialog.querySelector<HTMLElement>('[data-enrollment]')!, codeLabel = dialog.querySelector<HTMLElement>('[data-code-label]')!, passwordLabel = dialog.querySelector<HTMLElement>('[data-password-label]')!;
@@ -107,7 +108,7 @@ export function setupIdentityLogin(anchor: HTMLElement): () => void {
   retry.addEventListener('click', () => { void clear().then(() => { status.textContent = 'もう一度ログインしてください。'; }); });
   dialog.querySelector('[data-close]')!.addEventListener('click', () => dialog.close());
   dialog.addEventListener('close', () => { void clear(); });
-  const open = () => { status.textContent = ''; dialog.showModal(); };
+  const open = () => { status.textContent = ''; if (!dialog.open) { if (options.inline) dialog.show(); else dialog.showModal(); } };
   anchor.addEventListener('click', open);
   const params = new URL(location.href).searchParams, mode = params.get('mode'), codeFromUrl = params.get('oobCode');
   if (codeFromUrl && ['verifyEmail', 'resetPassword'].includes(mode ?? '')) {
@@ -119,5 +120,6 @@ export function setupIdentityLogin(anchor: HTMLElement): () => void {
       else { email.value = await verifyPasswordResetCode(a, codeFromUrl); email.readOnly = true; action = 'resetPassword'; oobCode = codeFromUrl; password.autocomplete = 'new-password'; reset.hidden = true; submit.textContent = 'パスワードを設定'; status.textContent = '新しいパスワードを12文字以上で入力してください。'; }
     }).catch(() => { status.textContent = 'リンクが無効か期限切れです。管理者に再発行を依頼してください。'; submit.hidden = true; }).finally(() => { busy = false; submit.disabled = false; });
   }
+  if (options.inline) open();
   return () => { anchor.removeEventListener('click', open); dialog.remove(); void clear(); };
 }
