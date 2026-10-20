@@ -11,6 +11,8 @@ module内部は`compute_instance.tf`・`compute_disk.tf`のようにリソース
 
 Terraformは1.10以上2.0未満、検証版は1.15.8。Google Providerはrootで`~> 8.7.0`、子moduleで`>= 8.7.0, < 9.0`とし、公式RegistryでMac arm64とLinux amd64を検証したlockfileを各rootへコミットします。Azureのlockfileは流用しません。認証はADCを使い、サービスアカウント鍵JSON・アクセストークン・アプリSecretをtfvars/backend/metadataへ記載しません。
 
+devのProviderでは`billing_project = var.project_id`と`user_project_override = true`を指定します。Identity Platform等のAPIが必要とするquota projectを、操作者のOAuthクライアント由来のprojectではなく配備先に固定するためです。CLI/ADC本人の照合だけではこのヘッダーを保証できません。bootstrapで`cloudresourcemanager.googleapis.com`と`serviceusage.googleapis.com`を先に有効化します。明示したquota projectでdevのAPI管理リソースをrefreshするための前提で、dev自身へ置くと初回refreshで循環します。実行者には配備先projectの`serviceusage.services.use`も必要です。[Providerのquota設定](https://registry.terraform.io/providers/hashicorp/google/latest/docs/guides/provider_reference#quota-management-configuration)を参照してください。
+
 実入力は`.local/gcp/dev/*.tfvars`（JSON形式なら`*.tfvars.json`）、手元のbackend設定は`infra-gcp/environments/dev/backend.hcl`。いずれも既存`.gitignore`で除外し、共有するのは`.example`だけです。bootstrapのstateも秘密情報相当として会社の安全な場所に保管します。
 
 ```bash

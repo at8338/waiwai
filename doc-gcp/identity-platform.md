@@ -1,12 +1,12 @@
 # Identity Platformのログイン・招待・MFA
 
-GCP公開時はIdentity Platformのメールアドレス・パスワードとTOTP（認証アプリの6桁コード）を使用します。利用者のGoogle/Microsoftアカウントは不要です。Slack/Entraの既存コードは他環境向けに残しますが、Identity Platformを選択したサーバーでは迂回入室できません。実装・ローカル検証までが今回の範囲で、API有効化・Terraform apply・実ユーザー作成・招待メール送信は行いません。
+GCP公開時はIdentity Platformのメールアドレス・パスワードとTOTP（認証アプリの6桁コード）を使用します。利用者のGoogle/Microsoftアカウントは不要です。Slack/Entraの既存コードは他環境向けに残しますが、Identity Platformを選択したサーバーでは迂回入室できません。2026-10-20にAPI有効化とTerraform applyを完了し、許可ドメイン・招待制・TOTP設定と読取専用IAMを実環境で照合しました。実ユーザー作成・招待メール送信とアプリ配備は未実施です。
 
 ## 基盤と権限
 
 dev rootの`identity_platform_config.tf`でメール・パスワード認証を有効化し、自己登録・自己削除・匿名・電話認証を無効にします。許可ドメインはWaiwaiの公開ドメインだけです。MFAのTOTPプロバイダーを有効にし、隣接時間窓は1に設定します。初回のMFA登録を可能にするためGCP設定のstateは`ENABLED`とし、**Waiwaiの入室判定は常にTOTP必須**にします。MFA未登録の一次認証ではオフィスのセッションを発行しません。
 
-`identitytoolkit.googleapis.com`・`securetoken.googleapis.com`・`iam.googleapis.com`を追加します。VMには専用サービスアカウントを付け、カスタムロールで`firebaseauth.users.get`だけを許可します。ユーザー作成・招待許可・MFA解除・メール送信の権限はアプリに与えません。JSON鍵を作らず、VMのADCを使います。VM以外からのローカル検証はモックで行い、公開用の設定でAuthentication Emulatorを使うことは禁止します。
+`identitytoolkit.googleapis.com`・`securetoken.googleapis.com`・`iam.googleapis.com`を有効化済みです。VMには専用サービスアカウントを付け、カスタムロールで`firebaseauth.users.get`だけを許可します。ユーザー作成・招待許可・MFA解除・メール送信の権限はアプリに与えません。JSON鍵を作らず、VMのADCを使います。VM以外からのローカル検証はモックで行い、公開用の設定でAuthentication Emulatorを使うことは禁止します。
 
 Identity Platformのconfigは**プロジェクトに1つ**の設定です。既に利用中なら無断で新規作成・上書きせず、現状を照会してimportと差分・他アプリへの影響を確認します。共有プロジェクトの自己登録等を変更できない場合は、専用プロジェクトまたは認証tenantの分離を設計し直してからapplyします。`prevent_destroy`を有効にしています。
 
@@ -67,6 +67,6 @@ node scripts/gcp/invite.ts \
 
 ## 公開前の実機確認
 
-Terraform・アプリのモック検証では、GCPの実メール配送、認証アプリでのTOTP、IAM許可、制限付き回線からGoogle認証APIへの通信は保証できません。applyと配備の許可後に、実ユーザーで登録→メール確認→MFA→入室→取消/切断→復旧、スマホ操作とデータ引継ぎを受け入れ試験します。招待先全員のGoogleアカウントやMicrosoftテナントを用意する工程はありません。
+Terraform・アプリのモック検証では、GCPの実メール配送、認証アプリでのTOTP、IAM許可、制限付き回線からGoogle認証APIへの通信は保証できません。基盤applyは完了しています。アプリ配備後に、実ユーザーで登録→メール確認→MFA→入室→取消/切断→復旧、スマホ操作とデータ引継ぎを受け入れ試験します。招待先全員のGoogleアカウントやMicrosoftテナントを用意する工程はありません。
 
 公式資料：[認証方式](https://docs.cloud.google.com/identity-platform/docs/concepts-authentication)、[TOTP MFA](https://docs.cloud.google.com/identity-platform/docs/admin/enabling-totp-mfa)、[ID token検証](https://firebase.google.com/docs/auth/admin/verify-id-tokens)、[メール操作リンク](https://firebase.google.com/docs/auth/admin/email-action-links)。
