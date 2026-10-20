@@ -1,6 +1,6 @@
 # MacセットアップとGCP dev構築手順
 
-この手順には将来の構築用コマンドも含みます。現在は設計・IaC実装・検証・ローカル認証と事前plan確認までで、Cloud Domains APIの有効化のみ実施し、ドメイン購入・IAM変更・課金リソース作成・Terraform applyは未実施です。
+この手順には将来の構築用コマンドも含みます。ドメイン取得・登録者メール確認とDNS bootstrapのapplyは完了しています。VM・state用GCS・アプリ公開用Aレコードは未作成です。以後のapplyはユーザーの指示で保留しており、この手順の記載だけでは実行しません。
 
 ## Macのツール
 
@@ -61,6 +61,8 @@ cp infra-gcp/environments/dev/terraform.tfvars.example .local/gcp/dev/terraform.
 ```
 
 コピー先を実際の値に編集します。`project_id`・`project_name`・`region`・`instance_number`は両rootで一致させます。CIDRやドメインのexample値はそのまま構築に使えません。運用者は`user:...`／`group:...`、state運用者は承認済みの`user:`／`group:`／`serviceAccount:`で指定します。アプリのClient Secret・TURN共有鍵は入力しません。
+
+2026-10-20の指示により、実入力の`admin_cidrs`と`web_allowed_cidrs`はCodeKBの`infra/environments/dev/terraform.tfvars`にある`allowed_cidrs`と同じ集合に揃えました。参照時点では自宅回線の動的IPv4が1件で、会社全体のVPN範囲ではありません。実値と参照元・取得時点はGit対象外の`.local/gcp/dev/access-cidr-source.json`へ記録します。CodeKBの設定を将来変更してもWaiwaiへ自動同期する仕組みではありません。参照元のコードやAWS環境は変更しません。
 
 ## ドメイン取得とDNSの初期設定
 
