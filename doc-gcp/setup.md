@@ -62,7 +62,7 @@ cp infra-gcp/environments/dev/terraform.tfvars.example .local/gcp/dev/terraform.
 
 コピー先を実際の値に編集します。`project_id`・`project_name`・`region`・`instance_number`は両rootで一致させます。CIDRやドメインのexample値はそのまま構築に使えません。運用者は`user:...`／`group:...`、state運用者は承認済みの`user:`／`group:`／`serviceAccount:`で指定します。アプリのClient Secret・TURN共有鍵は入力しません。
 
-2026-10-20の指示により、実入力の`admin_cidrs`と`web_allowed_cidrs`はCodeKBの`infra/environments/dev/terraform.tfvars`にある`allowed_cidrs`と同じ集合に揃えました。参照時点では自宅回線の動的IPv4が1件で、会社全体のVPN範囲ではありません。実値と参照元・取得時点はGit対象外の`.local/gcp/dev/access-cidr-source.json`へ記録します。CodeKBの設定を将来変更してもWaiwaiへ自動同期する仕組みではありません。参照元のコードやAWS環境は変更しません。
+2026-10-20の追加指定により、実入力の`web_allowed_cidrs`はdigdaの`infra/environments/dev/terraform.tfvars`にある`allowed_source_cidrs`の21件に揃えました。会社の出口IP等を含むIPv4 `/20`〜`/32`で、自宅回線の1件もこの集合に含まれます。digda側で変数を上書きする他のtfvarsがないことも照合します。この一覧はWeb APIの許可元で、SSHの許可を広げる指示ではないため、`admin_cidrs`はCodeKBで参照した自宅の1件に限定しています。実値と用途別の参照元・取得時点はGit対象外の`.local/gcp/dev/access-cidr-source.json`へ記録します。参照元の変更をWaiwaiへ自動同期する仕組みではありません。参照元のコードやAWS環境は変更しません。
 
 ## ドメイン取得とDNSの初期設定
 

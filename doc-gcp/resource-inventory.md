@@ -85,7 +85,7 @@ Cloud Domainsのドメイン登録リソース1件をCLIで作成する計画で
 |---|---|
 | ドメイン取得 | Cloud Domainsで.comを取得する方針。実照会で取得可能・年12 USDを確認し、会社の登録者情報入力待ち。購入はCLIで別管理 |
 | DNSゾーン・Aレコード | Cloud DNSのzoneをbootstrap-dns、Aレコードをdevへ定義済み。zoneとdomainの一致を検証する。実作成は未実施 |
-| 正式な会社/VPN許可IP | 手元の公開IPを暫定planに使用中。正式CIDRを受領後、実行用planを再作成 |
+| 許可IP | ユーザー指定のdigda dev Web許可CIDR 21件を実入力へ反映。SSHはCodeKBで参照した管理端末の1件。参照元・時点はGit対象外で記録し、apply前に実行用planを再作成 |
 | 利用者のSSO・MFA・招待 | アプリのMicrosoft/Slackログイン機能は実装済み。Entra側のアプリ登録・外部参加者の招待・MFA適用・新ドメインのcallback設定は別途確認・設定 |
 | アプリ・音声設定の配備 | GCPのVMへの本体配備、認証Secret・TURN共有鍵の投入、既存データの停止移行が必要。Azureの配備スクリプトをそのまま使わない |
 | アプリ監視・ログ集約 | プロセス停止、疎通、メモリ、filesystem容量、バックアップ失敗等の検知と通知は未実装。Ops Agent等の収集方法・認証権限も未定義 |

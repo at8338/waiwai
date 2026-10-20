@@ -64,6 +64,8 @@ systemdの上限はアプリ1536MiB、TURN768MiB、ファイル数65536です。
 | UDP 3478 / 49160–49959 | TURNリスナー・メディアリレー |
 | 127.0.0.1:5173 | VM内のCaddy→アプリだけ。Firewallへ公開しない |
 
+Webの許可元はdigdaのdev `allowed_source_cidrs`を参照する21件で、入力はIPv4 `/20`〜`/32`を受け付けます。SSHの運用者用CIDRとは独立して管理し、Web用プロキシの範囲をSSHへ自動転用しません。実値・参照時点はローカルの入力記録へ保存します。
+
 Firewallは専用network tagのVMだけに適用します。VPC内の相互許可ルールは追加せず、未許可の受信はGCPの暗黙denyに任せます。送信は更新・ACME・認証・外部音声peerのため既定allowを使用します。Webの制限は直接の接続元IPを見ており、利用者からの`X-Forwarded-For`は信用しません。前段にプロキシを入れる場合は再設計が必要です。
 
 SSHは`enable-oslogin=TRUE`・`enable-oslogin-2fa=TRUE`、プロジェクトSSH鍵の遮断、パスワード/rootログイン禁止です。OS Loginの2FAが使える人間のユーザー・グループだけに、当該VMの`roles/compute.osAdminLogin`を付与します。既存プロジェクト全体のOwner/Editorを追加しません。CLIで接続する運用者には別途`compute.projects.get`の権限、組織外ユーザーには組織側のOS Login許可が必要な場合があります。[OS Loginの公式条件](https://docs.cloud.google.com/compute/docs/oslogin/set-up-oslogin)を確認してください。
