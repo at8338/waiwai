@@ -13,6 +13,19 @@ test('favorite URLs accept HTTPS tools and reject unsafe schemes, credentials an
   for (const title of ['', ' '.repeat(5), 'x'.repeat(61), 'foo\u0000bar']) assert.equal(parseFavorite({ title, url: 'https://example.com' }), undefined);
 });
 
+test('favorite edits require a stable ID and valid HTTPS details; deletion accepts only valid IDs', () => {
+  const update = { type: 'favorite-update', favoriteId: randomUUID(), title: '新しい名前', url: 'https://example.com/new', editId: randomUUID() };
+  assert.deepEqual(parseClientMessage(JSON.stringify(update)), update);
+  for (const change of [{ favoriteId: 'bad' }, { title: '' }, { url: 'javascript:alert(1)' }, { editId: 'bad' }]) {
+    assert.equal(parseClientMessage(JSON.stringify({ ...update, ...change })), undefined);
+  }
+  const remove = { type: 'favorite-delete', favoriteId: update.favoriteId, editId: randomUUID() };
+  assert.deepEqual(parseClientMessage(JSON.stringify(remove)), remove);
+  for (const change of [{ favoriteId: 'bad' }, { favoriteId: null }, { editId: 'bad' }]) {
+    assert.equal(parseClientMessage(JSON.stringify({ ...remove, ...change })), undefined);
+  }
+});
+
 test('every furniture footprint opens a stable target; a rotated desk retains its links after moving', () => {
   const desk: RoomObject = { id: randomUUID(), roomId: 'cafe', kind: 'desk', rotation: 1, x: 18, y: 12, owner: 'guest:test' };
   const target = targetAt('cafe', [desk], { x: 19, y: 14 })!;

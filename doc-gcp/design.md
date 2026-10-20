@@ -2,7 +2,7 @@
 
 ## 対象
 
-最大150同時接続、平日15時間程度の利用、音声30人が5人以内の小グループで会話する想定です。人数はチーム別サーバーの合計で評価します。30人の一斉音声会議・無停止・マルチゾーン冗長化は対象外です。ドメイン取得とDNS bootstrapのみ実施済みで、VM等のapplyと実GCP上の性能確認は未実施です。以後のapplyはユーザーの指示で保留しています。
+最大150同時接続、平日15時間程度の利用、音声30人が5人以内の小グループで会話する想定です。人数はチーム別サーバーの合計で評価します。30人の一斉音声会議・無停止・マルチゾーン冗長化は対象外です。2026-10-20にドメイン取得と全3 rootの基盤applyを完了しました。VM初期化・DNS・HTTPS・Identity Platform設定は確認済みで、アプリとTURNは配備済みです。実ユーザーの入室・音声・性能確認は未実施です。
 
 既存の課金が有効なGCPプロジェクトを入力で指定します。プロジェクトや課金アカウントはTerraformで作成・付け替えしません。既存VPCやデフォルトのComputeサービスアカウントも変更しません。
 
@@ -24,7 +24,7 @@ flowchart LR
   end
   Browser --> DNS[Cloud DNSのAレコード]
   DNS -.-> IP
-  App --> Login[既存Microsoft / Slackの利用者認証]
+  App --> Login[Identity Platform / 招待制・パスワード・TOTP]
   Terraform[Terraform / ADC] --> State[別rootの非公開GCS stateバケット]
 ```
 
@@ -32,11 +32,12 @@ flowchart LR
 
 ## リソース
 
-以下はTerraformで管理する基盤です。自動生成物・VM内のソフトウェア・外部サービスの設定・公開前の未実装事項まで含む[全体一覧](resource-inventory.md)を別に管理します。Terraformの24エントリーだけで公開・監視・認証設定まで完成するものではありません。
+以下はTerraformで管理する基盤です。自動生成物・VM内のソフトウェア・外部サービスの設定・公開前の未実装事項まで含む[全体一覧](resource-inventory.md)を別に管理します。Terraformの35エントリーだけで公開・監視・認証設定まで完成するものではありません。
 
 | モジュール | リソース・設定 |
 |---|---|
-| dev root | Compute Engine / OS Login APIの有効化。destroyで既存プロジェクトのAPIを無効化しない |
+| dev root | Compute Engine / OS Login / Identity Toolkit / Secure Token / IAM APIの有効化。destroyで既存プロジェクトのAPIを無効化しない |
+| dev root / 認証 | Identity Platformの招待制・TOTP設定、ユーザー読取専用サービスアカウントとカスタムロール |
 | DNS bootstrap | Cloud Domains / Cloud DNS API、DNSSEC付き公開ゾーン。独立したlocal state |
 | dev root / DNS | 初期化済みzoneのdomainを読み取り検証し、固定IPのAレコードを管理 |
 | network | 専用custom VPC、IPv4 `/24` Subnet、固定外部IPv4、SSH/Web/TURNの4種類のFirewall |
@@ -70,11 +71,11 @@ Firewallは専用network tagのVMだけに適用します。VPC内の相互許�
 
 SSHは`enable-oslogin=TRUE`・`enable-oslogin-2fa=TRUE`、プロジェクトSSH鍵の遮断、パスワード/rootログイン禁止です。OS Loginの2FAが使える人間のユーザー・グループだけに、当該VMの`roles/compute.osAdminLogin`を付与します。既存プロジェクト全体のOwner/Editorを追加しません。CLIで接続する運用者には別途`compute.projects.get`の権限、組織外ユーザーには組織側のOS Login許可が必要な場合があります。[OS Loginの公式条件](https://docs.cloud.google.com/compute/docs/oslogin/set-up-oslogin)を確認してください。
 
-Secure Boot・vTPM・integrity monitoringを有効化し、アプリVMへGoogle API用サービスアカウントは付与しません。Waiwaiとcoturnはそれぞれ非rootユーザーで実行します。Google CLIログイン、OS Login、Waiwaiの利用者ログインは別です。GCPに置いてもMicrosoft/Slackの既存ログインを利用でき、GoogleアカウントでのWaiwaiログイン機能を自動追加するものではありません。
+Secure Boot・vTPM・integrity monitoringを有効化し、アプリVMにはIdentity Platformのユーザー状態を確認する専用サービスアカウントを付与し、`firebaseauth.users.get`だけを許可します。秘密鍵を作らずADCを使用します。Waiwaiとcoturnはそれぞれ非rootユーザーで実行します。Google CLIログイン、OS Login、Waiwaiの利用者ログインは別です。GCPに置いてもMicrosoft/Slackの既存ログインを利用でき、GoogleアカウントでのWaiwaiログイン機能を自動追加するものではありません。
 
-本番公開時には認証必須のアプリ設定とMFA、会社外参加者の招待方法を確認します。Entraを利用する場合は、既存の署名検証・不変ID・招待/割当/MFAをそのまま使用します。未認証ゲストやBasic認証だけの公開へ切り替えません。初期化だけではアプリ設定ファイルも本体もなく、Waiwaiサービスは開始しません。
+本番公開時には認証必須のアプリ設定とMFA、会社外参加者の招待方法を確認します。旧環境でEntraを利用する場合は既存の署名検証・不変ID・招待/割当/MFAを維持します。未認証ゲストやBasic認証だけの公開へ切り替えません。初期化だけではアプリ設定ファイルも本体もなく、Waiwaiサービスは開始しません。
 
-GCP公開時の認証方式は再検討中で、Entraの採用は確定していません。現在のアプリ実装が対応するのはMicrosoft/Slackです。GCPへ揃える候補はIdentity Platformのメールアドレス・パスワード認証とTOTP MFAで、利用者全員にGoogleアカウントを要求する必要はありません。ただしIdentity Platformの基盤定義・アプリ接続・招待対象だけに限定する処理・MFA必須化は未実装です。既存ユーザーの不変IDと個人データの紐付けも設計してから切り替えます。方式の選択と実装が済むまで認証を弱めて公開しません。[認証方式](https://docs.cloud.google.com/identity-platform/docs/concepts-authentication)・[TOTP MFA](https://docs.cloud.google.com/identity-platform/docs/admin/enabling-totp-mfa)を参照してください。
+GCP公開時はIdentity Platformの招待制メール・パスワードとTOTP MFAを採用します。クライアントの自己登録は禁止し、招待・メール確認・TOTP認証と現在のユーザー状態をサーバーで検証してから入室セッションを発行します。利用者全員のGoogle/Microsoftアカウントは不要です。既存Slack/Entraとの紐付けは管理者が固定IDで明示し、メール一致による自動統合は行いません。設定・招待・失効・実機確認は[Identity Platform設計](identity-platform.md)を参照してください。
 
 Slack EventsのIP制限例外は既定OFFで、明示的なON時もPOST `/api/slack/events`だけです。署名・時刻・workspace・channel検証はアプリ側に残します。TURNの共有鍵とログイン用SecretはTerraform・metadata・stateへ渡さず、後続の配備で権限を制限したファイルに保存します。TURN TLSの証明書はCaddyから同期します。443しか許可されない会社回線にTURNを通す構成は別途必要です。
 
@@ -90,4 +91,4 @@ stateは別rootのGCSへ保存し、Azure Blobと共有しません。GCS backen
 
 単一VM停止中はオフィスも止まります。Google上でのSKU/クォータ/組織Policy確認、強制TURNの実音声、負荷試験、バックアップ復元は公開前の受入です。監視・ログ収集・通知・予算ルールは現IaCに未実装です。運用メールを指定しても、`acme_email`が設定するのは証明書の連絡先であり、監視メール通知は作成されません。方式・閾値・予算額を決めて別途整備します。
 
-ドメイン購入は登録者情報をstateへ残さないCLI管理とし、Terraformの24件とは別に登録リソース1件を扱います。[取得とDNSの手順](domain-registration.md)を参照してください。ドメイン取得・登録者メール確認・DNSゾーン作成は完了し、VM作成は未実施です。
+ドメイン購入は登録者情報をstateへ残さないCLI管理とし、Terraformの35件とは別に登録リソース1件を扱います。[取得とDNSの手順](domain-registration.md)を参照してください。ドメイン取得・登録者メール確認・DNSゾーン・VM作成は完了しています。アプリ本体の配備と管理者1名の招待は完了し、本人による認証設定と実ユーザーの受入は残っています。

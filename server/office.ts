@@ -548,7 +548,7 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
       }
       if (message.type === 'voice-state') { voice.state(ws, message); return; }
       if (message.type === 'voice-signal') { voice.signal(ws, message); return; }
-      if (message.type === 'favorite-add' || message.type === 'object-links-set') {
+      if (message.type === 'favorite-add' || message.type === 'favorite-update' || message.type === 'favorite-delete' || message.type === 'object-links-set') {
         if (now - lastLinkEdit < 350) { send(ws, { type: 'link-result', editId: message.editId, error: '少し待ってから、もう一度保存してください。' }); return; }
         lastLinkEdit = now;
         const roomId = player.roomId;
@@ -564,6 +564,18 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
             if (state.favorites.length >= MAX_FAVORITES) throw new EditError(`共有のお気に入りは${MAX_FAVORITES}件まで登録できます。`);
             const id = randomUUID(); state.favorites.push({ id, title: message.title, url: message.url }); return id;
           }
+          if (message.type === 'favorite-update' || message.type === 'favorite-delete') {
+            const favorite = state.favorites.find((f) => f.id === message.favoriteId);
+            if (!favorite) throw new EditError('そのお気に入りは削除されています。一覧を確認してください。');
+            if (message.type === 'favorite-update') {
+              if (state.favorites.some((f) => f.id !== favorite.id && f.url === message.url)) throw new EditError('同じURLのお気に入りがすでにあります。そちらを選択してください。');
+              favorite.title = message.title; favorite.url = message.url;
+            } else {
+              state.favorites = state.favorites.filter((f) => f.id !== favorite.id);
+              state.bindings = state.bindings.map((b) => ({ ...b, linkIds: b.linkIds.filter((id) => id !== favorite.id) })).filter((b) => b.linkIds.length > 0);
+            }
+            return;
+          }
           const target = objectTargets(roomId, store.list()).find((o) => o.id === message.objectId);
           if (!target) throw new EditError('そのオブジェクトは見つかりません。');
           if (target.owner && target.owner !== owner) throw new EditError('配置した本人だけが、この家具のリンクを変更できます。');
@@ -571,7 +583,7 @@ export function attachOffice(server: Server, auth?: OfficeAuthService, options: 
           state.bindings = state.bindings.filter((b) => b.roomId !== roomId || b.objectId !== message.objectId);
           if (message.linkIds.length) state.bindings.push({ roomId, objectId: message.objectId, linkIds: [...message.linkIds] });
         }).then((favoriteId) => {
-          for (const [client, person] of players) if (message.type === 'favorite-add' || person.roomId === roomId) sendLinks(client, person.roomId);
+          for (const [client, person] of players) if (message.type !== 'object-links-set' || person.roomId === roomId) sendLinks(client, person.roomId);
           send(ws, { type: 'link-result', editId: message.editId, ...(favoriteId ? { favoriteId } : {}) });
         }).catch((error: unknown) => send(ws, { type: 'link-result', editId: message.editId,
           error: error instanceof EditError ? error.message : 'リンクを保存できませんでした。時間をおいて試してください。' }));

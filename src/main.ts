@@ -21,6 +21,8 @@ import { startOffice } from './game/OfficeScene.ts';
 import { parseSlackIdentity, readSlackSettings, SLACK_STORAGE_KEY } from './slack/dm.ts';
 import type { SlackIdentity } from './slack/dm.ts';
 import type { AuthStatus } from './slack/auth.ts';
+import { entryRoute } from './slack/entry-route.ts';
+import { showEntryScreen } from './slack/entry-screen.ts';
 
 let auth: AuthStatus = { configured: false, loginUrl: null, user: null };
 let authUnavailable = false;
@@ -30,6 +32,9 @@ try {
   auth = await response.json() as AuthStatus;
 } catch { authUnavailable = true; }
 
+if (entryRoute(auth, authUnavailable, new URL(location.href)) !== 'office') {
+  await showEntryScreen(auth, authUnavailable);
+} else {
 try { await configurePersonalStorage(auth.user ? userIdentity(auth.user) : undefined, authUnavailable); }
 catch {
   document.querySelector('#app')!.innerHTML = '<p role="alert">ユーザーデータを読み込めませんでした。接続とログインを確認してください。</p><button id="personal-load-retry">再読み込み</button>';
@@ -49,6 +54,7 @@ app.innerHTML = `
     <a class="brand" href="./" aria-label="Waiwai ホーム"><span class="brand-mark" aria-hidden="true">w</span>waiwai<span class="brand-dot">.</span></a>
     <span class="tagline">ふらっと歩いて、誰かのとなりへ。</span>
     <span class="local-badge"><i></i> <span id="connection-label">接続しています</span></span>
+    <div id="account-controls" class="account-controls" hidden><span id="account-name"></span><button type="button" id="account-logout">ログアウト</button><span id="account-status" role="status"></span></div>
   </header>
   <main class="workspace">
     <aside class="sidebar" aria-label="オフィス情報とアバター設定">
@@ -150,12 +156,16 @@ app.innerHTML = `
     <span class="eyebrow">OPEN TOGETHER</span><h2 id="object-links-title">オブジェクトのリンク</h2>
     <div class="object-links-body dialog-scroll">
       <p id="object-links-help" class="links-help">使いたいリンクを選んで、作業をはじめよう。</p>
-      <details id="object-links-settings"><summary>リンクを設定 · お気に入りから選択</summary>
+      <details id="object-links-settings"><summary>リンクを設定 · お気に入りを管理</summary>
         <p id="object-links-permission" class="links-help"></p>
+        <div class="favorite-filters"><label>リンクを探す<input id="favorite-query" type="search" placeholder="資料名・ツール名・URLで検索" maxlength="200" /></label><label>ツール<select id="favorite-service"><option value="">すべてのツール</option></select></label></div>
+        <label class="favorite-selected-filter"><input id="favorite-selected-only" type="checkbox" />選択中のみ表示</label>
+        <details id="favorite-selected-details" hidden><summary id="favorite-selection-caption">選択中のリンク</summary><div id="favorite-selection-preview" aria-label="選択中のリンク"></div></details>
+        <p id="favorite-result-count" class="links-help" role="status"></p>
         <div id="link-favorites" role="group" aria-label="共有のお気に入り"></div>
         <div class="link-save-row"><span id="object-links-selection"></span><button type="button" id="object-links-save">この選択を保存</button></div>
         <details id="favorite-add-section"><summary id="favorite-add-title">共有のお気に入りを追加</summary>
-          <form id="favorite-form"><label>リンクの名前<input name="title" maxlength="60" placeholder="チームのMiroボード" required /></label><label>URL<input name="url" type="url" maxlength="2048" placeholder="https://…" required /></label><p class="links-help">オフィス全体で共有されます。HTTPSのURLを登録できます。</p><button type="submit">お気に入りに追加</button></form>
+          <form id="favorite-form"><label>リンクの名前<input name="title" maxlength="60" placeholder="例：上位プランの構成図" required /></label><label>URL<input name="url" type="url" maxlength="2048" placeholder="https://…" required /></label><p id="favorite-service-preview" class="links-help" role="status"></p><p id="favorite-form-help" class="links-help">ツール名はURLから表示するので、名前には資料の内容だけでOKです。</p><div class="favorite-form-actions"><button type="submit">お気に入りに追加</button><button type="button" id="favorite-edit-cancel" hidden>編集をやめる</button></div></form>
         </details>
       </details>
       <ul id="object-link-list" aria-label="登録済みのリンク"></ul>
@@ -184,6 +194,9 @@ app.innerHTML = `
 
 document.querySelector('[data-reaction="anger"]')!.before(document.querySelector('#toggle-rest')!);
 setupPersonalDataUI(auth.user?.name ?? 'ゲスト');
+const accountControls = document.querySelector<HTMLElement>('#account-controls')!;
+accountControls.hidden = !auth.user;
+document.querySelector('#account-name')!.textContent = auth.user ? `${auth.user.name}さん` : '';
 if (auth.user) document.querySelector('#buddy-dialog .field-hint')!.textContent = '選択とお気に入りは、ログインしたアカウントに保存します。';
 const parent = document.querySelector<HTMLElement>('#game')!;
 const disposeDialogDismissals = setupDialogDismissals(document.body);
@@ -199,11 +212,17 @@ const logout = document.querySelector<HTMLButtonElement>('#slack-logout')!;
 const retry = document.querySelector<HTMLButtonElement>('#slack-auth-retry')!;
 loginStatus.textContent = authUnavailable ? 'ログイン状態を確認できませんでした。再確認してください。'
   : auth.user ? `${auth.user.name}さんでログイン中`
-  : auth.required ? '会社のアカウントでログインして入室してください。'
+  : auth.required ? '招待されたアカウントでログインして入室してください。'
   : auth.configured ? 'ゲストとして入室しています。' : 'Slackログインは準備中です。管理者の連携設定後に利用できます。';
 if (!authUnavailable && auth.loginUrl) { loginLink.href = auth.loginUrl; loginLink.hidden = !!auth.user; }
 if (auth.microsoftLoginUrl && !auth.user) {
   const microsoft = document.createElement('a'); microsoft.id = 'microsoft-login-link'; microsoft.className = 'slack-login-button'; microsoft.href = auth.microsoftLoginUrl; microsoft.textContent = 'Microsoftでログイン'; loginLink.after(microsoft);
+}
+let disposeIdentityLogin: (() => void) | undefined;
+if (auth.identityPlatform && !authUnavailable && (!auth.user || new URL(location.href).searchParams.has('oobCode'))) {
+  const button = document.createElement('button'); button.type = 'button'; button.id = 'identity-login-open'; button.className = 'slack-login-button'; button.textContent = 'メールアドレスでログイン'; button.hidden = !!auth.user; loginLink.after(button);
+  document.querySelector('#slack-login-help')!.textContent = '招待されたメールアドレス・パスワードと、認証アプリのコードで入室できます。';
+  const { setupIdentityLogin } = await import('./slack/identity-login.ts'); disposeIdentityLogin = setupIdentityLogin(button);
 }
 logout.hidden = !auth.user;
 retry.hidden = !authUnavailable;
@@ -218,19 +237,24 @@ if (auth.user) {
 }
 const callbackStatus = new URL(window.location.href).searchParams.get('login');
 if (callbackStatus === 'failed' || callbackStatus === 'expired') {
-  loginStatus.textContent = callbackStatus === 'expired' ? 'ログインの有効時間が切れました。もう一度お試しください。' : 'Slackログインを完了できませんでした。キャンセルした場合も、もう一度試せます。';
+  loginStatus.textContent = callbackStatus === 'expired' ? 'ログインの有効時間が切れました。もう一度お試しください。' : 'ログインを完了できませんでした。もう一度お試しください。';
   const cleanUrl = new URL(window.location.href); cleanUrl.searchParams.delete('login');
   window.history.replaceState(null, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
 }
-logout.addEventListener('click', async () => {
-  if (!await finishPersonalWrites()) { loginStatus.textContent = '未保存の設定があります。プロフィール欄で保存を再試行してからログアウトしてください。'; return; }
-  logout.disabled = true;
+const headerLogout = document.querySelector<HTMLButtonElement>('#account-logout')!;
+const accountStatus = document.querySelector<HTMLElement>('#account-status')!;
+const logoutAccount = async () => {
+  if (logout.disabled || headerLogout.disabled) return;
+  logout.disabled = headerLogout.disabled = true; accountStatus.textContent = '保存してログアウトしています…';
   try {
+    if (!await finishPersonalWrites()) throw new Error('Unsaved personal settings');
     const response = await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin', signal: AbortSignal.timeout(5000) });
     if (!response.ok) throw new Error('Logout failed');
-    window.location.reload();
-  } catch { loginStatus.textContent = 'ログアウトできませんでした。もう一度お試しください。'; logout.disabled = false; }
-});
+    window.location.assign('/');
+  } catch { loginStatus.textContent = accountStatus.textContent = 'ログアウトできませんでした。設定の保存と接続を確認して、もう一度お試しください。'; logout.disabled = headerLogout.disabled = false; }
+};
+logout.addEventListener('click', () => { void logoutAccount(); });
+headerLogout.addEventListener('click', () => { void logoutAccount(); });
 const slackTeam = document.querySelector<HTMLInputElement>('#slack-team-id')!;
 const slackUser = document.querySelector<HTMLInputElement>('#slack-user-id')!;
 const slackStatus = document.querySelector<HTMLElement>('#slack-settings-status')!;
@@ -240,7 +264,7 @@ if (auth.user || authUnavailable) {
   slackTeam.readOnly = true; slackUser.readOnly = true;
   document.querySelector<HTMLElement>('.slack-settings-buttons')!.hidden = true;
   document.querySelector('#slack-settings-help')!.textContent = auth.user ? auth.user.slack ? 'Slackログインから自動設定され、接続中の参加者に共有されます。' : 'Slack設定は不要です。館内のチャットから連絡できます。' : 'ログイン状態の再確認後に設定できます。';
-  slackStatus.textContent = auth.user ? auth.user.slack ? 'Slackログイン済みです。手動設定は不要です。' : 'Microsoftでログインしています。SlackなしでもWaiwai内DMを使えます。' : 'ログイン状態を確認できていません。';
+  slackStatus.textContent = auth.user ? auth.user.slack ? 'Slackログイン済みです。手動設定は不要です。' : 'アカウントでログインしています。SlackなしでもWaiwai内DMを使えます。' : 'ログイン状態を確認できていません。';
 }
 const saveSlack = (identity: SlackIdentity | null) => {
   if (auth.user || authUnavailable) return;
@@ -281,4 +305,5 @@ dialog.addEventListener('close', () => game.canvas.focus({ preventScroll: true }
 
 document.querySelectorAll<HTMLDialogElement>('#avatar-dialog, #room-dialog, #object-links-dialog, #lost-item-info, #broadcast-dialog, #schedule-dialog, #event-detail-dialog, #event-journal-dialog, #office-calendar-dialog, #cockpit-dialog, #arcade-dialog').forEach((item) => item.addEventListener('close', () => game.canvas.focus({ preventScroll: true })));
 
-if (import.meta.hot) import.meta.hot.dispose(() => { spacesUI.destroy(); disposeDialogDismissals(); disposeAvatarEditor(); game.destroy(true); });
+if (import.meta.hot) import.meta.hot.dispose(() => { disposeIdentityLogin?.(); spacesUI.destroy(); disposeDialogDismissals(); disposeAvatarEditor(); game.destroy(true); });
+}

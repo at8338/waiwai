@@ -24,6 +24,11 @@ dialog.mobile-command-dialog .mobile-command-grid button { min-height: 72px; pad
   .focus-heading [data-room-name] { display: block; font-size: 11px; margin: 1px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .focus-heading button { min-height: 44px; padding: 8px; font-size: 12px; }
   .focus-heading > button:not(#focus-exit) { display: none; }
+  .focus-heading:has(.account-controls:not([hidden])) { flex-wrap: nowrap; }
+  .focus-heading .account-controls { margin-left: auto; }
+  .focus-heading:has(.account-controls:not([hidden])) > strong :is([data-room-name], [data-server-name]) { display: none; }
+  .focus-heading:has(.account-controls:not([hidden])) #focus-exit { font-size: 0; width: 44px; flex-shrink: 0; }
+  .focus-heading:has(.account-controls:not([hidden])) #focus-exit::before { content: '⛶'; font-size: 20px; }
   #office-focus .focus-tools-row { display: none; }
   .focus-broadcast { min-height: 44px; gap: 6px; padding-left: 8px; }
   .focus-broadcast > strong { font-size: 10px; }

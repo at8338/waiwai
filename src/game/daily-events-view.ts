@@ -37,7 +37,7 @@ export class DailyEventsView {
     this.art.setInteractive(new Phaser.Geom.Rectangle(0, 0, 48, 48), Phaser.Geom.Rectangle.Contains).on('pointerup', mapTap(inspect));
     this.damageShape = scene.make.graphics({ x: 0, y: 0 });
     this.damageMask = this.damageShape.createGeometryMask(); this.damageMask.invertAlpha = true;
-    this.label = scene.add.text(240, 280, '✦ 今日の事件 · クリックで調べる', { fontFamily: 'sans-serif', fontSize: '8px', color: '#fff1ce', backgroundColor: '#694f47', padding: { x: 5, y: 3 } }).setOrigin(.5, 1).setResolution(2).setDepth(331).setInteractive({ useHandCursor: true }).on('pointerup', mapTap(inspect));
+    this.label = scene.add.text(240, 280, '✦ 今日の事件 · クリックで調べる', { resolution: 2, fontFamily: 'sans-serif', fontSize: '8px', color: '#fff1ce', backgroundColor: '#694f47', padding: { x: 5, y: 3 } }).setOrigin(.5, 1).setDepth(331).setInteractive({ useHandCursor: true }).on('pointerup', mapTap(inspect));
     this.hide();
   }
   setDecorations(views: Phaser.GameObjects.GameObject[]): void {

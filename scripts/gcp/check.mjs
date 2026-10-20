@@ -12,6 +12,10 @@ const cleanEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) =
 const run = (args, cwd = root) => execFileSync('terraform', args, { cwd, stdio: 'inherit', env: { ...cleanEnv, TF_DATA_DIR: resolve(cwd, '.terraform'), TF_IN_AUTOMATION: '1', TF_WORKSPACE: 'default' } });
 run(['fmt', '-check', '-recursive', 'infra-gcp']);
 execFileSync('bash', ['-n', 'scripts/gcp/setup-mac.sh'], { cwd: root, stdio: 'inherit' });
+execFileSync('bash', ['-n', 'scripts/gcp/activate-release.sh'], { cwd: root, stdio: 'inherit' });
+execFileSync('node', ['--check', 'scripts/gcp/deploy.mjs'], { cwd: root, stdio: 'inherit' });
+execFileSync('node', ['--test', 'scripts/gcp/deployment-config.test.mjs'], { cwd: root, stdio: 'inherit' });
+execFileSync('python3', ['-c', "import ast,pathlib; ast.parse(pathlib.Path('scripts/gcp/startup-deploy.py').read_text())"], { cwd: root, stdio: 'inherit' });
 const temp = await mkdtemp(resolve(tmpdir(), 'waiwai-gcp-check-'));
 try {
   await cp(resolve(root, 'infra-gcp'), resolve(temp, 'infra-gcp'), { recursive: true, filter: path => {

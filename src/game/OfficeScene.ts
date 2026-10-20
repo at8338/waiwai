@@ -159,12 +159,14 @@ export class OfficeScene extends Phaser.Scene {
     const shadow = this.add.graphics();
     shadow.fillStyle(0x6e684b, 0.3).fillRect(-6, -1, 12, 3);
     const sprite = this.add.image(0, 0, avatarTexture(this, this.appearance, 'down', 0)).setOrigin(0.5, 1);
+    // Phaser 3.90's Canvas renderer reads frame.source.resolution. Setting the
+    // resolution after construction leaves that value stale and doubles labels.
     const label = this.add.text(0, 0, '', {
-      fontFamily: 'sans-serif', fontSize: '8px', color: '#fff9e6',
+      resolution: 2, fontFamily: 'sans-serif', fontSize: '8px', color: '#fff9e6',
       backgroundColor: local ? '#355b49' : '#786346', padding: { x: 3, y: 2 },
-    }).setOrigin(0.5, 1).setResolution(2);
-    const reactionLabel = this.add.text(0, 0, '', { fontFamily: 'sans-serif', fontSize: '8px', color: '#506444',
-      backgroundColor: '#fff0bf', padding: { x: 4, y: 2 } }).setOrigin(0.5, 1).setResolution(2).setVisible(false);
+    }).setOrigin(0.5, 1);
+    const reactionLabel = this.add.text(0, 0, '', { resolution: 2, fontFamily: 'sans-serif', fontSize: '8px', color: '#506444',
+      backgroundColor: '#fff0bf', padding: { x: 4, y: 2 } }).setOrigin(0.5, 1).setVisible(false);
     const sparkles = this.add.graphics();
     const vehicle = this.add.image(0, 0, vehicleTexture(this, 'bike', 'down', 0)).setOrigin(0.5, 1).setVisible(false);
     const laptop = this.add.image(0, 0, laptopTexture(this)).setVisible(false);
@@ -172,6 +174,7 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.game.canvas.dataset.renderer = this.game.renderer.type === Phaser.CANVAS ? 'canvas' : 'webgl';
     configureArtCamera(this);
     this.mapViews = drawOffice(this, this.roomId, () => { if (this.editMode === 'none') this.dailyUI?.openCalendar(); }, (game) => { if (this.editMode === 'none') this.arcadeUI?.open(game); }, (item) => this.openBoard(item));
     this.lostItems = new LostItemsView(this, this.inputController.signal, (item) => {
@@ -355,7 +358,7 @@ export class OfficeScene extends Phaser.Scene {
     });
     this.sendProfile();
     if (this.loginRequired) {
-      document.querySelector('#connection-message')!.textContent = 'Slackでログインすると入室できます。';
+      document.querySelector('#connection-message')!.textContent = 'アカウントでログインすると入室できます。';
       document.querySelector('#connection-label')!.textContent = 'ログインを待っています';
     }
     const cleanup = () => {
@@ -567,7 +570,7 @@ export class OfficeScene extends Phaser.Scene {
       name.textContent = player.name + (player.id === this.localId ? '（あなた）' : '');
       if (player.id !== this.localId) name.setAttribute('aria-label', `${player.name}さんのWaiwai内DMを開く`);
       item.children[1].textContent = areaAt(player);
-      item.children[2].textContent = player.dummy ? 'テスト用 · 自動返信 · マイクなし' : player.accountId?.startsWith('entra:') ? 'Microsoftログイン済み' : player.slackVerified ? 'Slackログイン済み' : player.slack ? 'Slack手動設定' : 'ゲスト';
+      item.children[2].textContent = player.dummy ? 'テスト用 · 自動返信 · マイクなし' : player.slackVerified ? 'Slackログイン済み' : player.accountId && !player.accountId.startsWith('guest:') ? 'アカウントログイン済み' : player.slack ? 'Slack手動設定' : 'ゲスト';
       const reaction = this.reactions.get(player.id);
       item.dataset.reaction = reaction?.kind ?? '';
       item.dataset.resting = String(!!player.resting);

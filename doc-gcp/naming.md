@@ -21,12 +21,16 @@ dev-waiwai-tky-vm-office-001
 | Firewall用network tag | dev-waiwai-tky-office-001 |
 | Cloud DNS公開ゾーン | dev-waiwai-tky-dns-office-001 |
 | DNS Aレコード | 入力domainに末尾`.`を付けたFQDN（例：`waiwai-dev.example.com.`） |
+| 認証用サービスアカウント | dev-waiwai-tky-sa-id-001 |
+| 認証読取カスタムロール | dev_waiwai_tky_role_id_001 |
+| Identity Platform config | projects/{project_id}/config（project singleton） |
 | stateバケット | dev-waiwai-tky-gcs-tfstate-001-{hash8} |
+| 非公開の配布バケット | dev-waiwai-tky-gcs-release-001-{hash8} |
 | GCS backend prefix | waiwai/gcp/dev/001 |
 
 `hash8`はGCP project ID、環境・完全なプロジェクト名・region・連番を含むSHA-256の先頭8文字です。バケットのグローバル名競合を減らすもので、一意性は実APIで確認します。VM内のdata device名だけはマウント契約として`waiwai-data`固定です。ドメインはユーザーが所有する公開DNS名を別入力で与えます。
 
-Firewallの用途は`office-ssh`・`office-web`・`office-turn-tcp`・`office-turn-udp`とし、すべて連番で終えます。完全な名前はnamingモジュールの`names.firewall_rules`で定義し、networkモジュールで接尾辞を追加しません。旧`...-office-001-ssh`形式の保存済みplanは作り直します。現在は未applyなので既存Firewallの置換はありません。適用済み環境にこの変更を持ち込む場合は、名前変更による置換を別途確認します。
+Firewallの用途は`office-ssh`・`office-web`・`office-turn-tcp`・`office-turn-udp`とし、すべて連番で終えます。完全な名前はnamingモジュールの`names.firewall_rules`で定義し、networkモジュールで接尾辞を追加しません。旧`...-office-001-ssh`形式の予備planは使わず、初回apply前に再planしています。2026-10-20に上記の名前で構築済みです。今後の名前変更では置換を別途確認します。
 
 network tagは名前付きインフラリソースではなくVMの属性なので`dev-waiwai-tky-office-001`、state prefixはGCS内の保存パスなので`waiwai/gcp/dev/001`を使います。IAM付与・ディスクへのポリシー紐付け・APIのサービス名にも独自の命名文字列を付けません。日々生成されるSnapshotやVPCのシステム生成ルート等はGoogle側の識別子です。これらを含む[リソースと公開作業の全体一覧](resource-inventory.md)で管理範囲を確認します。
 
@@ -35,3 +39,5 @@ network tagは名前付きインフラリソースではなくVMの属性なの�
 クラウドが異なれば名前もstateも別です。Azureのリソース名やURLをGCPにコピーしません。命名要素の変更で置換が必要な場合は、既存資源を削除して整えるのではなく移行としてレビューします。
 
 Cloud DNSゾーンは基本ルールどおりで、Globalリソースの`tky`は利用地域です。DNSレコード名とCloud Domains登録IDは実ドメインそのものが識別子になるため、`dev-...-001`を付けません。レコードはゾーン/FQDN/種別`A`の組で識別し、DNSが生成するNS/SOAやDNSSEC鍵を独自名へ変えません。
+
+サービスアカウントIDは30文字制限に合わせ用途を`id`とし、メールのprojectサフィックスはGoogleの形式を使います。カスタムロールIDはハイフンを使えないため、同じ命名要素をアンダースコアで区切ります。Identity Platform configには任意名を付けられず、project singletonの`projects/{project_id}/config`を使います。認証ユーザーはTerraformで管理せず、管理者の招待処理で固定UIDを発行します。
