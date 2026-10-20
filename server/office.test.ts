@@ -627,6 +627,45 @@ test('shared favorites support multiple links on fixed furniture, persist, dedup
   assert.equal(new LinkStore(file).list().bindings.length, 0);
 });
 
+test('favorite edits synchronize across rooms, preserve bindings, and deletions remove only their references durably', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'waiwai-link-edit-')); t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = join(dir, 'links.json'), store = new LinkStore(file);
+  const first = { id: randomUUID(), title: '古い名前', url: 'https://example.com/old' };
+  const second = { id: randomUUID(), title: '残すリンク', url: 'https://example.com/keep' };
+  await store.transact((s) => {
+    s.favorites = [first, second];
+    s.bindings = [
+      { roomId: 'office', objectId: 'fixed:office:desk:2:3', linkIds: [first.id, second.id] },
+      { roomId: 'cafe', objectId: 'fixed:cafe:counter:3:2', linkIds: [first.id] },
+    ];
+  });
+  const { connect } = await fixture(t, undefined, file), a = await connect(), b = await connect();
+  b.send({ type: 'change-room', roomId: 'cafe', requestId: 1 });
+  await b.next('object-links', (m) => m.roomId === 'cafe');
+  const edit = async (action: Record<string, unknown>) => {
+    const editId = randomUUID(); a.send({ ...action, editId });
+    const result = await a.next('link-result', (m) => m.editId === editId);
+    await new Promise((r) => setTimeout(r, 360)); return result;
+  };
+  assert.equal((await edit({ type: 'favorite-update', favoriteId: first.id, title: '新しい名前', url: 'https://example.com/new' })).error, undefined);
+  const changed = await b.next('object-links', (m) => m.roomId === 'cafe' && m.favorites.some((f) => f.title === '新しい名前'));
+  assert.equal(changed.favorites.find((f) => f.id === first.id)!.url, 'https://example.com/new');
+  assert.deepEqual(changed.bindings[0].linkIds, [first.id]);
+  const updated = structuredClone(new LinkStore(file).list());
+  assert.equal(updated.bindings.length, 2);
+  assert.match((await edit({ type: 'favorite-update', favoriteId: first.id, title: '重複', url: second.url })).error!, /同じURL/);
+  assert.deepEqual(new LinkStore(file).list(), updated);
+  assert.match((await edit({ type: 'favorite-update', favoriteId: randomUUID(), title: '不明', url: 'https://example.com/missing' })).error!, /削除/);
+  assert.equal((await edit({ type: 'favorite-delete', favoriteId: first.id })).error, undefined);
+  assert.equal((await b.next('object-links', (m) => m.roomId === 'cafe' && m.favorites.length === 1)).bindings.length, 0);
+  const expected = { favorites: [second], bindings: [{ roomId: 'office', objectId: 'fixed:office:desk:2:3', linkIds: [second.id] }] };
+  assert.deepEqual(new LinkStore(file).list(), expected);
+  const c = await connect(); const joined = await c.next('object-links');
+  assert.deepEqual(joined.favorites, expected.favorites); assert.deepEqual(joined.bindings, expected.bindings);
+  assert.match((await edit({ type: 'favorite-delete', favoriteId: first.id })).error!, /削除/);
+  assert.deepEqual(new LinkStore(file).list(), expected);
+});
+
 test('placed furniture links follow movement, allow only owner edits, and disappear when removed', async (t) => {
   const { connect } = await fixture(t); const a = await connect(), b = await connect();
   for (const client of [a, b]) { client.send({ type: 'change-room', roomId: 'cafe', requestId: 1 }); await client.next('objects', (m) => m.roomId === 'cafe'); }

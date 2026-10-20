@@ -156,11 +156,13 @@ export function parseClientMessage(raw: string): ClientMessage | undefined {
   if (data.type === 'warp-to' && typeof data.targetId === 'string' && /^[a-f0-9-]{36}$/.test(data.targetId) && validRequest) return { type: 'warp-to', targetId: data.targetId, requestId: data.requestId as number };
   if (data.type === 'change-room' && isRoomId(data.roomId) && validRequest) return { type: 'change-room', roomId: data.roomId, requestId: data.requestId as number };
   if (typeof data.editId === 'string' && /^[a-f0-9-]{36}$/.test(data.editId)) {
-    if (data.type === 'favorite-add') {
+    if (data.type === 'favorite-add' || data.type === 'favorite-update') {
       const favorite = parseFavorite(data);
-      if (favorite) return { type: 'favorite-add', ...favorite, editId: data.editId };
+      if (favorite && data.type === 'favorite-add') return { type: 'favorite-add', ...favorite, editId: data.editId };
+      if (favorite && validLinkId(data.favoriteId)) return { type: 'favorite-update', favoriteId: data.favoriteId, ...favorite, editId: data.editId };
       return;
     }
+    if (data.type === 'favorite-delete' && validLinkId(data.favoriteId)) return { type: 'favorite-delete', favoriteId: data.favoriteId, editId: data.editId };
     if (data.type === 'object-links-set' && validObjectId(data.objectId) && Array.isArray(data.linkIds) &&
         data.linkIds.length <= MAX_OBJECT_LINKS && data.linkIds.every(validLinkId) && new Set(data.linkIds).size === data.linkIds.length) {
       return { type: 'object-links-set', objectId: data.objectId, linkIds: data.linkIds, editId: data.editId };

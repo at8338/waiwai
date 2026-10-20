@@ -10,6 +10,8 @@ export type Favorite = { id: string; title: string; url: string };
 export type LinkBinding = { roomId: RoomId; objectId: string; linkIds: string[] };
 export type LinkState = { favorites: Favorite[]; bindings: LinkBinding[] };
 export type LinkEdit = { type: 'favorite-add'; title: string; url: string; editId: string }
+  | { type: 'favorite-update'; favoriteId: string; title: string; url: string; editId: string }
+  | { type: 'favorite-delete'; favoriteId: string; editId: string }
   | { type: 'object-links-set'; objectId: string; linkIds: string[]; editId: string };
 export type LinkTarget = Point & { id: string; roomId: RoomId; name: string; kind: string; w: number; h: number; owner?: string };
 const names: Record<Furniture['kind'], string> = { buffet: '定食カウンター', dishreturn: '食器の返却口', viewport: '正面スクリーン', console: '操縦パネル', pilot: 'パイロット席', reactor: '機体全身図', calendar: '館内カレンダー', desk: 'デスク・モニター', workbench: '作業台', table: 'テーブル', sofa: 'ソファ', plant: '植物', shelf: '本棚', board: 'ホワイトボード', counter: 'カウンター', pond: '池', easel: 'イーゼル', arcade: 'ゲーム機', bed: 'ベッド', telescope: '望遠鏡', monitor: '監視モニター', rack: 'サーバーラック', parking: '乗りもの置き場', vending: '自動販売機' };
