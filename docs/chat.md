@@ -37,7 +37,7 @@ Microsoftのトークンは署名・issuer・audience・有効期限・state・n
 4. `REQUIRE_ENTRA_LOGIN=true`でMicrosoftログインを必須にする。この場合はSlackログインによる入室の代替を許可しない。ログイン必須を無効にした開発環境ではゲストも利用できる。
 5. エンタープライズアプリでユーザーの割り当てを必須にして利用者・グループを割り当てる。必要なMFAは会社の条件付きアクセスでこのアプリに適用する。Entraライセンス・管理権限と実テナントでの設定が別途必要。
 
-Azureの配備スクリプトはMicrosoft必須で構成し、Graphで有効な全ユーザーMFAポリシーを照合する。Slack設定は任意で、Slackのみの配備へフォールバックしない。[Azure公開手順](azure.md)を参照。AzureリソースやEntraテナントへの変更は、この実装だけでは実行しない。
+Azureの配備スクリプトはMicrosoft必須で構成し、Graphで有効な全ユーザーMFAポリシーを照合する。Slack設定は任意で、Slackのみの配備へフォールバックしない。[Azure公開手順](../doc-azure/deployment.md)を参照。AzureリソースやEntraテナントへの変更は、この実装だけでは実行しない。
 
 ## Slack連携の設定
 

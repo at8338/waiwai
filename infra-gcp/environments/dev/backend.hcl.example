@@ -1,0 +1,3 @@
+# Generate from infra-gcp/bootstrap output -raw backend after a reviewed bootstrap apply.
+bucket = "replace-with-bootstrap-bucket-output"
+prefix = "waiwai/gcp/dev/001"

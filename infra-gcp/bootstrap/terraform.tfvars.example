@@ -1,0 +1,5 @@
+project_id      = "your-existing-gcp-project"
+project_name    = "waiwai"
+region          = "asia-northeast1"
+instance_number = 1
+state_members   = ["user:operator@example.com"]
