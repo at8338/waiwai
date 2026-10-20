@@ -10,7 +10,10 @@ locals {
     boot_disk       = "${local.prefix}-disk-os-${local.sequence}"
     data_disk       = "${local.prefix}-disk-data-${local.sequence}"
     snapshot_policy = "${local.prefix}-snap-office-${local.sequence}"
-    firewall_prefix = "${local.prefix}-fw-office-${local.sequence}"
+    firewall_rules = {
+      for rule in ["ssh", "web", "turn_tcp", "turn_udp"] :
+      rule => "${local.prefix}-fw-office-${replace(rule, "_", "-")}-${local.sequence}"
+    }
     firewall_target = "${local.prefix}-office-${local.sequence}"
     state_bucket    = "${local.prefix}-gcs-tfstate-${local.sequence}-${local.suffix}"
     state_prefix    = "${var.project_name}/gcp/dev/${local.sequence}"

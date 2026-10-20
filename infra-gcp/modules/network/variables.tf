@@ -1,6 +1,14 @@
 variable "project_id" { type = string }
 variable "region" { type = string }
-variable "names" { type = object({ network = string, subnet = string, public_ip = string, firewall_prefix = string, firewall_target = string }) }
+variable "names" {
+  type = object({
+    network         = string
+    subnet          = string
+    public_ip       = string
+    firewall_target = string
+    firewall_rules  = object({ ssh = string, web = string, turn_tcp = string, turn_udp = string })
+  })
+}
 variable "subnet_cidr" {
   type    = string
   default = "10.84.1.0/24"
