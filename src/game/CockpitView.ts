@@ -14,7 +14,7 @@ export class CockpitView {
   constructor(scene: Phaser.Scene) {
     this.horizon = scene.add.graphics().setPosition(150, 21).setDepth(97);
     this.robot = scene.add.graphics().setPosition(49, 37).setScale(0.36).setDepth(98);
-    this.status = scene.add.text(240, 113, '', { fontFamily: 'sans-serif', fontSize: '7px', color: '#d9f1dc', backgroundColor: '#2d495c', padding: { x: 3, y: 2 } }).setOrigin(0.5, 0).setDepth(320 + 17).setResolution(2);
+    this.status = scene.add.text(240, 113, '', { resolution: 2, fontFamily: 'sans-serif', fontSize: '7px', color: '#d9f1dc', backgroundColor: '#2d495c', padding: { x: 3, y: 2 } }).setOrigin(0.5, 0).setDepth(320 + 17);
     this.setRoom('office');
   }
   setRoom(room: RoomId): void { this.room = room; this.key = ''; for (const view of [this.horizon, this.robot, this.status]) view.setVisible(room === 'cockpit'); }

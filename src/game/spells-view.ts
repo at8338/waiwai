@@ -10,7 +10,7 @@ export class SpellsView {
     if (this.effects.some((entry) => entry.value.id === value.id)) return;
     if (this.effects.length >= 32) this.effects.shift()!.label.destroy();
     const anchor = value.spell === 'fire' ? value.origin : value.destinations[0];
-    const label = this.scene.add.text((anchor.x + .5) * TILE, (anchor.y + .5) * TILE - 28, `${SPELLS[value.spell].name}！`, { fontFamily: 'sans-serif', fontSize: '8px', color: value.spell === 'fire' ? '#fff0b0' : '#e1e9ff', backgroundColor: value.spell === 'fire' ? '#7f4935' : '#5d5b83', padding: { x: 3, y: 2 } }).setOrigin(.5, 1).setResolution(2).setDepth(50_001);
+    const label = this.scene.add.text((anchor.x + .5) * TILE, (anchor.y + .5) * TILE - 28, `${SPELLS[value.spell].name}！`, { resolution: 2, fontFamily: 'sans-serif', fontSize: '8px', color: value.spell === 'fire' ? '#fff0b0' : '#e1e9ff', backgroundColor: value.spell === 'fire' ? '#7f4935' : '#5d5b83', padding: { x: 3, y: 2 } }).setOrigin(.5, 1).setDepth(50_001);
     this.effects.push({ value, start: performance.now(), label });
   }
   update(reducedMotion: boolean): void {

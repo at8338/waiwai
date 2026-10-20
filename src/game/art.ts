@@ -40,8 +40,8 @@ function drawFurniture(scene: Phaser.Scene, item: Furniture, openCalendar?: () =
   if(kind==='board'&&openBoard)g.setInteractive(new Phaser.Geom.Rectangle(x,y-14,w,h+14),Phaser.Geom.Rectangle.Contains).on('pointerup',mapTap(()=>openBoard(item)));
   if (item.label && kind !== 'parking') {
     const label = scene.add.text(x + w / 2, y + h + 3, item.label, {
-    fontFamily: 'sans-serif', fontSize: '8px', color: '#f4efd5', backgroundColor: '#314a55', padding: { x: 3, y: 2 },
-  }).setOrigin(0.5, 0).setResolution(1).setDepth(kind === 'calendar' ? ROWS * TILE + 18 : y + h + 4);
+    resolution: 1, fontFamily: 'sans-serif', fontSize: '8px', color: '#f4efd5', backgroundColor: '#314a55', padding: { x: 3, y: 2 },
+  }).setOrigin(0.5, 0).setDepth(kind === 'calendar' ? ROWS * TILE + 18 : y + h + 4);
     if (kind === 'calendar' && openCalendar) label.setInteractive({ useHandCursor: true }).on('pointerup', mapTap(openCalendar));
   }
 }
@@ -63,8 +63,8 @@ function drawRestroomEntrance(scene: Phaser.Scene, tileX: number): void {
   rect(g, 0x4d6667, x + 21, bottom - 13, 3, 5);
   rect(g, 0xf2ce7d, x + 20, bottom - 13, 4, 2);
   rect(g, 0x6b6860, x - 2, bottom - 2, 32, 2);
-  scene.add.text(x + 14, bottom - 23, 'WC', { fontFamily: 'monospace', fontSize: '6px', color: '#344c56' })
-    .setOrigin(.5, 0).setResolution(2).setDepth(depth + 1);
+  scene.add.text(x + 14, bottom - 23, 'WC', { resolution: 2, fontFamily: 'monospace', fontSize: '6px', color: '#344c56' })
+    .setOrigin(.5, 0).setDepth(depth + 1);
 
   // Small, legible wall plaque: two familiar pictograms above the Japanese label.
   const sx = x + 35, sy = bottom - 27;
@@ -79,8 +79,8 @@ function drawRestroomEntrance(scene: Phaser.Scene, tileX: number): void {
     rect(g, color, sx + offset + 2, sy + 12, 1, 3);
   }
   rect(g, 0xb96c78, sx + 21, sy + 10, 7, 3);
-  scene.add.text(sx + 17, sy + 15, 'トイレ', { fontFamily: 'sans-serif', fontSize: '7px', color: '#344c56' })
-    .setOrigin(.5, 0).setResolution(2).setDepth(depth + 1);
+  scene.add.text(sx + 17, sy + 15, 'トイレ', { resolution: 2, fontFamily: 'sans-serif', fontSize: '7px', color: '#344c56' })
+    .setOrigin(.5, 0).setDepth(depth + 1);
 }
 
 export function drawOffice(scene: Phaser.Scene, roomId: RoomId = 'office', openCalendar?: () => void, openArcade?: (game: ArcadeGame) => void, openBoard?: (item: Furniture) => void): Phaser.GameObjects.GameObject[] {
@@ -150,8 +150,8 @@ export function drawOffice(scene: Phaser.Scene, roomId: RoomId = 'office', openC
     const threshold = scene.add.graphics().setDepth(-90);
     rect(threshold, 0x947b56, x, y + 5, width, 7); rect(threshold, section.color, x + 1, y + 6, width - 2, 4);
     const label = scene.add.text(x + width / 2, y - 3, section.name, {
-      fontFamily: 'sans-serif', fontSize: '9px', color: '#fff7df', backgroundColor: '#344d59', padding: { x: 7, y: 3 },
-    }).setOrigin(0.5, 1).setResolution(2).setDepth(y + TILE);
+      resolution: 2, fontFamily: 'sans-serif', fontSize: '9px', color: '#fff7df', backgroundColor: '#344d59', padding: { x: 7, y: 3 },
+    }).setOrigin(0.5, 1).setDepth(y + TILE);
     const sign = scene.add.graphics().setDepth(y + TILE - 1);
     rect(sign, 0x937b5c, label.x - label.width / 2 - 2, label.y - label.height - 2, label.width + 4, label.height + 4);
     rect(sign, section.color, label.x - label.width / 2, label.y - label.height, 3, label.height);

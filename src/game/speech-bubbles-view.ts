@@ -23,8 +23,8 @@ export class SpeechBubblesView {
     this.drawn.add(id);
     let view = this.views.get(id);
     if (!view) {
-      const background = this.scene.add.graphics(), text = this.scene.add.text(8, 17, '', { fontFamily: 'sans-serif', fontSize: '8px', color: '#354b3e', lineSpacing: 3 }).setResolution(2);
-      const label = this.scene.add.text(8, 5, '', { fontFamily: 'sans-serif', fontSize: '6px', fontStyle: 'bold' }).setResolution(2);
+      const background = this.scene.add.graphics(), text = this.scene.add.text(8, 17, '', { resolution: 2, fontFamily: 'sans-serif', fontSize: '8px', color: '#354b3e', lineSpacing: 3 });
+      const label = this.scene.add.text(8, 5, '', { resolution: 2, fontFamily: 'sans-serif', fontSize: '6px', fontStyle: 'bold' });
       const container = this.scene.add.container(0, 0, [background, label, text]).setDepth(ROWS * TILE + 30);
       view = { container, background, text, label, width: 0, height: 0 }; this.views.set(id, view);
     }
