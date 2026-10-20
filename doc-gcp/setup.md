@@ -1,6 +1,6 @@
 # MacセットアップとGCP dev構築手順
 
-この手順には将来の構築用コマンドも含みます。現在は設計・IaC実装・検証・ローカル認証と事前plan確認までで、API有効化・IAM変更・課金リソース作成・Terraform applyは未実施です。
+この手順には将来の構築用コマンドも含みます。現在は設計・IaC実装・検証・ローカル認証と事前plan確認までで、Cloud Domains APIの有効化のみ実施し、ドメイン購入・IAM変更・課金リソース作成・Terraform applyは未実施です。
 
 ## Macのツール
 
@@ -62,6 +62,10 @@ cp infra-gcp/environments/dev/terraform.tfvars.example .local/gcp/dev/terraform.
 
 コピー先を実際の値に編集します。`project_id`・`project_name`・`region`・`instance_number`は両rootで一致させます。CIDRやドメインのexample値はそのまま構築に使えません。運用者は`user:...`／`group:...`、state運用者は承認済みの`user:`／`group:`／`serviceAccount:`で指定します。アプリのClient Secret・TURN共有鍵は入力しません。
 
+## ドメイン取得とDNSの初期設定
+
+GCPで取得する場合は[Cloud Domains手順](domain-registration.md)で先にbootstrap-dnsをplan・初期化します。登録者情報は`.local/gcp/dev/domain-contacts.yaml`に本人が入力し、Cloud Domains CLIから渡します。dev rootは初期化済みzoneを読み取るので、DNS側の完了前にdevの実planは作りません。
+
 ## 将来のbootstrapとdev構築
 
 以下は入力とplanをレビューして、実際の構築を行う段階でのみ使用します。bootstrapは独立したローカルstateを使います。保管先を作る前に、その安全なバックアップ先も決めます。
@@ -81,8 +85,8 @@ terraform -chdir=infra-gcp/environments/dev output
 
 Azure側のstate/backend/tfvarsはこの手順へ流用しません。Terraformが既存資源の置換・削除を示した場合は、そのまま適用せず所有範囲と既存stateを確認します。
 
-backend未作成の段階では、bootstrapの実入力planと、GCS backendを外した隔離コピーによるdevの予備planを確認できます。devの予備planは実行用ではありません。正式な会社/VPN許可IP、ドメイン・DNS、bootstrapを確定した後、元のrootをGCS backendで初期化し直して実行用planを作成します。命名や入力の変更前に保存したplanは使いません。[全体一覧](resource-inventory.md)で、planに含まれない配備・認証・運用作業も確認します。
+backend未作成の段階では、bootstrapとbootstrap-dnsの実入力planを確認できます。DNS初期化後なら、GCS backendを外した隔離コピーによるdevの予備planも確認できます。devの予備planは実行用ではありません。正式な会社/VPN許可IP、ドメイン・DNS、bootstrapを確定した後、元のrootをGCS backendで初期化し直して実行用planを作成します。命名や入力の変更前に保存したplanは使いません。[全体一覧](resource-inventory.md)で、planに含まれない配備・認証・運用作業も確認します。
 
 ## 作成後の入口
 
-`ssh_command`出力を、許可CIDR内の端末から実行します。追加のIAP/LBを暗黙には使用しません。cloud-init完了、OS/dataディスク、Caddy設定、サービスの待機状態を確認し、固定IPへのAレコードを既存DNSに登録します。アプリ配備と利用者の認証・MFAは[運用手順](operations.md)の別工程です。
+`ssh_command`出力を、許可CIDR内の端末から実行します。追加のIAP/LBを暗黙には使用しません。cloud-init完了、OS/dataディスク、Caddy設定、サービスの待機状態を確認し、Terraformが固定IPを向けたCloud DNSのAレコードと、Cloud Domainsの委任・DNSSECを確認します。アプリ配備と利用者の認証・MFAは[運用手順](operations.md)の別工程です。

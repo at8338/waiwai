@@ -2,7 +2,7 @@
 
 ## アプリの公開前
 
-TerraformはVMとサービス基盤までを作ります。アプリ本体、認証Secret、TURN共有鍵、DNSの登録、招待/MFA設定はTerraformに含めません。今回アプリをデプロイする処理は実行せず、GCP専用の自動デプロイスクリプトもこの変更の対象外です。Azureの`deploy.mjs`はAzure出力とGraphの検査を前提とするため、そのままGCPへ実行しません。
+TerraformはVMとサービス基盤までを作ります。アプリ本体、認証Secret、TURN共有鍵、ドメインの購入・登録者情報、招待/MFA設定はTerraformに含めません。Cloud DNSのzoneとAレコードはTerraformで管理します。今回アプリをデプロイする処理は実行せず、GCP専用の自動デプロイスクリプトもこの変更の対象外です。Azureの`deploy.mjs`はAzure出力とGraphの検査を前提とするため、そのままGCPへ実行しません。
 
 Terraform管理対象以外の自動生成物・VM内サービス・外部設定を含む[全体一覧](resource-inventory.md)で、完了している基盤定義と公開・運用に残る作業を確認します。
 

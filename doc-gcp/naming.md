@@ -19,6 +19,8 @@ dev-waiwai-tky-vm-office-001
 | Firewall（Web） | dev-waiwai-tky-fw-office-web-001 |
 | Firewall（TURN TCP / UDP） | dev-waiwai-tky-fw-office-turn-tcp-001 / dev-waiwai-tky-fw-office-turn-udp-001 |
 | Firewall用network tag | dev-waiwai-tky-office-001 |
+| Cloud DNS公開ゾーン | dev-waiwai-tky-dns-office-001 |
+| DNS Aレコード | 入力domainに末尾`.`を付けたFQDN（例：`waiwai-dev.example.com.`） |
 | stateバケット | dev-waiwai-tky-gcs-tfstate-001-{hash8} |
 | GCS backend prefix | waiwai/gcp/dev/001 |
 
@@ -31,3 +33,5 @@ network tagは名前付きインフラリソースではなくVMの属性なの�
 ラベルは`application=waiwai`、`environment=dev`、`region=tky`、`managed_by=terraform`を固定し、`owner`・`cost_center`などを追加できます。予約4キーは上書きしません。GCPの英小文字・数字・`_`・`-`、63文字以内の制限に合わせ、ラベル非対応リソースへは付けません。プロジェクトの既存ラベルや他のアプリ資源は変更しません。
 
 クラウドが異なれば名前もstateも別です。Azureのリソース名やURLをGCPにコピーしません。命名要素の変更で置換が必要な場合は、既存資源を削除して整えるのではなく移行としてレビューします。
+
+Cloud DNSゾーンは基本ルールどおりで、Globalリソースの`tky`は利用地域です。DNSレコード名とCloud Domains登録IDは実ドメインそのものが識別子になるため、`dev-...-001`を付けません。レコードはゾーン/FQDN/種別`A`の組で識別し、DNSが生成するNS/SOAやDNSSEC鍵を独自名へ変えません。

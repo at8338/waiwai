@@ -22,21 +22,23 @@ flowchart LR
     Data --> Snap[日次ディスクスナップショット]
     VM --> OS[独立OSディスク / 同じ日次バックアップ]
   end
-  Browser --> DNS[所有ドメインのAレコード]
+  Browser --> DNS[Cloud DNSのAレコード]
   DNS -.-> IP
   App --> Login[既存Microsoft / Slackの利用者認証]
   Terraform[Terraform / ADC] --> State[別rootの非公開GCS stateバケット]
 ```
 
-ロードバランサー、GKE、Cloud Run、Cloud SQL、Cloud NAT、Artifact Registry、Cloud DNSの新しいゾーンは追加しません。常時WebSocketとUDP音声中継を既存の構造で動かせる単一VMを採用します。VMに外部IPがあるため、別のNAT Gatewayは不要です。所有ドメインのDNSは既存のDNS管理者が設定します。Azureの`cloudapp.azure.com`をGCPへ流用しません。
+ロードバランサー、GKE、Cloud Run、Cloud SQL、Cloud NAT、Artifact Registryは追加しません。常時WebSocketとUDP音声中継を既存の構造で動かせる単一VMを採用します。VMに外部IPがあるため、別のNAT Gatewayは不要です。取得はCloud Domains、公開DNSはCloud DNSで管理し、ゾーンの初期設定をVMから分離します。Azureの`cloudapp.azure.com`をGCPへ流用しません。
 
 ## リソース
 
-以下はTerraformで管理する基盤です。自動生成物・VM内のソフトウェア・外部サービスの設定・公開前の未実装事項まで含む[全体一覧](resource-inventory.md)を別に管理します。Terraformの20エントリーだけで公開・監視・認証設定まで完成するものではありません。
+以下はTerraformで管理する基盤です。自動生成物・VM内のソフトウェア・外部サービスの設定・公開前の未実装事項まで含む[全体一覧](resource-inventory.md)を別に管理します。Terraformの24エントリーだけで公開・監視・認証設定まで完成するものではありません。
 
 | モジュール | リソース・設定 |
 |---|---|
 | dev root | Compute Engine / OS Login APIの有効化。destroyで既存プロジェクトのAPIを無効化しない |
+| DNS bootstrap | Cloud Domains / Cloud DNS API、DNSSEC付き公開ゾーン。独立したlocal state |
+| dev root / DNS | 初期化済みzoneのdomainを読み取り検証し、固定IPのAレコードを管理 |
 | network | 専用custom VPC、IPv4 `/24` Subnet、固定外部IPv4、SSH/Web/TURNの4種類のFirewall |
 | office-vm | VM一台、OS 20GB・data 32GBの`pd-balanced`、インスタンス単位のOS Admin Login IAM |
 | office-vm | 日次Snapshot Resource Policy、OS/dataディスクへの個別attachment |
@@ -50,7 +52,7 @@ regionは`asia-northeast1`、zoneは初期`asia-northeast1-a`。現段階は東�
 
 systemdの上限はアプリ1536MiB、TURN768MiB、ファイル数65536です。これは容量保証や予約量ではありません。増強後も制限を保持し、アプリ側のメモリが原因なら実測に基づいて別途変更します。TURNは既存設計の600割当・利用者32割当・ユーザー128000byte/s・全体16000000byte/sを維持する想定です。利用者端末の接続相手は最大4人です。
 
-費用はVM稼働時間、2枚のディスク、Snapshot保存、外部IPv4、インターネット送信量、GCS state保存で見積もります。TURN経由の実音声とWebSocket配信量が変動要因です。停止中もディスク・Snapshot・固定IP等の費用は残ります。自動停止は運用時間・会議の例外が未確定のため実装しません。金額は構築時点の[料金計算](https://cloud.google.com/products/calculator)で再確認し、AzureのコミットをGCPへ適用できる前提にはしません。
+費用はVM稼働時間、2枚のディスク、Snapshot保存、外部IPv4、インターネット送信量、GCS state保存、ドメイン登録・更新、Cloud DNSのzone/問い合わせ料で見積もります。TURN経由の実音声とWebSocket配信量が変動要因です。停止中もディスク・Snapshot・固定IP等の費用は残ります。自動停止は運用時間・会議の例外が未確定のため実装しません。金額は構築時点の[料金計算](https://cloud.google.com/products/calculator)で再確認し、AzureのコミットをGCPへ適用できる前提にはしません。
 
 ## 通信と本人確認
 
@@ -83,3 +85,5 @@ Slack EventsのIP制限例外は既定OFFで、明示的なON時もPOST `/api/sl
 stateは別rootのGCSへ保存し、Azure Blobと共有しません。GCS backendのロックと版管理で誤更新から復旧できるようにし、bootstrapのローカルstateも安全に保管します。バケットはforce_destroyを無効化し、prevent_destroyと公開アクセス禁止を設定します。版履歴は自動削除しないため、長期運用では容量も確認します。[GCS backend](https://developer.hashicorp.com/terraform/language/backend/gcs)を参照してください。
 
 単一VM停止中はオフィスも止まります。Google上でのSKU/クォータ/組織Policy確認、強制TURNの実音声、負荷試験、バックアップ復元は公開前の受入です。監視・ログ収集・通知・予算ルールは現IaCに未実装です。運用メールを指定しても、`acme_email`が設定するのは証明書の連絡先であり、監視メール通知は作成されません。方式・閾値・予算額を決めて別途整備します。
+
+ドメイン購入は登録者情報をstateへ残さないCLI管理とし、Terraformの24件とは別に登録リソース1件を扱います。[取得とDNSの手順](domain-registration.md)を参照してください。Cloud Domains APIの有効化は完了し、購入・DNSゾーン・VM作成は未実施です。
