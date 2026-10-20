@@ -15,6 +15,7 @@ locals {
       rule => "${local.prefix}-fw-office-${replace(rule, "_", "-")}-${local.sequence}"
     }
     firewall_target = "${local.prefix}-office-${local.sequence}"
+    dns_zone        = "${local.prefix}-dns-office-${local.sequence}"
     state_bucket    = "${local.prefix}-gcs-tfstate-${local.sequence}-${local.suffix}"
     state_prefix    = "${var.project_name}/gcp/dev/${local.sequence}"
   }

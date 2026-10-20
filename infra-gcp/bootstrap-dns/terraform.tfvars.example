@@ -1,0 +1,6 @@
+project_id      = "your-existing-gcp-project"
+project_name    = "waiwai"
+region          = "asia-northeast1"
+instance_number = 1
+domain          = "waiwai-dev.example.com"
+labels          = { owner = "your-team" }

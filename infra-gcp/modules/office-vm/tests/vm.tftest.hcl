@@ -14,6 +14,14 @@ variables {
   web_allowed_cidrs = ["203.0.113.20/32"]
   operator_members  = ["user:operator@example.com"]
 }
+run "approved_proxy_ranges_reach_web_gate" {
+  command = plan
+  variables { web_allowed_cidrs = ["192.0.0.0/20", "192.0.16.0/21", "192.0.24.0/22", "192.0.28.0/23", "203.0.113.20/32"] }
+  assert {
+    condition     = strcontains(local.cloud_init, "@outside_company not remote_ip 192.0.0.0/20 192.0.16.0/21 192.0.24.0/22 192.0.28.0/23 203.0.113.20/32") && strcontains(local.cloud_init, "respond @outside_company") && can(yamldecode(local.cloud_init))
+    error_message = "Render each approved proxy range in the web deny gate while retaining valid cloud-init."
+  }
+}
 run "persistent_disks_and_human_mfa" {
   command = apply
   assert {
@@ -48,6 +56,11 @@ run "explicit_capacity_double" {
 run "reject_public_web_access" {
   command = plan
   variables { web_allowed_cidrs = ["0.0.0.0/0"] }
+  expect_failures = [var.web_allowed_cidrs]
+}
+run "reject_overbroad_web_range" {
+  command = plan
+  variables { web_allowed_cidrs = ["192.0.0.0/19"] }
   expect_failures = [var.web_allowed_cidrs]
 }
 run "reject_non_human_admin" {

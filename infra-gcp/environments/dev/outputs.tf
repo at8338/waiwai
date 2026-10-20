@@ -8,6 +8,7 @@ output "machine_type" { value = module.office_vm.machine_type }
 output "public_ip" { value = module.network.public_ip }
 output "private_ip" { value = module.network.private_ip }
 output "domain" { value = var.domain }
+output "dns_zone" { value = data.google_dns_managed_zone.office.name }
 output "url" { value = "https://${var.domain}" }
 output "data_disk" { value = module.office_vm.data_disk }
 output "snapshot_policy" { value = module.office_vm.snapshot_policy }

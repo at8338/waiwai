@@ -1,12 +1,12 @@
 # GCPリソースと公開作業の全体一覧
 
-この一覧は「Terraformの管理件数」と「Waiwaiの公開環境を構成する全要素」を区別します。20件はTerraformの管理エントリー数で、名前付きGCPリソースの数や課金項目数ではありません。VM内のサービス、日々生成されるバックアップ、DNSや認証の外部設定まで20件で完成するという意味ではありません。
+この一覧は「Terraformの管理件数」と「Waiwaiの公開環境を構成する全要素」を区別します。24件はTerraformの管理エントリー数で、名前付きGCPリソースの数や課金項目数ではありません。VM内のサービス、日々生成されるバックアップ、DNSや認証の外部設定まで24件で完成するという意味ではありません。
 
-現在はdevのIaC・事前plan確認の段階で、apply・クラウド資源作成・アプリ配備は未実施です。入力・実名・planはGit対象外の`.local/gcp/dev/`に置き、この資料には既定の命名例を記載します。
+現在はdevのIaC・事前plan確認の段階で、Cloud Domains APIの有効化のみ実施済みで、ドメイン登録・DNS/VMの作成・Terraform apply・アプリ配備は未実施です。入力・実名・planはGit対象外の`.local/gcp/dev/`に置き、この資料には既定の命名例を記載します。
 
-## Terraformで名前を指定するリソース：12件
+## Terraformで名前を指定するリソース：14件
 
-既定の`project_name=waiwai`、東京、連番`001`での名前です。名前は[唯一の命名定義](../infra-gcp/modules/naming/locals.tf)から渡し、モジュール側で変更しません。
+既定の`project_name=waiwai`、東京、連番`001`での名前です。独自名を付ける13件は[唯一の命名定義](../infra-gcp/modules/naming/locals.tf)から渡します。残るDNS Aレコード名はdomain入力から作るFQDNで、基本ルールの例外です。
 
 | リソース | 名前 | GCP上のスコープ・設定 |
 |---|---|---|
@@ -17,6 +17,8 @@
 | Firewall / Web | `dev-waiwai-tky-fw-office-web-001` | Global / TCP 80・443。会社IP制限はCaddy |
 | Firewall / TURN TCP | `dev-waiwai-tky-fw-office-turn-tcp-001` | Global / TCP 3478・5349 |
 | Firewall / TURN UDP | `dev-waiwai-tky-fw-office-turn-udp-001` | Global / UDP 3478・49160–49959 |
+| Cloud DNS公開ゾーン | `dev-waiwai-tky-dns-office-001` | Global / DNSSEC有効 |
+| DNS Aレコード | `waiwai-dev.example.com.`（実際はdomain入力） | 公開ゾーン内 / 予約IPv4へ連動 |
 | VM | `dev-waiwai-tky-vm-office-001` | `asia-northeast1-a` / 初期2 vCPU・4GiB |
 | OSディスク | `dev-waiwai-tky-disk-os-001` | 同zone / 20GB pd-balanced |
 | データディスク | `dev-waiwai-tky-disk-data-001` | 同zone / 32GB pd-balanced |
@@ -25,18 +27,23 @@
 
 VPC・FirewallはGlobalのリソースです。名前の`tky`は、このdev構成の利用地域を表します。GCSのhashは実project ID等から計算し、planで確定します。個々のSnapshotではなくスケジュール用ポリシーをTerraformで命名しています。
 
-## Terraformで管理する設定・紐付け等：8件
+## Terraformで管理する設定・紐付け等：10件
 
 | 管理エントリー | 件数 | 対象・内容 |
 |---|---:|---|
 | `google_project_service.storage` | 1 | `storage.googleapis.com`の有効化状態 |
 | `google_project_service.required` | 2 | `compute.googleapis.com`・`oslogin.googleapis.com`の有効化状態 |
+| bootstrap-dnsの`google_project_service.required` | 2 | `dns.googleapis.com`・`domains.googleapis.com`の有効化状態 |
 | `google_storage_bucket_iam_member.operators` | 1 | state運用者へ当該バケットの`roles/storage.objectAdmin` |
 | `google_compute_instance_iam_member.operators` | 1 | 人間の運用者へ当該VMの`roles/compute.osAdminLogin` |
 | `google_compute_disk_resource_policy_attachment.backup` | 2 | OS/dataの各ディスクへ同じSnapshotポリシーを紐付け |
 | `terraform_data.bootstrap_revision` | 1 | cloud-init変更検知用。GCPリソースを作成しないTerraform内部管理 |
 
-合計はbootstrapが3件、devが17件、合わせて20件です。IAMは各運用者1人の場合で、入力に複数人・グループを指定すると件数が増えます。既に有効なAPIも、初回planでは新しいTerraform管理エントリーとして表示され得ます。20個の新しい課金サービスを起動する意味ではありません。
+合計はbootstrapが3件、bootstrap-dnsが3件、devが18件で24件です。devのDNSゾーンdata sourceは読み取りなのでこの数に含めません。IAMは各運用者1人の場合で、入力に複数人・グループを指定すると件数が増えます。既に有効なAPIも、初回planでは新しいTerraform管理エントリーとして表示され得ます。24個の新しい課金サービスを起動する意味ではありません。
+
+## Cloud Domainsの登録：Terraform外で1件
+
+Cloud Domainsのドメイン登録リソース1件をCLIで作成する計画です。登録IDは実ドメインで、登録者情報はローカルの権限制限ファイルから渡します。年額は実照会で確認し、会社名・住所・電話をTerraform stateへ保存しません。Terraformの24件には含めません。[取得手順](domain-registration.md)を参照してください。
 
 ## 別の名前付きTerraformリソースとして作らない構成要素
 
@@ -51,9 +58,10 @@ VPC・FirewallはGlobalのリソースです。名前の`tky`は、このdev構�
 | 日々のOS/data Snapshot | スケジュールポリシーから自動生成 | 元ディスク名の先頭・スコープ・時刻等を使うGoogleの自動命名 |
 | GCS内のstateオブジェクト・ロック・版履歴 | backendがstate保存・ロックを行い、GCSが版等を管理 | prefixは`waiwai/gcp/dev/001`。bucket以外の独立Terraformリソースは作らない |
 | bootstrapのstate | bucket作成用rootのローカルstate | devのGCS backendとは別。手元の保全・安全なバックアップが必要 |
+| DNSのNS/SOA・DNSSEC鍵 | 公開ゾーン作成時にCloud DNSが生成 | DNSサービス側の識別子。devのAレコードとは別 |
 | Google管理のサービスエージェント等 | 既存project・各サービスの管理領域 | このIaCで独自名を付けたり、既存の権限を整理したりしない |
 
-自動生成物の数は変動するため、20件に加えた固定の「全リソース数」は定義しません。[VPCルートの仕様](https://docs.cloud.google.com/vpc/docs/routes)、[Snapshotの命名・保持仕様](https://docs.cloud.google.com/compute/docs/disks/about-snapshot-schedules)、[GCS backendの保存・ロック](https://developer.hashicorp.com/terraform/language/backend/gcs)を参照してください。
+自動生成物の数は変動するため、24件に加えた固定の「全リソース数」は定義しません。[VPCルートの仕様](https://docs.cloud.google.com/vpc/docs/routes)、[Snapshotの命名・保持仕様](https://docs.cloud.google.com/compute/docs/disks/about-snapshot-schedules)、[GCS backendの保存・ロック](https://developer.hashicorp.com/terraform/language/backend/gcs)を参照してください。
 
 ## VM内に置くサービス・データ
 
@@ -75,9 +83,9 @@ VPC・FirewallはGlobalのリソースです。名前の`tky`は、このdev構�
 
 | 対象 | 現在の状態・残作業 |
 |---|---|
-| ドメイン取得 | 希望名は決まっているが未取得。登録サービス・取得作業はTerraform外 |
-| DNSゾーン・Aレコード | 管理サービス未確定。VMの固定IPを向けるAレコードが必要。現IaCにはCloud DNS zone/recordを含めない |
-| 正式な会社/VPN許可IP | 手元の公開IPを暫定planに使用中。正式CIDRを受領後、実行用planを再作成 |
+| ドメイン取得 | Cloud Domainsで.comを取得する方針。実照会で取得可能・年12 USDを確認し、会社の登録者情報入力待ち。購入はCLIで別管理 |
+| DNSゾーン・Aレコード | Cloud DNSのzoneをbootstrap-dns、Aレコードをdevへ定義済み。zoneとdomainの一致を検証する。実作成は未実施 |
+| 許可IP | ユーザー指定のdigda dev Web許可CIDR 21件を実入力へ反映。SSHはCodeKBで参照した管理端末の1件。参照元・時点はGit対象外で記録し、apply前に実行用planを再作成 |
 | 利用者のSSO・MFA・招待 | アプリのMicrosoft/Slackログイン機能は実装済み。Entra側のアプリ登録・外部参加者の招待・MFA適用・新ドメインのcallback設定は別途確認・設定 |
 | アプリ・音声設定の配備 | GCPのVMへの本体配備、認証Secret・TURN共有鍵の投入、既存データの停止移行が必要。Azureの配備スクリプトをそのまま使わない |
 | アプリ監視・ログ集約 | プロセス停止、疎通、メモリ、filesystem容量、バックアップ失敗等の検知と通知は未実装。Ops Agent等の収集方法・認証権限も未定義 |

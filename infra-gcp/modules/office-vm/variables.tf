@@ -42,8 +42,8 @@ variable "acme_email" {
 variable "web_allowed_cidrs" {
   type = list(string)
   validation {
-    condition     = length(var.web_allowed_cidrs) > 0 && length(var.web_allowed_cidrs) <= 32 && alltrue([for c in var.web_allowed_cidrs : can(cidrnetmask(c)) && can(regex("/(2[4-9]|3[0-2])$", c))])
-    error_message = "Provide 1–32 company/VPN IPv4 /24–/32 CIDRs for all web routes."
+    condition     = length(var.web_allowed_cidrs) > 0 && length(var.web_allowed_cidrs) <= 32 && alltrue([for c in var.web_allowed_cidrs : can(cidrnetmask(c)) && can(regex("/(2[0-9]|3[0-2])$", c))])
+    error_message = "Provide 1–32 approved company/VPN IPv4 /20–/32 CIDRs for all web routes."
   }
 }
 variable "operator_members" {

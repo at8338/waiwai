@@ -3,7 +3,7 @@ run "dev_names_and_reserved_labels" {
   command = apply
   variables { labels = { environment = "prod", managed_by = "manual", owner = "team" } }
   assert {
-    condition     = output.names.virtual_machine == "dev-waiwai-tky-vm-office-001" && output.names.state_prefix == "waiwai/gcp/dev/001" && length(output.names.state_bucket) <= 63
+    condition     = output.names.virtual_machine == "dev-waiwai-tky-vm-office-001" && output.names.dns_zone == "dev-waiwai-tky-dns-office-001" && output.names.state_prefix == "waiwai/gcp/dev/001" && length(output.names.state_bucket) <= 63
     error_message = "Keep dev-only names, distinct cloud state and GCS-compatible bucket names."
   }
   assert {

@@ -18,7 +18,7 @@ try {
     const name = basename(path);
     return name !== '.terraform' && !name.endsWith('.tfstate') && !name.includes('.tfstate.') && !name.endsWith('.tfplan') && !name.endsWith('.tfvars') && !name.endsWith('.tfvars.json') && name !== 'backend.hcl';
   } });
-  for (const target of ['modules/naming', 'modules/network', 'modules/office-vm', 'modules/terraform-state', 'bootstrap', 'environments/dev']) {
+  for (const target of ['modules/naming', 'modules/network', 'modules/office-vm', 'modules/terraform-state', 'bootstrap', 'bootstrap-dns', 'environments/dev']) {
     const cwd = resolve(temp, 'infra-gcp', target);
     if (target !== 'modules/naming') await copyFile(resolve(root, 'infra-gcp/environments/dev/.terraform.lock.hcl'), resolve(cwd, '.terraform.lock.hcl'));
     console.log(`\nChecking GCP ${target}`);
