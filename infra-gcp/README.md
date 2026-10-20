@@ -2,7 +2,7 @@
 
 設計は[`doc-gcp/`](../doc-gcp/README.md)。devのみを実装し、Azureの`infra-azure/`とは独立したProvider・backend・lockfile・CIを使います。
 
-[リソースと公開作業の全体一覧](../doc-gcp/resource-inventory.md)には、Terraform管理の33件に加え、Cloud Domains登録・自動生成物・VM内サービス・認証/配備/監視の残作業を記載しています。Terraformの件数を公開環境全体のリソース数とは扱いません。
+[リソースと公開作業の全体一覧](../doc-gcp/resource-inventory.md)には、Terraform管理の35件に加え、Cloud Domains登録・自動生成物・VM内サービス・認証/配備/監視の残作業を記載しています。Terraformの件数を公開環境全体のリソース数とは扱いません。
 
 ```text
 infra-gcp/

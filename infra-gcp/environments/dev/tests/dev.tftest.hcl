@@ -18,6 +18,10 @@ run "reject_domain_zone_mismatch" {
 run "dev_composition_without_azure_dependencies" {
   command = apply
   assert {
+    condition     = google_storage_bucket.releases.public_access_prevention == "enforced" && google_storage_bucket.releases.uniform_bucket_level_access && google_storage_bucket_iam_member.release_reader.role == "roles/storage.objectViewer" && strcontains(google_storage_bucket_iam_member.release_reader.condition[0].expression, "/objects/releases/")
+    error_message = "Deployment storage must remain private and the VM may only read release objects."
+  }
+  assert {
     condition     = output.environment == "dev" && output.cloud == "gcp" && output.project_id == "waiwai-dev-example" && output.vm_name == "dev-waiwai-tky-vm-office-001" && output.machine_type == "e2-custom-2-4096"
     error_message = "Only dev GCP infrastructure may be composed by this root."
   }

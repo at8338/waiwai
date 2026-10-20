@@ -19,6 +19,7 @@ locals {
     identity_service_account = "${local.prefix}-sa-id-${local.sequence}"
     identity_reader_role     = replace("${local.prefix}-role-id-${local.sequence}", "-", "_")
     state_bucket             = "${local.prefix}-gcs-tfstate-${local.sequence}-${local.suffix}"
+    release_bucket           = "${local.prefix}-gcs-release-${local.sequence}-${local.suffix}"
     state_prefix             = "${var.project_name}/gcp/dev/${local.sequence}"
   }
   labels = merge(var.labels, {

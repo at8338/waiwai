@@ -18,6 +18,7 @@ output "microsoft_redirect_uri" { value = "https://${var.domain}/auth/microsoft/
 output "identity_project_id" { value = var.project_id }
 output "identity_origin" { value = "https://${var.domain}" }
 output "identity_service_account" { value = google_service_account.identity_reader.email }
+output "release_bucket" { value = google_storage_bucket.releases.name }
 output "identity_api_key" {
   value     = google_identity_platform_config.office.client[0].api_key
   sensitive = true
