@@ -1,0 +1,23 @@
+.spaces-dialog { width: min(760px, calc(100vw - 24px)); }
+.spaces-dialog [data-spaces-body] { display: grid; gap: 12px; }
+.space-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid #ccd7bf; border-radius: 10px; }
+.space-row strong { overflow-wrap: anywhere; min-width: 0; }
+.space-row button { flex-shrink: 0; }
+.spaces-dialog button, .spaces-dialog input:not([type=checkbox]) { min-height: 44px; }
+.spaces-dialog button { border: 1px solid #bdcbae; border-radius: 8px; background: #fafbf2; color: #355b49; padding: 8px 14px; cursor: pointer; font: inherit; }
+.spaces-dialog button:disabled { cursor: default; opacity: .6; }
+.spaces-dialog button:focus-visible { outline: 3px solid #9db39a; outline-offset: 2px; }
+.spaces-dialog summary { min-height: 44px; display: list-item; align-content: center; cursor: pointer; }
+.spaces-dialog input:not([type=checkbox]) { min-width: 0; width: 100%; }
+.spaces-dialog label { display: block; }
+.spaces-dialog label:has(input[type=checkbox]) { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.spaces-dialog input[type=checkbox] { width: 22px; height: 22px; flex-shrink: 0; }
+.space-create, .space-settings { display: grid; gap: 10px; padding: 12px 0; }
+.space-member { display: grid; gap: 5px; padding: 16px 0; border-bottom: 1px solid #ccd7bf; }
+.space-member small { overflow-wrap: anywhere; }
+.space-members { min-width: 0; }
+.space-tabs:not([hidden]) { display: flex; gap: 8px; flex-wrap: wrap; }
+.space-tabs button[aria-pressed=true] { background: #355b49; color: white; }
+.space-pager { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.focus-heading [data-server-name] { display: inline-block; margin-left: 8px; padding-left: 8px; border-left: 1px solid #b7c4ac; font-size: .75rem; opacity: .8; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+@media (max-width: 900px) { .spaces-dialog { padding: 14px; } .spaces-dialog h2 { padding-right: 44px; } }

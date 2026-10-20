@@ -1,5 +1,7 @@
 # Waiwai
 
+チームごとに独立したオフィスを同じホストへ追加できます。[サーバーと所属管理](docs/servers.md)では、管理者による作成・メンバーの割り当て・データ分離・既存データの移行を説明しています。
+
 アバター・バディ・両図鑑はログインしたユーザー単位でサーバーに保存します。[ブラウザ記録の引き継ぎと保存設計](docs/personal-data.md)を参照してください。
 
 リモートでも、ふらっと近づいて話せる場所。
@@ -407,13 +409,16 @@ Vite + TypeScript + Phaser 3に、Node.js + `ws` の同期サーバーを加え�
 
 今後の機能追加に合わせて、このREADMEに必要な環境変数、起動手順、検証手順を追加します。
 
-## Azure / Terraform
+## クラウド基盤 / Terraform（dev）
 
-固定URL、HTTPS、音声中継、Slack入室制限を含む構成と、このMacのツール設定は[Azure公開手順](docs/azure.md)を参照してください。
+アプリと同じリポジトリで、AzureとGCPの設計・Terraformを管理します。クラウドごとにroot、Provider lockfile、backend、操作スクリプト、CIを分け、stateや実入力を共有しません。命名規則とリソース種別ごとのファイル分割を設けています。
 
-## Azure IaC（dev）
+| クラウド | 設計・手順 | Terraform | 認証不要の検証 |
+|---|---|---|---|
+| Azure | [doc-azure](doc-azure/README.md) | [infra-azure](infra-azure/README.md) | `npm run infra:azure:check` |
+| GCP | [doc-gcp](doc-gcp/README.md) | [infra-gcp](infra-gcp/README.md) | `npm run infra:gcp:check` |
 
-アプリと同じリポジトリの `infra/` でTerraformを管理します。現在はdevのみで、命名・タグの共通化とリソース種別ごとのファイル分割を行っています。[IaC入口](infra/README.md)、[設計書](docs/infrastructure/azure-design.md)、[命名規則](docs/infrastructure/naming.md)、[構築手順](docs/azure.md)を参照してください。認証不要の検証は `npm run infra:check`。CIは検証のみでAzureへapplyしません。
+両方まとめて検証する場合は `npm run infra:check`。現在はdevのみで、CIも検証だけを行います。今回の変更では実クラウドへのplan/applyやアプリのデプロイを行いません。MacのGoogle CLI設定は[GCPセットアップ手順](doc-gcp/setup.md)、共通のアプリ機能の資料は `docs/` を参照してください。
 
 ## 案件部屋と食堂
 

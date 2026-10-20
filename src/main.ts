@@ -1,3 +1,5 @@
+import { SpacesUI } from './game/spaces-ui.ts';
+import './spaces.css';
 import { configurePersonalStorage, setupPersonalDataUI, finishPersonalWrites } from './game/personal-storage.ts';
 import { userIdentity } from './game/identity.ts';
 import { SPELLS, SPELL_KINDS } from './game/spells.ts';
@@ -85,7 +87,7 @@ app.innerHTML = `
         <button type="button" id="slack-auth-retry" hidden>ログイン状態を再確認</button>
         <p id="slack-login-help">ログインすると、名前とSlack IDが自動で設定されます。</p>
       </section>
-      <div class="map-heading"><div><span class="eyebrow">LET’S TAKE A LITTLE WALK</span><h2 id="map-title">小さなオフィスへ、ようこそ。</h2></div><button type="button" id="admin-open" hidden disabled>⚙ 管理者モード</button>${import.meta.env.DEV ? '<button type="button" id="dev-world-open" hidden disabled>⚙ 出現テスト</button>' : ''}<button type="button" class="help-button" id="help-button" aria-label="操作方法を表示">?</button></div>
+      <div class="map-heading"><div><span class="eyebrow">LET’S TAKE A LITTLE WALK</span><h2 id="map-title">小さなオフィスへ、ようこそ。</h2></div><button type="button" id="server-open">サーバーを選ぶ</button><button type="button" id="server-admin-open" hidden>サーバーと所属を管理</button><button type="button" id="admin-open" hidden disabled>⚙ 管理者モード</button>${import.meta.env.DEV ? '<button type="button" id="dev-world-open" hidden disabled>⚙ 出現テスト</button>' : ''}<button type="button" class="help-button" id="help-button" aria-label="操作方法を表示">?</button></div>
       <section class="room-switcher" aria-label="フロア移動"><div><span class="eyebrow" data-open-room-count>${ROOMS.length} ROOMS TO EXPLORE</span><strong data-room-name>ひだまりオフィス</strong><p id="room-description"></p><span id="robot-location" class="robot-location">WAIWAI-01 / 胴体</span></div><div class="room-switcher-actions"><button type="button" id="people-open">人を探す</button><button type="button" id="room-picker-open">部屋を移動 <span aria-hidden="true">↗</span></button></div></section>
       <p id="people-travel-status" role="status"></p>
       <section id="arena-panel" class="arena-panel" hidden aria-label="魔法闘技場"><span class="eyebrow">MAGIC DUEL · 90 SECONDS</span><h3>魔法で、ひと勝負。</h3><p>2人が参加すると開始。HP100・ファイア1発25ダメージ。氷で防ぎ、ダッシュでかわそう。</p><div id="arena-fighters"></div><p id="arena-status" role="status"></p><div><button type="button" id="arena-join">対戦に参加</button><button type="button" id="arena-leave">参加をやめる</button></div><p id="arena-error" role="status"></p><small>マップ操作中：F ファイア / B ブリザド / 同じ矢印キーを2回でダッシュ。結果は全館に放送します。</small></section>
@@ -185,7 +187,9 @@ setupPersonalDataUI(auth.user?.name ?? 'ゲスト');
 if (auth.user) document.querySelector('#buddy-dialog .field-hint')!.textContent = '選択とお気に入りは、ログインしたアカウントに保存します。';
 const parent = document.querySelector<HTMLElement>('#game')!;
 const disposeDialogDismissals = setupDialogDismissals(document.body);
-const { game, scene } = startOffice(parent, initialSlack, authUnavailable || (!!auth.required && !auth.user));
+const spacesUI = new SpacesUI();
+const spaceReady = await spacesUI.initialize();
+const { game, scene } = startOffice(parent, initialSlack, !spaceReady || authUnavailable || (!!auth.required && !auth.user));
 const disposeAvatarEditor = setupAvatarEditor(scene);
 setupBuddyEditor(scene);
 const nameInput = document.querySelector<HTMLInputElement>('#display-name')!;
@@ -277,4 +281,4 @@ dialog.addEventListener('close', () => game.canvas.focus({ preventScroll: true }
 
 document.querySelectorAll<HTMLDialogElement>('#avatar-dialog, #room-dialog, #object-links-dialog, #lost-item-info, #broadcast-dialog, #schedule-dialog, #event-detail-dialog, #event-journal-dialog, #office-calendar-dialog, #cockpit-dialog, #arcade-dialog').forEach((item) => item.addEventListener('close', () => game.canvas.focus({ preventScroll: true })));
 
-if (import.meta.hot) import.meta.hot.dispose(() => { disposeDialogDismissals(); disposeAvatarEditor(); game.destroy(true); });
+if (import.meta.hot) import.meta.hot.dispose(() => { spacesUI.destroy(); disposeDialogDismissals(); disposeAvatarEditor(); game.destroy(true); });

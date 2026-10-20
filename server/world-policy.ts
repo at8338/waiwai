@@ -14,7 +14,9 @@ export class WorldPolicyStore {
   private queue: Promise<unknown> = Promise.resolve();
   private file?: string;
   private configuredAdministrator?: string;
-  constructor(file?: string, configuredAdministrator?: string) {
+  private administratorCheck?: (user?: AuthUser) => boolean;
+  constructor(file?: string, configuredAdministrator?: string, administratorCheck?: (user?: AuthUser) => boolean) {
+    this.administratorCheck = administratorCheck;
     this.file = file; this.configuredAdministrator = configuredAdministrator;
     if (configuredAdministrator && !persistentIdentity(configuredAdministrator)) throw new Error('WAIWAI_ADMIN_ACCOUNT_ID must be a verified Slack or Entra account ID.');
     if (!file) return;
@@ -31,7 +33,9 @@ export class WorldPolicyStore {
     } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error('Cannot load world policy. Preserve the file and restore a valid backup.'); }
   }
   snapshot(): WorldPolicy { return structuredClone(this.state); }
+  administratorAccountId(): string | undefined { return this.configuredAdministrator ?? this.administrator; }
   isAdministrator(user?: AuthUser): boolean {
+    if (this.administratorCheck) return this.administratorCheck(user);
     if (!user) return false;
     let id: string; try { id = userIdentity(user); } catch { return false; }
     // An explicitly provisioned immutable ID is required for Microsoft accounts.

@@ -12,7 +12,7 @@ import { deploymentConfig, buildTurnConfig, verifyMfaPolicy } from './deployment
 import { LinkStore } from '../../server/links.ts';
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const run = (cmd, args, options = {}) => execFileSync(cmd, args, { cwd: root, stdio: 'inherit', ...options });
-const output = JSON.parse(run('terraform', ['-chdir=infra/environments/dev', 'output', '-json'], { encoding: 'utf8', stdio: 'pipe' }));
+const output = JSON.parse(run('terraform', ['-chdir=infra-azure/environments/dev', 'output', '-json'], { encoding: 'utf8', stdio: 'pipe' }));
 const { domain, publicIp: ip, privateIp, target } = deploymentConfig(output);
 const source = parseEnv(await readFile(resolve(root, '.env'), 'utf8'));
 const authEnv = buildAuthEnv(source, domain);

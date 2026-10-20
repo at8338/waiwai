@@ -1,8 +1,0 @@
-# Fill from: terraform -chdir=infra/bootstrap output -raw backend
-resource_group_name = "dev-waiwai-jpe-rg-tfstate-001"
-storage_account_name = "REPLACE_WITH_BOOTSTRAP_OUTPUT"
-container_name = "tfstate"
-key = "waiwai.dev.tfstate"
-use_azuread_auth = true
-use_cli = true
-subscription_id = "00000000-0000-0000-0000-000000000000"

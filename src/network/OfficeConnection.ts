@@ -94,6 +94,7 @@ export class OfficeConnection {
     this.handlers.state(this.attempts ? 'reconnecting' : 'connecting');
     const url = new URL('/office', location.href);
     url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const space = new URL(location.href).searchParams.get('space'); if (space) url.searchParams.set('space', space);
     const socket = this.socket = new WebSocket(url);
     this.watchdog = window.setTimeout(() => socket.close(), 8000);
     socket.onmessage = (event) => {
@@ -200,7 +201,7 @@ export class OfficeConnection {
       this.id = undefined;
       this.players.clear();
       this.slots.clear();
-      if (event.code === 4001) {
+      if (event.code === 4001 || event.code === 4003) {
         this.handlers.state('reconnecting');
         window.location.reload();
         return;
